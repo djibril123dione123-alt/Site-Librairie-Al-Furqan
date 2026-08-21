@@ -304,7 +304,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
       <div className="step-block">
         <h3 className="serif text-xl font-medium mb-4">1. Mode de réception</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <label className={`delivery-method-card p-5 border-2 rounded-xl cursor-pointer transition-all ${method === 'standard' ? 'border-[#b28a52] bg-[#f4ebd8]' : 'border-[#e3dcd1] bg-[#fbf9f4] hover:border-[#b28a52]'}`}>
+          <label className={`delivery-method-card p-5 border-2 rounded-xl cursor-pointer transition-all ${method === 'standard' ? 'border-[var(--gold)] bg-[var(--paper)]' : 'border-[var(--line)] bg-[var(--bg)] hover:border-[var(--gold)]'}`}>
             <input 
               type="radio" 
               name="method" 
@@ -313,12 +313,12 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
               checked={method === 'standard'}
               onChange={() => setMethod('standard')} 
             />
-            <Truck size={24} className="mb-3 text-[#b28a52]" />
+            <Truck size={24} className="mb-3 text-[var(--gold)]" />
             <strong className="block serif text-lg mb-1">Livraison à une adresse</strong>
-            <p className="text-xs text-[#64736f]">Livraison à domicile, bureau ou quartier au Sénégal.</p>
+            <p className="text-xs text-[var(--muted)]">Livraison à domicile, bureau ou quartier au Sénégal.</p>
           </label>
           
-          <label className={`delivery-method-card p-5 border-2 rounded-xl cursor-pointer transition-all ${method === 'la_poste' ? 'border-[#b28a52] bg-[#f4ebd8]' : 'border-[#e3dcd1] bg-[#fbf9f4] hover:border-[#b28a52]'}`}>
+          <label className={`delivery-method-card p-5 border-2 rounded-xl cursor-pointer transition-all ${method === 'la_poste' ? 'border-[var(--gold)] bg-[var(--paper)]' : 'border-[var(--line)] bg-[var(--bg)] hover:border-[var(--gold)]'}`}>
             <input 
               type="radio" 
               name="method" 
@@ -327,22 +327,22 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
               checked={method === 'la_poste'}
               onChange={() => setMethod('la_poste')} 
             />
-            <Building size={24} className="mb-3 text-[#b28a52]" />
+            <Building size={24} className="mb-3 text-[var(--gold)]" />
             <strong className="block serif text-lg mb-1">La Poste Sénégal</strong>
-            <p className="text-xs text-[#64736f]">Retrait dans un bureau de poste cartographié.</p>
+            <p className="text-xs text-[var(--muted)]">Retrait dans un bureau de poste cartographié.</p>
           </label>
         </div>
       </div>
 
       {/* 2. Hiérarchie géographique */}
       {method && (
-        <div className="step-block border-t border-[#e3dcd1] pt-8 animate-in fade-in space-y-6">
+        <div className="step-block border-t border-[var(--line)] pt-8 animate-in fade-in space-y-6">
           <h3 className="serif text-xl font-medium">2. Localisation (ANSD RGPH-5 2023)</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Région */}
             <div>
-              <label className="block text-xs uppercase tracking-widest text-[#b28a52] mb-2 font-semibold">Région (14 régions du Sénégal)</label>
+              <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Région (14 régions du Sénégal)</label>
               <SearchableCombobox
                 options={regions}
                 value={selectedRegion}
@@ -359,7 +359,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
 
             {/* Département */}
             <div>
-              <label className="block text-xs uppercase tracking-widest text-[#b28a52] mb-2 font-semibold">Département (Optionnel)</label>
+              <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Département (Optionnel)</label>
               <SearchableCombobox
                 options={departments}
                 value={selectedDept}
@@ -376,7 +376,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
 
             {/* Commune */}
             <div>
-              <label className="block text-xs uppercase tracking-widest text-[#b28a52] mb-2 font-semibold">Commune / Arrondissement (Optionnel)</label>
+              <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Commune / Arrondissement (Optionnel)</label>
               <SearchableCombobox
                 options={communes}
                 value={selectedCommune}
@@ -392,7 +392,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
 
             {/* Localité / Quartier (Serveur Search Engine) */}
             <div>
-              <label className="block text-xs uppercase tracking-widest text-[#b28a52] mb-2 font-semibold">Localité / Quartier / Village</label>
+              <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Localité / Quartier / Village</label>
               <SearchableCombobox
                 options={localitiesOptions}
                 value={selectedLocality}
@@ -409,16 +409,16 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
 
           {/* Fallback Saisie Manuelle Localité */}
           {selectedLocality === "Je ne trouve pas ma localité" && (
-            <div className="bg-[#f4ebd8] p-4 rounded-lg border border-[#b28a52] animate-in fade-in">
-              <label className="block text-xs uppercase tracking-widest text-[#b28a52] mb-2 font-semibold">Saisissez le nom de votre localité</label>
+            <div className="bg-[var(--paper)] p-4 rounded-lg border border-[var(--gold)] animate-in fade-in">
+              <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Saisissez le nom de votre localité</label>
               <input 
                 type="text" 
                 value={customLocalityInput}
                 onChange={(e) => setCustomLocalityInput(e.target.value)}
                 placeholder="Ex: Touba Mosquée, Village de Ndiemane..."
-                className="w-full border border-[#e3dcd1] bg-[#fbf9f4] p-3 rounded-md text-sm"
+                className="w-full border border-[var(--line)] bg-[var(--bg)] p-3 rounded-md text-sm"
               />
-              <p className="text-[11px] text-[#64736f] mt-1">Cette précision sera transmise directement avec votre commande WhatsApp.</p>
+              <p className="text-[11px] text-[var(--muted)] mt-1">Cette précision sera transmise directement avec votre commande WhatsApp.</p>
             </div>
           )}
 
@@ -426,23 +426,23 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
           {method === 'standard' && selectedLocality && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
               <div>
-                <label className="block text-xs uppercase tracking-widest text-[#b28a52] mb-2 font-semibold">Quartier / Rue (Requis)</label>
+                <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Quartier / Rue (Requis)</label>
                 <input 
                   type="text" 
                   value={quartier}
                   onChange={(e) => setQuartier(e.target.value)}
                   placeholder="Ex: Sicap Liberté 5, Rue 10"
-                  className="w-full border border-[#e3dcd1] bg-[#fbf9f4] p-3 rounded-md text-sm"
+                  className="w-full border border-[var(--line)] bg-[var(--bg)] p-3 rounded-md text-sm"
                 />
               </div>
               <div>
-                <label className="block text-xs uppercase tracking-widest text-[#b28a52] mb-2 font-semibold">Repère / Précision (Optionnel)</label>
+                <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Repère / Précision (Optionnel)</label>
                 <input 
                   type="text" 
                   value={repere}
                   onChange={(e) => setRepere(e.target.value)}
                   placeholder="Ex: Près de la mosquée, Villa 102..."
-                  className="w-full border border-[#e3dcd1] bg-[#fbf9f4] p-3 rounded-md text-sm"
+                  className="w-full border border-[var(--line)] bg-[var(--bg)] p-3 rounded-md text-sm"
                 />
               </div>
             </div>
@@ -452,11 +452,11 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
 
       {/* 3. Sélection Bureau La Poste */}
       {method === 'la_poste' && (
-        <div className="step-block border-t border-[#e3dcd1] pt-8 animate-in fade-in space-y-4">
+        <div className="step-block border-t border-[var(--line)] pt-8 animate-in fade-in space-y-4">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
               <h3 className="serif text-xl font-medium">3. Bureau de Poste ({allOffices.length} points cartographiés)</h3>
-              <p className="text-xs text-[#64736f] mt-0.5">Points de service officiellement cartographiés par La Poste Sénégal.</p>
+              <p className="text-xs text-[var(--muted)] mt-0.5">Points de service officiellement cartographiés par La Poste Sénégal.</p>
             </div>
             
             <div className="flex items-center gap-3">
@@ -464,7 +464,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
                 type="button"
                 onClick={handleGeolocation} 
                 disabled={locating}
-                className="text-xs text-[#b28a52] flex items-center gap-1.5 hover:underline disabled:opacity-50 border border-[#b28a52] bg-[#f4ebd8] px-3 py-2 rounded-md font-medium"
+                className="text-xs text-[var(--gold)] flex items-center gap-1.5 hover:underline disabled:opacity-50 border border-[var(--gold)] bg-[var(--paper)] px-3 py-2 rounded-md font-medium"
               >
                 <Navigation size={14} /> 
                 {locating ? 'Géolocalisation...' : 'Trouver le plus proche'}
@@ -474,14 +474,14 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
                 href="https://www.google.com/maps/d/viewer?mid=11FgBObnRyCpT006ykvUBXRvNtIX-G4qT"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-[#64736f] flex items-center gap-1 hover:text-[#b28a52] underline"
+                className="text-xs text-[var(--muted)] flex items-center gap-1 hover:text-[var(--gold)] underline"
               >
                 Carte officielle <ExternalLink size={12} />
               </a>
             </div>
           </div>
 
-          <p className="text-[11px] text-[#64736f]">Votre position sert uniquement à trouver les bureaux de poste les plus proches.</p>
+          <p className="text-[11px] text-[var(--muted)]">Votre position sert uniquement à trouver les bureaux de poste les plus proches.</p>
           {geoError && <p className="text-xs text-red-500 font-medium">{geoError}</p>}
 
           <div className="mb-3">
@@ -490,7 +490,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
               value={officeSearch}
               onChange={(e) => setOfficeSearch(e.target.value)}
               placeholder="Filtrer les bureaux de poste par nom..."
-              className="w-full border border-[#e3dcd1] bg-[#fbf9f4] p-2.5 rounded-md text-xs"
+              className="w-full border border-[var(--line)] bg-[var(--bg)] p-2.5 rounded-md text-xs"
             />
           </div>
           
@@ -500,8 +500,8 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
                 key={office.id} 
                 className={`office-card p-4 border rounded-xl cursor-pointer transition-all ${
                   !isCustomOffice && selectedOffice?.id === office.id 
-                    ? 'border-[#b28a52] bg-[#f4ebd8]' 
-                    : 'border-[#e3dcd1] bg-[#fbf9f4] hover:bg-[#f4ebd8]/50'
+                    ? 'border-[var(--gold)] bg-[var(--paper)]' 
+                    : 'border-[var(--line)] bg-[var(--bg)] hover:bg-[var(--paper)]/50'
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -514,25 +514,25 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
                       setSelectedOffice(office);
                       setIsCustomOffice(false);
                     }}
-                    className="mt-1 accent-[#b28a52]"
+                    className="mt-1 accent-[var(--gold)]"
                   />
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <strong className="block text-sm text-[#1a1a2e]">{office.name}</strong>
+                      <strong className="block text-sm text-[var(--ink)]">{office.name}</strong>
                       {office.region && (
-                        <span className="text-[10px] bg-[#e3dcd1]/50 text-[#64736f] px-2 py-0.5 rounded">
+                        <span className="text-[10px] bg-[var(--line)]/50 text-[var(--muted)] px-2 py-0.5 rounded">
                           {office.region}
                         </span>
                       )}
                     </div>
                     {office.address && (
-                      <span className="text-xs text-[#64736f] flex items-center gap-1 mt-1">
-                        <MapPin size={12} className="text-[#b28a52]" /> {office.address}
+                      <span className="text-xs text-[var(--muted)] flex items-center gap-1 mt-1">
+                        <MapPin size={12} className="text-[var(--gold)]" /> {office.address}
                       </span>
                     )}
                   </div>
                   {office.distanceKm !== undefined && (
-                    <span className="text-xs font-semibold text-[#b28a52] bg-white border border-[#e3dcd1] px-2.5 py-1 rounded-full shadow-sm">
+                    <span className="text-xs font-semibold text-[var(--gold)] bg-white border border-[var(--line)] px-2.5 py-1 rounded-full shadow-sm">
                       ≈ {office.distanceKm.toFixed(1)} km
                     </span>
                   )}
@@ -543,7 +543,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
             {/* Saisie Manuelle Bureau Si non trouvé */}
             <label 
               className={`office-card p-4 border rounded-xl cursor-pointer transition-all ${
-                isCustomOffice ? 'border-[#b28a52] bg-[#f4ebd8]' : 'border-[#e3dcd1] bg-[#fbf9f4] hover:bg-[#f4ebd8]/50'
+                isCustomOffice ? 'border-[var(--gold)] bg-[var(--paper)]' : 'border-[var(--line)] bg-[var(--bg)] hover:bg-[var(--paper)]/50'
               }`}
             >
               <div className="flex items-start gap-3">
@@ -556,25 +556,25 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
                     setIsCustomOffice(true);
                     setSelectedOffice(null);
                   }}
-                  className="mt-1 accent-[#b28a52]"
+                  className="mt-1 accent-[var(--gold)]"
                 />
                 <div className="flex-1">
-                  <strong className="block text-sm text-[#b28a52]">+ Je ne trouve pas mon bureau (saisie manuelle)</strong>
-                  <p className="text-xs text-[#64736f] mt-0.5">Indiquez le nom de l’agence La Poste la plus proche de chez vous.</p>
+                  <strong className="block text-sm text-[var(--gold)]">+ Je ne trouve pas mon bureau (saisie manuelle)</strong>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">Indiquez le nom de l’agence La Poste la plus proche de chez vous.</p>
                 </div>
               </div>
             </label>
           </div>
 
           {isCustomOffice && (
-            <div className="bg-[#f4ebd8] p-4 rounded-lg border border-[#b28a52] animate-in fade-in">
-              <label className="block text-xs uppercase tracking-widest text-[#b28a52] mb-2 font-semibold">Nom du bureau de poste</label>
+            <div className="bg-[var(--paper)] p-4 rounded-lg border border-[var(--gold)] animate-in fade-in">
+              <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Nom du bureau de poste</label>
               <input 
                 type="text" 
                 value={customOfficeInput}
                 onChange={(e) => setCustomOfficeInput(e.target.value)}
                 placeholder="Ex: Bureau de Poste de Linguère, Agence Keur Massar..."
-                className="w-full border border-[#e3dcd1] bg-[#fbf9f4] p-3 rounded-md text-sm"
+                className="w-full border border-[var(--line)] bg-[var(--bg)] p-3 rounded-md text-sm"
               />
             </div>
           )}

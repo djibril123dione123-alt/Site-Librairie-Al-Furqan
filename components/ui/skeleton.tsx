@@ -9,20 +9,15 @@ export function Skeleton({
 }) {
   return (
     <div
-      className={`skeleton-loader ${className}`}
-      style={{
-        backgroundColor: '#E2E8F0',
-        borderRadius: 6,
-        animation: 'skeleton-pulse 1.5s ease-in-out infinite',
-        ...style,
-      }}
+      className={`skeleton ${className}`}
+      style={style}
     />
   );
 }
 
 export function BookCardSkeleton() {
   return (
-    <div className="book-card-skeleton" style={{ padding: 12, borderRadius: 8, background: '#FFF', border: '1px solid #E2E8F0' }}>
+    <div className="book-card-skeleton" style={{ padding: 12, borderRadius: 8, background: 'var(--surface)', border: '1px solid var(--line)' }}>
       <Skeleton style={{ width: '100%', height: 210, borderRadius: 6, marginBottom: 12 }} />
       <Skeleton style={{ width: '40%', height: 12, marginBottom: 8 }} />
       <Skeleton style={{ width: '85%', height: 16, marginBottom: 6 }} />

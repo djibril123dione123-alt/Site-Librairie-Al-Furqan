@@ -86,27 +86,27 @@ export function SearchableCombobox({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between border border-[#e3dcd1] bg-[#fbf9f4] p-3 rounded-md text-sm text-left disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-[#b28a52]"
+        className="w-full flex items-center justify-between border border-[var(--line)] bg-[var(--bg)] p-3 rounded-md text-sm text-left disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-[var(--gold)]"
       >
-        <span className={selectedOption ? 'text-[#1a1a2e] font-medium' : 'text-[#64736f]'}>
+        <span className={selectedOption ? 'text-[var(--ink)] font-medium' : 'text-[var(--muted)]'}>
           {selectedOption ? selectedOption.label : placeholder}
         </span>
-        <ChevronDown size={16} className="text-[#8c7b6c] shrink-0 ml-2" />
+        <ChevronDown size={16} className="text-[var(--muted)] shrink-0 ml-2" />
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-[#fbf9f4] border border-[#e3dcd1] rounded-md shadow-xl max-h-72 overflow-hidden flex flex-col animate-in fade-in zoom-in-95">
-          <div className="p-2 border-b border-[#e3dcd1] bg-[#f4ebd8] flex items-center gap-2">
-            <Search size={16} className="text-[#8c7b6c] shrink-0" />
+        <div className="absolute z-50 mt-1 w-full bg-[var(--bg)] border border-[var(--line)] rounded-md shadow-xl max-h-72 overflow-hidden flex flex-col animate-in fade-in zoom-in-95">
+          <div className="p-2 border-b border-[var(--line)] bg-[var(--paper)] flex items-center gap-2">
+            <Search size={16} className="text-[var(--muted)] shrink-0" />
             <input
               type="text"
               autoFocus
               value={search}
               onChange={handleInputChange}
               placeholder={searchPlaceholder}
-              className="w-full bg-transparent text-sm focus:outline-none text-[#1a1a2e]"
+              className="w-full bg-transparent text-sm focus:outline-none text-[var(--ink)]"
             />
-            {loading && <Loader2 size={14} className="animate-spin text-[#b28a52] shrink-0" />}
+            {loading && <Loader2 size={14} className="animate-spin text-[var(--gold)] shrink-0" />}
             {search && !loading && (
               <button 
                 type="button" 
@@ -114,7 +114,7 @@ export function SearchableCombobox({
                   setSearch('');
                   if (onSearchChange) onSearchChange('');
                 }} 
-                className="text-[#8c7b6c] hover:text-[#1a1a2e]"
+                className="text-[var(--muted)] hover:text-[var(--ink)]"
               >
                 <X size={14} />
               </button>
@@ -123,7 +123,7 @@ export function SearchableCombobox({
 
           <div className="overflow-y-auto max-h-56 p-1">
             {filteredOptions.length === 0 && !loading ? (
-              <div className="p-3 text-xs text-[#64736f] text-center">{emptyText}</div>
+              <div className="p-3 text-xs text-[var(--muted)] text-center">{emptyText}</div>
             ) : (
               filteredOptions.map((opt) => (
                 <button
@@ -135,7 +135,7 @@ export function SearchableCombobox({
                     setSearch('');
                   }}
                   className={`w-full flex items-center justify-between p-2.5 rounded text-xs text-left transition-colors ${
-                    value === opt.value ? 'bg-[#b28a52] text-white font-medium' : 'hover:bg-[#f4ebd8] text-[#1a1a2e]'
+                    value === opt.value ? 'bg-[var(--gold)] text-white font-medium' : 'hover:bg-[var(--paper)] text-[var(--ink)]'
                   }`}
                 >
                   <div>
@@ -155,7 +155,7 @@ export function SearchableCombobox({
                   setIsOpen(false);
                   setSearch('');
                 }}
-                className="w-full mt-1 border-t border-[#e3dcd1] p-2.5 text-xs text-[#b28a52] font-semibold text-left hover:bg-[#f4ebd8]"
+                className="w-full mt-1 border-t border-[var(--line)] p-2.5 text-xs text-[var(--gold)] font-semibold text-left hover:bg-[var(--paper)]"
               >
                 + {customFallbackOption}
               </button>

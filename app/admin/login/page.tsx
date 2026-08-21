@@ -93,10 +93,10 @@ function AdminLoginForm() {
   return (
     <div className="admin-login-card">
       <div className="admin-login-logo">
-        <BookOpen size={24} className="text-[#0c2d38]" />
+        <BookOpen size={24} className="text-[var(--admin-petrol)]" />
         <div>
           <strong>Al Furqan</strong>
-          <small className="block text-[#718096]">Espace Administration</small>
+          <small className="block text-[var(--admin-text-muted)]">Espace Administration</small>
         </div>
       </div>
 

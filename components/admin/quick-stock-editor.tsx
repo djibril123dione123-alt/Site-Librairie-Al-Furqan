@@ -59,8 +59,8 @@ export function QuickStockEditor({
           </option>
         ))}
       </select>
-      {saving && <Loader2 size={13} style={{ color: '#718096', animation: 'spin 1s linear infinite' }} />}
-      {saved && <Check size={13} style={{ color: '#38a169' }} />}
+      {saving && <Loader2 size={13} style={{ color: 'var(--admin-text-muted)', animation: 'spin 1s linear infinite' }} />}
+      {saved && <Check size={13} style={{ color: 'var(--admin-success-text)' }} />}
     </div>
   );
 }

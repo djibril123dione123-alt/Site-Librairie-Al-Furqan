@@ -218,20 +218,34 @@ export async function PUT(
 
     await supabase.from('product_images').delete().eq('product_id', id);
     let coverAssigned = false;
-    const newImageRows = body.images.map((img: any, idx: number) => {
+    const newImageRows = [];
+    
+    for (let idx = 0; idx < body.images.length; idx++) {
+      const img = body.images[idx];
       let type = img.type || (idx === 0 ? 'cover' : 'inside');
       if (type === 'cover') {
         if (coverAssigned) type = 'inside';
         else coverAssigned = true;
       }
-      return {
+      
+      let storage_path = img.storagePath;
+      if (storage_path && storage_path.startsWith('temp/')) {
+        const filename = storage_path.split('/').pop();
+        const newPath = `${id}/${filename}`;
+        const { error: moveError } = await supabase.storage.from('product-images').move(storage_path, newPath);
+        if (!moveError) {
+          storage_path = newPath;
+        }
+      }
+
+      newImageRows.push({
         product_id: id,
-        storage_path: img.storagePath,
+        storage_path,
         type,
         position: img.position ?? idx,
         alt_text: img.altText || null,
-      };
-    });
+      });
+    }
 
     if (newImageRows.length > 0) {
       await supabase.from('product_images').insert(newImageRows as any);

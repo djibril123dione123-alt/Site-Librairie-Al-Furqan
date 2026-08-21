@@ -162,7 +162,7 @@ export function AuthorsManager({ initialAuthors }: { initialAuthors: AdminAuthor
 
       {showModal && (
         <div className="admin-drawer-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="admin-card" style={{ maxWidth: 480, width: '100%', margin: 'auto', backgroundColor: '#FFF', position: 'relative' }}>
+          <div className="admin-card" style={{ maxWidth: 480, width: '100%', margin: 'auto', backgroundColor: 'var(--admin-surface)', position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
                 {editingAuthor ? 'Modifier l\'auteur' : 'Créer un nouvel auteur'}

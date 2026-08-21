@@ -25,7 +25,7 @@ async function PublisherProductsList({ publisherSlug }: { publisherSlug: string 
 
   if (products.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '60px 20px', background: '#FFF', borderRadius: 12, border: '1px solid var(--line)', marginTop: 24 }}>
+      <div style={{ textAlign: 'center', padding: '60px 20px', background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--line)', marginTop: 24 }}>
         <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>Aucun ouvrage répertorié pour cette maison d&apos;édition</h3>
         <p style={{ color: 'var(--muted)', fontSize: 14, maxWidth: 450, margin: '10px auto 24px' }}>
           Les éditions de cette maison seront progressivement ajoutées au catalogue en ligne.

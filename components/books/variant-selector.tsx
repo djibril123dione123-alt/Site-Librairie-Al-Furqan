@@ -16,13 +16,13 @@ export function VariantSelector({ product, selected, onChange }: VariantSelector
   );
 
   return (
-    <div className="my-4 p-5 border border-[#e3dcd1] rounded-xl bg-[#fbf9f4]">
-      <span className="block text-[10px] tracking-widest uppercase text-[#b28a52] mb-4">
+    <div className="my-4 p-5 border border-[var(--line)] rounded-xl bg-[var(--bg)]">
+      <span className="block text-[10px] tracking-widest uppercase text-[var(--gold)] mb-4">
         Choisir votre édition
       </span>
       {labels.map((label) => (
         <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-5 mt-4 text-sm" key={label}>
-          <strong className="min-w-[70px] font-medium text-[#112a32]">{label}</strong>
+          <strong className="min-w-[70px] font-medium text-[var(--ink)]">{label}</strong>
           <div className="flex flex-wrap gap-2">
             {product.variants
               ?.filter((variant) => variant.attributes.some((attribute) => attribute.label === label))
@@ -34,8 +34,8 @@ export function VariantSelector({ product, selected, onChange }: VariantSelector
                     key={variant.id}
                     className={`px-4 py-2 border rounded-lg transition-all text-sm ${
                       isSelected 
-                        ? 'border-[#b28a52] bg-[#f4ebd8] text-[#112a32] font-medium shadow-sm' 
-                        : 'border-[#e3dcd1] bg-white text-[#64736f] hover:border-[#b28a52]'
+                        ? 'border-[var(--gold)] bg-[var(--paper)] text-[var(--ink)] font-medium shadow-sm' 
+                        : 'border-[var(--line)] bg-white text-[var(--muted)] hover:border-[var(--gold)]'
                     }`}
                     onClick={() => onChange(variant)}
                     aria-pressed={isSelected}

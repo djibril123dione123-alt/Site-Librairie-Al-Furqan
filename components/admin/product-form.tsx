@@ -174,6 +174,7 @@ export function ProductForm({
   const [warning, setWarning] = useState('');
   const [success, setSuccess] = useState('');
   const [biblioOpen, setBiblioOpen] = useState(true);
+  const [dragActive, setDragActive] = useState(false);
   
   const router = useRouter();
 
@@ -459,8 +460,8 @@ export function ProductForm({
         status: finalStatus,
         color: form.color,
         hasVariants: form.hasVariants,
-        images: images.map((img, idx) => ({
-          storagePath: img.storagePath || img.preview,
+        images: images.filter(img => !img.uploading && img.storagePath).map((img, idx) => ({
+          storagePath: img.storagePath,
           type: img.type,
           position: idx
         })),
@@ -531,36 +532,43 @@ export function ProductForm({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {productId && form.status === 'published' && form.slug && (
-            <Link 
-              href={`/livres/${form.slug}`} 
-              target="_blank" 
-              className="btn btn-secondary btn-sm"
-            >
-              <Eye size={14} />
-              <span>Voir sur le site</span>
-            </Link>
-          )}
+          {(() => {
+            const isUploading = images.some(img => img.uploading);
+            return (
+              <>
+                {productId && form.status === 'published' && form.slug && (
+                  <Link 
+                    href={`/livres/${form.slug}`} 
+                    target="_blank" 
+                    className="btn btn-secondary btn-sm"
+                  >
+                    <Eye size={14} />
+                    <span>Voir sur le site</span>
+                  </Link>
+                )}
 
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={saving}
-            onClick={(e) => handleFormSubmit(e as any, 'draft')}
-          >
-            {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
-            <span>Enregistrer brouillon</span>
-          </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={saving || isUploading}
+                  onClick={(e) => handleFormSubmit(e as any, 'draft')}
+                >
+                  {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+                  <span>{isUploading ? 'Upload en cours...' : 'Enregistrer brouillon'}</span>
+                </button>
 
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={saving}
-            onClick={(e) => handleFormSubmit(e as any, 'published')}
-          >
-            {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={14} />}
-            <span>{productId ? 'Mettre à jour & Publier' : 'Publier le livre'}</span>
-          </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={saving || isUploading}
+                  onClick={(e) => handleFormSubmit(e as any, 'published')}
+                >
+                  {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={14} />}
+                  <span>{isUploading ? 'Upload en cours...' : (productId ? 'Mettre à jour & Publier' : 'Publier le livre')}</span>
+                </button>
+              </>
+            );
+          })()}
         </div>
       </div>
 
@@ -597,7 +605,7 @@ export function ProductForm({
 
             <div className="form-group">
               <label className="form-label" htmlFor="title">
-                Titre de l&apos;ouvrage <span style={{ color: '#DC2626' }}>*</span>
+                Titre de l&apos;ouvrage <span style={{ color: 'var(--danger)' }}>*</span>
               </label>
               <input
                 id="title"
@@ -737,7 +745,7 @@ export function ProductForm({
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label" htmlFor="price">
-                  Prix de vente (FCFA) {form.status === 'published' && <span style={{ color: '#DC2626' }}>*</span>}
+                  Prix de vente (FCFA) {form.status === 'published' && <span style={{ color: 'var(--danger)' }}>*</span>}
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
@@ -775,7 +783,7 @@ export function ProductForm({
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label" htmlFor="stockQuantity">
-                  Quantité en stock physique {form.status === 'published' && <span style={{ color: '#DC2626' }}>*</span>}
+                  Quantité en stock physique {form.status === 'published' && <span style={{ color: 'var(--danger)' }}>*</span>}
                 </label>
                 <input
                   id="stockQuantity"
@@ -816,11 +824,13 @@ export function ProductForm({
             <div className="form-group">
               <label className="form-label">Upload d&apos;images (JPG, PNG, WebP — max 5 Mo)</label>
               <div
-                className="upload-dropzone"
+                className={`upload-dropzone ${dragActive ? 'drag-active' : ''}`}
                 onClick={() => document.getElementById('product-image-input')?.click()}
-                onDragOver={(e) => e.preventDefault()}
+                onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                onDragLeave={() => setDragActive(false)}
                 onDrop={(e) => {
                   e.preventDefault();
+                  setDragActive(false);
                   handleImageSelect(e.dataTransfer.files);
                 }}
               >
@@ -885,7 +895,7 @@ export function ProductForm({
                       checked={form.color === c.value}
                       onChange={() => setField('color', c.value)}
                     />
-                    <span style={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: c.bg, border: '1px solid #CBD5E1' }} />
+                    <span style={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: c.bg, border: '1px solid var(--admin-border)' }} />
                     <span>{c.label}</span>
                   </label>
                 ))}
@@ -994,8 +1004,8 @@ export function ProductForm({
 
           {/* Section 6 : Options Coran (Conditionnel) */}
           {isCoran && (
-            <div className="form-section" style={{ backgroundColor: '#FBF9F4', borderColor: '#FDE68A' }}>
-              <div className="form-section-title" style={{ color: '#92400E' }}>
+            <div className="form-section" style={{ backgroundColor: 'var(--admin-ivory)', borderColor: 'var(--admin-warning-border)' }}>
+              <div className="form-section-title" style={{ color: 'var(--admin-warning-text)' }}>
                 <span>6 — Spécificités de l&apos;Édition du Coran</span>
                 <BookOpen size={16} />
               </div>
@@ -1022,7 +1032,7 @@ export function ProductForm({
                       checked={form.tajwid}
                       onChange={(e) => setField('tajwid', e.target.checked)}
                     />
-                    <span style={{ fontWeight: 600, color: '#92400E' }}>Tajwid (Code couleur repères de récitation)</span>
+                    <span style={{ fontWeight: 600, color: 'var(--admin-warning-text)' }}>Tajwid (Code couleur repères de récitation)</span>
                   </label>
                 </div>
               </div>
@@ -1122,7 +1132,7 @@ export function ProductForm({
             </div>
 
             <div className="form-group">
-              <label className="form-label" htmlFor="category-select">Catégorie {form.status === 'published' && <span style={{ color: '#DC2626' }}>*</span>}</label>
+              <label className="form-label" htmlFor="category-select">Catégorie {form.status === 'published' && <span style={{ color: 'var(--danger)' }}>*</span>}</label>
               <select
                 id="category-select"
                 className="form-select"
@@ -1194,7 +1204,7 @@ export function ProductForm({
       {/* Modal Auteur */}
       {showAuthorModal && (
         <div className="admin-drawer-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="admin-card" style={{ maxWidth: 450, width: '100%', margin: 'auto', backgroundColor: '#FFF', position: 'relative' }}>
+          <div className="admin-card" style={{ maxWidth: 450, width: '100%', margin: 'auto', backgroundColor: 'var(--admin-surface)', position: 'relative' }}>
             <h3 style={{ marginTop: 0, fontSize: 16, fontWeight: 700 }}>Créer un nouvel auteur</h3>
             <div className="form-group">
               <label className="form-label">Nom de l&apos;auteur *</label>
@@ -1232,7 +1242,7 @@ export function ProductForm({
       {/* Modal Éditeur */}
       {showPublisherModal && (
         <div className="admin-drawer-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="admin-card" style={{ maxWidth: 450, width: '100%', margin: 'auto', backgroundColor: '#FFF', position: 'relative' }}>
+          <div className="admin-card" style={{ maxWidth: 450, width: '100%', margin: 'auto', backgroundColor: 'var(--admin-surface)', position: 'relative' }}>
             <h3 style={{ marginTop: 0, fontSize: 16, fontWeight: 700 }}>Créer un éditeur</h3>
             <div className="form-group">
               <label className="form-label">Nom de la maison d&apos;édition *</label>

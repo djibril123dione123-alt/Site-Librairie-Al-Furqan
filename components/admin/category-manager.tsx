@@ -106,9 +106,9 @@ export function CategoryManager({ categories: initial }: { categories: Category[
             <tbody>
               {categories.map((cat, index) => (
                 <tr key={cat.id} style={{ opacity: cat.isVisible ? 1 : 0.5 }}>
-                  <td style={{ color: '#718096' }}>{index + 1}</td>
+                  <td style={{ color: 'var(--admin-text-muted)' }}>{index + 1}</td>
                   <td><strong>{cat.name}</strong></td>
-                  <td style={{ fontSize: 12, color: '#718096' }}>{cat.slug}</td>
+                  <td style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>{cat.slug}</td>
                   <td>
                     <button
                       className="btn btn-secondary btn-sm"

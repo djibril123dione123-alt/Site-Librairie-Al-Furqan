@@ -200,20 +200,34 @@ export async function POST(request: NextRequest) {
   // 7. Images
   if (data.images && data.images.length > 0) {
     let coverAssigned = false;
-    const imageRows = data.images.map((img, idx) => {
+    const imageRows = [];
+    
+    for (let idx = 0; idx < data.images.length; idx++) {
+      const img = data.images[idx];
       let type = img.type || (idx === 0 ? 'cover' : 'inside');
       if (type === 'cover') {
         if (coverAssigned) type = 'inside';
         else coverAssigned = true;
       }
-      return {
+      
+      let storage_path = img.storagePath;
+      if (storage_path && storage_path.startsWith('temp/')) {
+        const filename = storage_path.split('/').pop();
+        const newPath = `${product.id}/${filename}`;
+        const { error: moveError } = await supabase.storage.from('product-images').move(storage_path, newPath);
+        if (!moveError) {
+          storage_path = newPath;
+        }
+      }
+
+      imageRows.push({
         product_id: product.id,
-        storage_path: img.storagePath,
+        storage_path,
         type,
         position: img.position ?? idx,
         alt_text: img.altText || null,
-      };
-    });
+      });
+    }
 
     await supabase.from('product_images').insert(imageRows as any);
   }

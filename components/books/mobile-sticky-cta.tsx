@@ -21,13 +21,13 @@ export function MobileStickyCta({ product, selected }: { product: Product; selec
 
   return (
     <div
-      className="md:hidden fixed bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-[#e3dcd1] z-40"
+      className="md:hidden fixed bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-[var(--line)] z-40"
       style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
     >
       <div className="flex items-center justify-between gap-3 max-w-md mx-auto">
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-medium text-[#1d3035] truncate">{product.title}</div>
-          <div className="text-xs font-semibold text-[#b28a52]">{formatPrice(price)}</div>
+          <div className="text-xs font-medium text-[var(--ink)] truncate">{product.title}</div>
+          <div className="text-xs font-semibold text-[var(--gold)]">{formatPrice(price)}</div>
         </div>
 
         {product.availability === 'Indisponible temporairement' ? (

@@ -32,7 +32,7 @@ export default async function CollectionsPage() {
       </header>
 
       {collections.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px', background: '#FFF', borderRadius: 12, border: '1px solid var(--line)' }}>
+        <div style={{ textAlign: 'center', padding: '60px 20px', background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--line)' }}>
           <Layers size={32} style={{ margin: '0 auto 12px', color: 'var(--gold)' }} />
           <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>Aucune collection publiée pour le moment</h3>
           <p style={{ color: 'var(--muted)', fontSize: 14, maxWidth: 450, margin: '10px auto 24px' }}>
@@ -54,7 +54,7 @@ export default async function CollectionsPage() {
                 flexDirection: 'column',
                 justifyContent: 'space-between',
                 padding: 28,
-                background: '#FFF',
+                background: 'var(--surface)',
                 borderRadius: 12,
                 border: '1px solid var(--line)',
                 transition: 'transform 0.2s, box-shadow 0.2s',

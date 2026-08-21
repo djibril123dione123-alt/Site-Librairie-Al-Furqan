@@ -35,11 +35,11 @@ export default async function DemandesPage() {
 
       <div className="admin-card">
         <h2 className="admin-card-title">Recherches sans résultat ({zeroResults.length})</h2>
-        <p style={{ color: '#718096', fontSize: 13, marginBottom: 16 }}>
+        <p style={{ color: 'var(--admin-text-muted)', fontSize: 13, marginBottom: 16 }}>
           Ces recherches n&apos;ont retourné aucun livre. Elles indiquent les ouvrages les plus demandés.
         </p>
         {zeroResults.length === 0 ? (
-          <p style={{ color: '#718096', fontSize: 13 }}>Aucune recherche sans résultat enregistrée.</p>
+          <p style={{ color: 'var(--admin-text-muted)', fontSize: 13 }}>Aucune recherche sans résultat enregistrée.</p>
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">
@@ -54,7 +54,7 @@ export default async function DemandesPage() {
                 {zeroResults.map((row) => (
                   <tr key={row.query}>
                     <td><strong>{row.query}</strong></td>
-                    <td style={{ textAlign: 'right', color: row.count >= 5 ? '#e53e3e' : '#718096' }}>
+                    <td style={{ textAlign: 'right', color: row.count >= 5 ? 'var(--admin-danger-text)' : 'var(--admin-text-muted)' }}>
                       {row.count}
                     </td>
                     <td>
@@ -75,11 +75,11 @@ export default async function DemandesPage() {
 
       <div className="admin-card">
         <h2 className="admin-card-title">Demandes d&apos;ouvrages ({bookRequests.length})</h2>
-        <p style={{ color: '#718096', fontSize: 13, marginBottom: 16 }}>
+        <p style={{ color: 'var(--admin-text-muted)', fontSize: 13, marginBottom: 16 }}>
           Visiteurs ayant cliqué « Demander cet ouvrage » sur WhatsApp.
         </p>
         {bookRequests.length === 0 ? (
-          <p style={{ color: '#718096', fontSize: 13 }}>Aucune demande enregistrée.</p>
+          <p style={{ color: 'var(--admin-text-muted)', fontSize: 13 }}>Aucune demande enregistrée.</p>
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">
@@ -94,7 +94,7 @@ export default async function DemandesPage() {
                 {bookRequests.map((row) => (
                   <tr key={row.query}>
                     <td><strong>{row.query}</strong></td>
-                    <td style={{ color: '#718096', fontSize: 12 }}>{row.source}</td>
+                    <td style={{ color: 'var(--admin-text-muted)', fontSize: 12 }}>{row.source}</td>
                     <td style={{ textAlign: 'right', fontWeight: 600 }}>{row.count}</td>
                   </tr>
                 ))}

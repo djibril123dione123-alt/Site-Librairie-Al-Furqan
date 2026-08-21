@@ -1,4 +1,4 @@
-import { Inter, Lora } from 'next/font/google';
+import { Inter, Fraunces } from 'next/font/google';
 import './globals.css';
 import type { Metadata } from 'next';
 import { siteConfig, getSiteUrl } from '@/lib/al-furqan-data';
@@ -6,7 +6,13 @@ import { StoreProvider } from '@/components/providers';
 import { StorefrontLayout } from '@/components/layout/storefront-layout';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
-const lora = Lora({ subsets: ['latin'], variable: '--font-serif', display: 'swap' });
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  style: ['normal', 'italic'],
+  variable: '--font-serif',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: {
@@ -30,7 +36,7 @@ export const metadata: Metadata = {
   twitter: { card: 'summary_large_image', title: siteConfig.brand, description: siteConfig.description },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large' } },
   icons: { icon: '/favicon.svg', apple: '/favicon.svg' },
-  themeColor: '#0c2d38',
+  themeColor: '#091e24', // matches canonical --deep token (app/globals.css)
   viewport: {
     width: 'device-width',
     initialScale: 1,
@@ -53,7 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   };
 
   return (
-    <html lang="fr" className={`${inter.variable} ${lora.variable}`}>
+    <html lang="fr" className={`${inter.variable} ${fraunces.variable}`}>
       <head>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
       </head>

@@ -168,7 +168,7 @@ export default async function AdminDashboardPage() {
 
         <div className="admin-stat-card">
           <div className="admin-stat-label">Stock faible / Ruptures</div>
-          <div className="admin-stat-value" style={{ color: stats.lowStock > 0 ? '#B91C1C' : 'var(--admin-petrol)' }}>
+          <div className="admin-stat-value" style={{ color: stats.lowStock > 0 ? 'var(--admin-danger-text)' : 'var(--admin-petrol)' }}>
             {stats.lowStock}
           </div>
           <div className="admin-stat-footer">
@@ -204,11 +204,11 @@ export default async function AdminDashboardPage() {
           </div>
           <div style={{ background: 'var(--admin-bg)', padding: '12px 16px', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
             <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-muted)' }}>Clics WhatsApp</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#059669', marginTop: 4 }}>{stats.analytics?.whatsappClicks ?? 0}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--admin-success-text)', marginTop: 4 }}>{stats.analytics?.whatsappClicks ?? 0}</div>
           </div>
           <div style={{ background: 'var(--admin-bg)', padding: '12px 16px', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
             <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-muted)' }}>Intérêts réappro.</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#D97706', marginTop: 4 }}>{stats.analytics?.restockInterests ?? 0}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--admin-warning-text)', marginTop: 4 }}>{stats.analytics?.restockInterests ?? 0}</div>
           </div>
         </div>
       </div>
@@ -278,7 +278,7 @@ export default async function AdminDashboardPage() {
         <div className="admin-card">
           <div className="admin-card-header">
             <h2 className="admin-card-title">
-              <AlertTriangle size={16} style={{ color: '#D97706' }} />
+              <AlertTriangle size={16} style={{ color: 'var(--admin-warning-text)' }} />
               Attention requise
             </h2>
             <span style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>
@@ -305,18 +305,18 @@ export default async function AdminDashboardPage() {
                     justifyContent: 'space-between',
                     padding: '10px 12px',
                     borderRadius: 'var(--admin-radius-sm)',
-                    backgroundColor: '#FFFBEB',
-                    border: '1px solid #FDE68A'
+                    backgroundColor: 'var(--admin-warning-bg)',
+                    border: '1px solid var(--admin-warning-border)'
                   }}
                 >
                   <div style={{ minWidth: 0, paddingRight: 12 }}>
-                    <Link 
+                    <Link
                       href={`/admin/produits/${item.id}`}
-                      style={{ fontWeight: 600, fontSize: 13, color: '#92400E', textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      style={{ fontWeight: 600, fontSize: 13, color: 'var(--admin-warning-text)', textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                     >
                       {item.title}
                     </Link>
-                    <div style={{ fontSize: 11, fontWeight: 500, color: '#B45309' }}>
+                    <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--admin-warning-text)' }}>
                       {item.reason}
                     </div>
                   </div>

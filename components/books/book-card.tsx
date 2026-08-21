@@ -1,18 +1,27 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Heart, Plus, ChevronRight } from 'lucide-react';
+import { Heart, Plus, ChevronRight, Check } from 'lucide-react';
 import type { Product } from '@/lib/types/ui';
 import { formatPrice } from '@/lib/al-furqan-data';
 import { Cover } from './cover';
 import { useStore } from '../providers';
 
 export function BookCard({ product }: { product: Product }) {
+  const [added, setAdded] = useState(false);
   const { addToCart, toggleWish, isWished } = useStore();
   
   const unavailable = product.availability === 'Indisponible temporairement';
   const wished = isWished(product.id);
   const hasVariants = Boolean(product.variants && product.variants.length > 0);
+
+  useEffect(() => {
+    if (added) {
+      const timer = setTimeout(() => setAdded(false), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [added]);
 
   return (
     <article className="book-card">
@@ -26,7 +35,7 @@ export function BookCard({ product }: { product: Product }) {
           aria-label={wished ? 'Retirer de ma sélection' : 'Ajouter à ma sélection'}
           aria-pressed={wished}
         >
-          <Heart size={17} fill={wished ? 'currentColor' : 'none'} />
+          <Heart size={17} fill={wished ? 'currentColor' : 'none'} className="wish-icon" style={{ transition: 'transform 0.2s cubic-bezier(0.22, 1, 0.36, 1)' }} />
         </button>
       </div>
       <div className="book-copy">
@@ -52,13 +61,24 @@ export function BookCard({ product }: { product: Product }) {
             <button
               className="add-mini"
               onClick={() => {
+                if (added) return;
                 addToCart(product);
+                setAdded(true);
                 import('@/lib/data/analytics').then((m) => m.trackCatalogEvent('add_to_cart', product.id));
               }}
               aria-label={`Ajouter ${product.title} au panier`}
             >
-              <span>Ajouter</span>
-              <Plus size={15} />
+              {added ? (
+                <>
+                  <span style={{ color: 'var(--success)' }}>Ajouté</span>
+                  <Check size={15} style={{ color: 'var(--success)' }} className="animate-fade" />
+                </>
+              ) : (
+                <>
+                  <span>Ajouter</span>
+                  <Plus size={15} />
+                </>
+              )}
             </button>
           )}
         </div>

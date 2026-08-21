@@ -117,10 +117,10 @@ export function CsvImportModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
 
   return (
     <div className="admin-drawer-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div className="admin-card" style={{ maxWidth: 650, width: '100%', backgroundColor: '#FFF', position: 'relative', borderRadius: 12 }}>
+      <div className="admin-card" style={{ maxWidth: 650, width: '100%', backgroundColor: 'var(--admin-surface)', position: 'relative', borderRadius: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FileSpreadsheet size={20} className="text-[#0c2d38]" />
+            <FileSpreadsheet size={20} className="text-[var(--admin-petrol)]" />
             Importation CSV du Catalogue (Brouillons)
           </h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -153,7 +153,7 @@ export function CsvImportModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
             </h4>
             <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--admin-border)', borderRadius: 6, padding: 8, fontSize: 12 }}>
               {parsedRows.map((r, i) => (
-                <div key={i} style={{ padding: '4px 0', borderBottom: i < parsedRows.length - 1 ? '1px solid #E2E8F0' : 'none' }}>
+                <div key={i} style={{ padding: '4px 0', borderBottom: i < parsedRows.length - 1 ? '1px solid var(--admin-border)' : 'none' }}>
                   <strong>{r.title}</strong> — {r.author || 'Auteur non renseigné'} ({r.category || 'Catégorie non renseignée'})
                 </div>
               ))}

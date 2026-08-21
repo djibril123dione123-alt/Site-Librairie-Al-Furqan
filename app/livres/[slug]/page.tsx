@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronDown, Truck, MessageCircle, Video } from 'lucide-react';
+import { ChevronDown, Truck, MessageCircle, Video, BookOpen } from 'lucide-react';
 import { formatPrice, buildWhatsAppUrl, getSiteUrl } from '@/lib/al-furqan-data';
 import { getProductBySlug, getRelatedProducts } from '@/lib/data/products';
 import { getEmbeddableVideoUrl } from '@/lib/utils/video-utils';
@@ -12,6 +12,7 @@ import { SectionTitle } from '@/components/ui/section-title';
 import { BookCard } from '@/components/books/book-card';
 import { ProductGallery } from '@/components/books/product-gallery';
 import { MobileStickyCta } from '@/components/books/mobile-sticky-cta';
+import { WhatsAppLink } from '@/components/books/whatsapp-link';
 
 import { ProductViewTracker } from '@/components/books/product-view-tracker';
 
@@ -109,17 +110,18 @@ export default async function ProductPage({ params }: { params: { slug: string }
           <Link href={`/categories/${categorySlug}`} className="eyebrow" style={{ textDecoration: 'none' }}>
             {product.category}
           </Link>
-          <h1>{product.title}</h1>
-          <p className="product-author">
-            par <Link href={`/auteurs/${authorSlug}`} style={{ textDecoration: 'underline', color: 'inherit' }}>
-              <strong>{product.author}</strong>
+          <h1 style={{ fontSize: 'clamp(32px, 4vw, 48px)', lineHeight: 1.1, margin: '12px 0', textWrap: 'balance', letterSpacing: '-0.02em' }}>{product.title}</h1>
+          <p className="product-author" style={{ fontSize: 14 }}>
+            par <Link href={`/auteurs/${authorSlug}`} className="text-link" style={{ fontSize: 14 }}>
+              {product.author}
             </Link>
           </p>
-          <div className="product-price">{formatPrice(product.price)}</div>
+          <div className="product-price" style={{ fontSize: 32, marginTop: 24, marginBottom: 12 }}>{formatPrice(product.price)}</div>
           <StockBadge availability={product.availability} />
-          <p className="product-shipping">
-            <Truck size={17} /> Expédition depuis Saint-Louis · Livraison disponible au Sénégal
-          </p>
+          <div className="product-shipping" style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(17, 42, 50, 0.08)' }}>
+            <Truck size={14} style={{ color: 'var(--gold)' }} />
+            <span style={{ fontSize: 13 }}>Expédition depuis Saint-Louis <span style={{ opacity: 0.3, margin: '0 8px' }}>|</span> Livraison au Sénégal</span>
+          </div>
           
           <ProductActions product={product} />
           
@@ -127,16 +129,12 @@ export default async function ProductPage({ params }: { params: { slug: string }
             <MessageCircle size={17} />
             <span>
               Vous préférez discuter d’abord ?{' '}
-              <a
+              <WhatsAppLink
                 href={buildWhatsAppUrl(`Assalāmu ʿalaykum,\nje souhaite des informations sur « ${product.title} ».`)}
-                onClick={() => {
-                  import('@/lib/data/analytics').then((m) => m.trackCatalogEvent('whatsapp_click', product.id));
-                }}
-                target="_blank"
-                rel="noopener noreferrer"
+                productId={product.id}
               >
                 Écrire sur WhatsApp
-              </a>
+              </WhatsAppLink>
             </span>
           </div>
         </div>
@@ -144,9 +142,9 @@ export default async function ProductPage({ params }: { params: { slug: string }
       
       <div className="product-detail-grid">
         <div>
-          <span className="eyebrow">À PROPOS DE CE LIVRE</span>
-          <h2>Une lecture à garder près de soi.</h2>
-          <p>{product.description}</p>
+          <span className="eyebrow" style={{ letterSpacing: '0.2em' }}>À PROPOS DE CE LIVRE</span>
+          <h2 style={{ fontSize: 36, letterSpacing: '-0.02em', margin: '18px 0 24px', textWrap: 'balance' }}>Une lecture à garder près de soi.</h2>
+          <p style={{ maxWidth: 480, textWrap: 'pretty', lineHeight: 1.8, fontSize: 15 }}>{product.description}</p>
 
           {(() => {
             const videoInfo = getEmbeddableVideoUrl(product.videoUrl);
@@ -154,7 +152,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
 
             return (
               <div style={{ marginTop: 24, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--line)' }}>
-                <span className="eyebrow" style={{ display: 'block', padding: '12px 16px', background: '#FBF9F4' }}>PRÉSENTATION VIDÉO</span>
+                <span className="eyebrow" style={{ display: 'block', padding: '12px 16px', background: 'var(--bg)' }}>PRÉSENTATION VIDÉO</span>
                 {videoInfo.type === 'iframe' ? (
                   <iframe
                     src={videoInfo.embedUrl}
@@ -165,7 +163,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
                     allowFullScreen
                   />
                 ) : (
-                  <div style={{ padding: 24, textAlign: 'center', background: '#FFF' }}>
+                  <div style={{ padding: 24, textAlign: 'center', background: 'var(--surface)' }}>
                     <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 12 }}>
                       Une présentation vidéo est disponible sur TikTok / média externe.
                     </p>
@@ -190,17 +188,64 @@ export default async function ProductPage({ params }: { params: { slug: string }
               <div key={spec.label}>
                 <span>{spec.label}</span>
                 {spec.href ? (
-                  <Link href={spec.href} style={{ color: 'var(--ink)', textDecoration: 'underline' }}>
-                    <strong>{spec.value}</strong>
+                  <Link href={spec.href} className="text-link" style={{ fontWeight: 500 }}>
+                    {spec.value}
                   </Link>
                 ) : (
-                  <strong>{spec.value}</strong>
+                  <strong style={{ fontWeight: 500, color: 'var(--ink)' }}>{spec.value}</strong>
                 )}
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {(() => {
+        const insideImages = product.images?.filter(i => i.type === 'inside' || i.type === 'toc') || [];
+        if (insideImages.length === 0) return null;
+        
+        return (
+          <div style={{ maxWidth: 1080, margin: '0 auto 80px', padding: '0 32px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 60, alignItems: 'center', background: 'var(--cream)', padding: 60, borderRadius: 12 }}>
+              <div>
+                <span className="eyebrow" style={{ letterSpacing: '0.2em' }}>À L&apos;INTÉRIEUR</span>
+                <h2 style={{ fontSize: 32, margin: '16px 0 24px', letterSpacing: '-0.02em' }}>L&apos;objet livre en détails.</h2>
+                <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.7, marginBottom: 32 }}>Explorez les pages intérieures, le sommaire et la mise en page de cette édition.</p>
+                <a href="#" className="button button-dark" style={{ padding: '12px 24px', textDecoration: 'none' }}>
+                  <BookOpen size={16} /> Feuilleter
+                </a>
+              </div>
+              <div style={{ display: 'flex', gap: 20 }}>
+                {insideImages.slice(0, 2).map((img, idx) => (
+                  <div key={idx} style={{ position: 'relative', width: '100%', aspectRatio: '3/4', background: 'var(--surface)', borderRadius: 6, boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.url} alt={`Intérieur ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {(() => {
+        const otherImages = product.images?.filter(i => i.type !== 'inside' && i.type !== 'toc' && i.type !== 'cover') || [];
+        if (otherImages.length < 2) return null;
+        
+        return (
+          <div style={{ maxWidth: 1080, margin: '0 auto 80px', padding: '0 32px' }}>
+             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                {otherImages.slice(0, 2).map((img, idx) => (
+                  <div key={idx} style={{ position: 'relative', height: 400, background: 'var(--surface-alt)', borderRadius: 12, overflow: 'hidden' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.url} alt={`Vue produit ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 40 }} />
+                  </div>
+                ))}
+             </div>
+          </div>
+        );
+      })()}
+      
       
       {related.length > 0 && (
         <section className="products-section related">

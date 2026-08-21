@@ -189,7 +189,7 @@ export default function CartPage() {
                     )}
 
                     {warning && (
-                      <div style={{ color: '#b45309', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                      <div style={{ color: 'var(--warning)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
                         <AlertTriangle size={13} /> {warning}
                       </div>
                     )}
@@ -235,7 +235,7 @@ export default function CartPage() {
             </p>
 
             {hasInvalidLines ? (
-              <div style={{ color: '#b91c1c', fontSize: 12, marginBottom: 12 }}>
+              <div style={{ color: 'var(--danger)', fontSize: 12, marginBottom: 12 }}>
                 Veuillez retirer ou corriger les articles indisponibles avant de poursuivre.
               </div>
             ) : (

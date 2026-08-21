@@ -69,7 +69,7 @@ export default async function CollectionPage({ params }: { params: { slug: strin
             ))}
           </div>
         ) : (
-          <div style={{ textAlign: 'center', padding: '40px 20px', background: '#FFF', borderRadius: 12, border: '1px solid var(--line)' }}>
+          <div style={{ textAlign: 'center', padding: '40px 20px', background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--line)' }}>
             <p style={{ color: 'var(--muted)', fontSize: 14 }}>
               Aucun ouvrage n&apos;est actuellement assigné à cette collection.
             </p>

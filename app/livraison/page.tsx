@@ -175,17 +175,17 @@ Référence commande : ${ref.current}`;
       
       <div className="cart-heading flex-col items-start gap-2">
         {step === 'delivery' ? (
-          <Link href="/panier" className="text-xs text-[#b28a52] flex items-center gap-1 hover:underline mb-2">
+          <Link href="/panier" className="text-xs text-[var(--gold)] flex items-center gap-1 hover:underline mb-2">
             <ArrowLeft size={14} /> Retour au panier
           </Link>
         ) : (
-          <button onClick={() => setStep('delivery')} className="text-xs text-[#b28a52] flex items-center gap-1 hover:underline mb-2">
+          <button onClick={() => setStep('delivery')} className="text-xs text-[var(--gold)] flex items-center gap-1 hover:underline mb-2">
             <ArrowLeft size={14} /> Modifier la livraison
           </button>
         )}
         <span className="eyebrow">ÉTAPE {step === 'delivery' ? '2' : '3'} SUR 3</span>
         <h1 className="serif text-4xl mb-2">{step === 'delivery' ? 'Informations de Livraison' : 'Vérification'}</h1>
-        <p className="text-[#64736f] text-sm">
+        <p className="text-[var(--muted)] text-sm">
           {step === 'delivery' 
             ? 'Veuillez indiquer vos préférences pour la réception de votre commande.' 
             : 'Vérifiez vos informations avant de confirmer.'}
@@ -194,7 +194,7 @@ Référence commande : ${ref.current}`;
 
       <div className="cart-layout max-w-[800px] !grid-cols-1 pt-4">
         {detailed.length === 0 ? (
-          <div className="bg-[#f4ebd8] p-8 text-center rounded-xl">
+          <div className="bg-[var(--paper)] p-8 text-center rounded-xl">
             <p>Votre panier est vide. Veuillez retourner au catalogue.</p>
             <Link href="/catalogue" className="button button-dark mt-4">
               Explorer le catalogue
@@ -212,14 +212,14 @@ Référence commande : ${ref.current}`;
           />
         ) : (
           <div className="verification-step animate-in fade-in">
-            <div className="bg-[#fbf9f4] border border-[#e3dcd1] rounded-xl p-6 mb-6">
+            <div className="bg-[var(--bg)] border border-[var(--line)] rounded-xl p-6 mb-6">
               <h3 className="serif text-xl font-medium mb-4">Votre commande</h3>
-              <div className="space-y-3 mb-4 border-b border-[#e3dcd1] pb-4">
+              <div className="space-y-3 mb-4 border-b border-[var(--line)] pb-4">
                 {detailed.map(({ line, product }, idx) => (
                   <div key={idx} className="flex justify-between text-sm">
                     <div>
                       <span className="font-medium">{line.quantity} × {product.title}</span>
-                      {line.variant && <div className="text-xs text-[#64736f] mt-1">{line.variant.attributes.map((a: any) => `${a.label || 'Option'} : ${a.value}`).join(' · ')}</div>}
+                      {line.variant && <div className="text-xs text-[var(--muted)] mt-1">{line.variant.attributes.map((a: any) => `${a.label || 'Option'} : ${a.value}`).join(' · ')}</div>}
                     </div>
                     <span className="font-medium">{formatPrice((line.variant?.price || product.price) * line.quantity)}</span>
                   </div>
@@ -227,16 +227,16 @@ Référence commande : ${ref.current}`;
               </div>
               <div className="flex justify-between items-center text-lg">
                 <span className="serif">Sous-total livres</span>
-                <span className="font-medium text-[#b28a52]">{formatPrice(subtotal)}</span>
+                <span className="font-medium text-[var(--gold)]">{formatPrice(subtotal)}</span>
               </div>
             </div>
 
-            <div className="bg-[#fbf9f4] border border-[#e3dcd1] rounded-xl p-6 mb-6">
+            <div className="bg-[var(--bg)] border border-[var(--line)] rounded-xl p-6 mb-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="serif text-xl font-medium">Livraison</h3>
-                <button onClick={() => setStep('delivery')} className="text-xs text-[#b28a52] underline">Modifier</button>
+                <button onClick={() => setStep('delivery')} className="text-xs text-[var(--gold)] underline">Modifier</button>
               </div>
-              <div className="text-sm space-y-1 text-[#64736f]">
+              <div className="text-sm space-y-1 text-[var(--muted)]">
                 {deliveryData?.method === 'la_poste' ? (
                   <>
                     <p><strong className="text-black">Mode :</strong> La Poste</p>
@@ -254,27 +254,27 @@ Référence commande : ${ref.current}`;
               </div>
             </div>
 
-            <div className="bg-[#fbf9f4] border border-[#e3dcd1] rounded-xl p-6 mb-8">
+            <div className="bg-[var(--bg)] border border-[var(--line)] rounded-xl p-6 mb-8">
               <h3 className="serif text-xl font-medium mb-4">Vos coordonnées</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="input-group">
-                  <label className="block text-xs uppercase tracking-widest text-[#b28a52] mb-2">Prénom & Nom</label>
+                  <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2">Prénom & Nom</label>
                   <input 
                     type="text" 
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Ex: Oumar Ndiaye"
-                    className="w-full border border-[#e3dcd1] bg-white p-3 rounded-md"
+                    className="w-full border border-[var(--line)] bg-white p-3 rounded-md"
                   />
                 </div>
                 <div className="input-group">
-                  <label className="block text-xs uppercase tracking-widest text-[#b28a52] mb-2">Téléphone</label>
+                  <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2">Téléphone</label>
                   <input 
                     type="tel" 
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="Ex: 77 123 45 67"
-                    className="w-full border border-[#e3dcd1] bg-white p-3 rounded-md"
+                    className="w-full border border-[var(--line)] bg-white p-3 rounded-md"
                   />
                 </div>
               </div>

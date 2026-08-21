@@ -25,7 +25,7 @@ async function CategoryProductsList({ categorySlug }: { categorySlug: string }) 
 
   if (products.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '60px 20px', background: '#FFF', borderRadius: 12, border: '1px solid var(--line)', marginTop: 24 }}>
+      <div style={{ textAlign: 'center', padding: '60px 20px', background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--line)', marginTop: 24 }}>
         <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>Aucun ouvrage pour le moment dans cette catégorie</h3>
         <p style={{ color: 'var(--muted)', fontSize: 14, maxWidth: 450, margin: '10px auto 24px' }}>
           Les ouvrages de cette catégorie seront progressivement ajoutés au catalogue.
