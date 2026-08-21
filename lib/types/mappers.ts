@@ -46,6 +46,7 @@ export function dbVariantToUi(dbVariant: DbVariant): Variant {
 
   return {
     id: dbVariant.id,
+    sku: dbVariant.sku ?? undefined,
     attributes,
     price: dbVariant.price ?? 0,
     stock: dbVariant.stock_quantity ?? 0,
@@ -53,7 +54,9 @@ export function dbVariantToUi(dbVariant: DbVariant): Variant {
 }
 
 export function dbImageToUi(dbImage: DbImage, supabaseUrl: string): ProductImage {
-  const url = `${supabaseUrl}/storage/v1/object/public/product-images/${dbImage.storage_path}`;
+  const url = dbImage.storage_path.startsWith('http')
+    ? dbImage.storage_path
+    : `${supabaseUrl}/storage/v1/object/public/product-images/${dbImage.storage_path}`;
   return {
     id: dbImage.id,
     url,
@@ -78,9 +81,17 @@ export function dbProductToUi(
 
   const themes = dbProduct.themes?.map((t) => t.themes.name) ?? [];
   const variants = dbProduct.product_variants?.map(dbVariantToUi) ?? [];
-  const images = supabaseUrl
-    ? (dbProduct.product_images?.map((img) => dbImageToUi(img, supabaseUrl)) ?? [])
+
+  const rawImages = dbProduct.product_images
+    ? [...dbProduct.product_images].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
     : [];
+
+  const images = supabaseUrl
+    ? rawImages.map((img) => dbImageToUi(img, supabaseUrl))
+    : [];
+
+  const coverImg = images.find((i) => i.type === 'cover') || images[0];
+  const coverUrl = coverImg?.url ?? null;
 
   return {
     id: dbProduct.id,
@@ -114,6 +125,8 @@ export function dbProductToUi(
     year: dbProduct.publication_year ?? undefined,
     variants: variants.length > 0 ? variants : undefined,
     images: images.length > 0 ? images : undefined,
+    coverUrl,
+    videoUrl: dbProduct.video_url ?? undefined,
     color: dbProduct.color ?? 'navy',
     ink: dbProduct.ink ?? '#f7e6c4',
   };

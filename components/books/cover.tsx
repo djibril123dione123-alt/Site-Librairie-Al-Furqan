@@ -17,12 +17,14 @@ const colorMap: Record<string, string> = {
 };
 
 export function Cover({ product, small = false }: { product: Product; small?: boolean }) {
-  if (product.coverUrl) {
+  const realUrl = product.coverUrl || product.images?.[0]?.url;
+
+  if (realUrl) {
     return (
       <div className={`cover-real-wrap ${small ? 'cover-small' : ''}`} style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={product.coverUrl}
+          src={realUrl}
           alt={`Couverture de ${product.title}`}
           style={{
             maxWidth: '100%',

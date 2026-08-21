@@ -11,6 +11,7 @@
 import { isSupabaseConfigured, createServerClient, shouldUseSeedData } from '@/lib/supabase/server';
 import { dbProductToUi } from '@/lib/types/mappers';
 import type { Product } from '@/lib/types/ui';
+import { normalizeSearchString, expandSearchAliases } from '@/lib/utils/search-utils';
 
 // Fallback seed (TEMPORAIRE — développement uniquement)
 import { seedProducts, searchSeedProducts, getRelatedSeedProducts, seedCollections } from '@/lib/dev/seed-products';
@@ -55,9 +56,14 @@ function adaptSeedProduct(p: (typeof seedProducts)[number]): Product {
 
 export interface ProductFilters {
   category?: string;
+  author?: string;
+  publisher?: string;
   language?: string;
   availability?: string;
   reading?: string;
+  tajwid?: boolean;
+  minPrice?: number;
+  maxPrice?: number;
   featured?: boolean;
   newArrival?: boolean;
   restocked?: boolean;
@@ -65,30 +71,42 @@ export interface ProductFilters {
   collection?: string;
   status?: 'published' | 'draft' | 'archived';
   limit?: number;
+  page?: number;
+  pageSize?: number;
 }
 
-/**
- * Récupère la liste de produits avec filtres optionnels.
- * Le public ne voit que les produits published.
- */
-export async function getProducts(filters: ProductFilters = {}): Promise<Product[]> {
+export interface PaginatedResult {
+  products: Product[];
+  totalCount: number;
+  page: number;
+  totalPages: number;
+}
+
+export async function getProductsPaginated(filters: ProductFilters = {}): Promise<PaginatedResult> {
+  const page = filters.page && filters.page > 0 ? filters.page : 1;
+  const pageSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : 12;
+
   if (shouldUseSeedData()) {
-    // Fallback seed
     let list = seedProducts.map(adaptSeedProduct);
     if (filters.search) list = searchSeedProducts(filters.search).map(adaptSeedProduct);
-    if (filters.category) list = list.filter((p) => p.category === filters.category);
+    if (filters.category) list = list.filter((p) => p.category === filters.category || p.category.toLowerCase() === filters.category?.toLowerCase());
+    if (filters.author) list = list.filter((p) => p.author.toLowerCase().includes(filters.author!.toLowerCase()));
+    if (filters.publisher) list = list.filter((p) => p.publisher.toLowerCase().includes(filters.publisher!.toLowerCase()));
     if (filters.language) list = list.filter((p) => p.language === filters.language);
     if (filters.reading) list = list.filter((p) => p.reading === filters.reading);
+    if (filters.tajwid !== undefined) list = list.filter((p) => Boolean(p.tajwid) === filters.tajwid);
     if (filters.availability) list = list.filter((p) => p.availability === filters.availability);
+    if (filters.minPrice !== undefined) list = list.filter((p) => p.price >= filters.minPrice!);
+    if (filters.maxPrice !== undefined) list = list.filter((p) => p.price <= filters.maxPrice!);
     if (filters.featured) list = list.filter((p) => p.featured);
     if (filters.newArrival) list = list.filter((p) => p.newArrival);
     if (filters.restocked) list = list.filter((p) => p.restocked);
-    if (filters.collection) {
-      const col = seedCollections.find(c => c.slug === filters.collection);
-      if (col) list = list.filter(p => col.productIds.includes(p.id));
-    }
-    if (filters.limit) list = list.slice(0, filters.limit);
-    return list;
+    
+    const totalCount = list.length;
+    const totalPages = Math.ceil(totalCount / pageSize) || 1;
+    const paginated = list.slice((page - 1) * pageSize, page * pageSize);
+
+    return { products: paginated, totalCount, page, totalPages };
   }
 
   const supabase = createServerClient();
@@ -103,85 +121,75 @@ export async function getProducts(filters: ProductFilters = {}): Promise<Product
       categories (id, name, slug),
       product_themes (themes (name)),
       product_images (id, storage_path, alt_text, position, type)
-    `)
+    `, { count: 'exact' })
     .order('created_at', { ascending: false });
 
-  // Le public ne voit que les produits publiés
   const status = filters.status || 'published';
   query = query.eq('status', status);
 
   if (filters.search) {
-    const term = `%${filters.search.toLowerCase()}%`;
-    query = query.or(`title.ilike.${term},description.ilike.${term},isbn.ilike.${term}`);
-  }
+    const norm = normalizeSearchString(filters.search);
+    try {
+      const { data: rpcIds, error: rpcErr } = await supabase.rpc('search_published_products', {
+        query_text: filters.search,
+      });
 
-  if (filters.category) {
-    // Jointure par slug de catégorie
-    const { data: cat } = await supabase
-      .from('categories')
-      .select('id')
-      .eq('slug', filters.category)
-      .single();
-    if (cat) query = query.eq('category_id', cat.id);
-  }
-
-  if (filters.language) {
-    query = query.eq('language', filters.language);
-  }
-
-  if (filters.reading) {
-    query = query.eq('reading', filters.reading);
-  }
-
-  if (filters.featured) {
-    query = query.eq('featured', true);
-  }
-
-  if (filters.newArrival) {
-    query = query.eq('new_arrival', true);
-  }
-  
-  if (filters.restocked) {
-    // Utiliser la colonne Supabase (si elle n'existe pas, on simule via availability pour l'instant)
-    query = query.or('availability.eq.De retour en stock');
-  }
-  
-  if (filters.collection) {
-    // Support collections via jointure si possible.
-    const { data: col } = await supabase
-      .from('collections')
-      .select('id')
-      .eq('slug', filters.collection)
-      .single();
-    
-    if (col) {
-      const { data: colProducts } = await supabase
-        .from('collection_products')
-        .select('product_id')
-        .eq('collection_id', col.id);
-      
-      if (colProducts && colProducts.length > 0) {
-        query = query.in('id', colProducts.map(cp => cp.product_id));
+      if (!rpcErr && rpcIds && rpcIds.length > 0) {
+        query = query.in('id', rpcIds);
       } else {
-        return []; // Collection vide
+        const searchTerm = `%${norm}%`;
+        query = query.or(
+          `title.ilike.${searchTerm},subtitle.ilike.${searchTerm},description.ilike.${searchTerm},isbn.ilike.${searchTerm},language.ilike.${searchTerm},reading.ilike.${searchTerm}`
+        );
       }
-    } else {
-      return []; // Collection inexistante
+    } catch {
+      const searchTerm = `%${filters.search.toLowerCase()}%`;
+      query = query.or(`title.ilike.${searchTerm},description.ilike.${searchTerm},isbn.ilike.${searchTerm}`);
     }
   }
 
-  if (filters.limit) {
-    query = query.limit(filters.limit);
+  if (filters.category) {
+    const { data: cat } = await supabase.from('categories').select('id').or(`slug.eq.${filters.category},name.eq.${filters.category}`).single();
+    if (cat) query = query.eq('category_id', cat.id);
   }
 
-  const { data, error } = await query;
+  if (filters.author) {
+    const { data: aut } = await supabase.from('authors').select('id').or(`slug.eq.${filters.author},name.ilike.%${filters.author}%`).single();
+    if (aut) query = query.eq('author_id', aut.id);
+  }
+
+  if (filters.publisher) {
+    const { data: pub } = await supabase.from('publishers').select('id').or(`slug.eq.${filters.publisher},name.ilike.%${filters.publisher}%`).single();
+    if (pub) query = query.eq('publisher_id', pub.id);
+  }
+
+  if (filters.language) query = query.eq('language', filters.language);
+  if (filters.reading) query = query.eq('reading', filters.reading);
+  if (filters.tajwid !== undefined) query = query.eq('tajwid', filters.tajwid);
+  if (filters.minPrice !== undefined) query = query.gte('price', filters.minPrice);
+  if (filters.maxPrice !== undefined) query = query.lte('price', filters.maxPrice);
+
+  const start = (page - 1) * pageSize;
+  const end = start + pageSize - 1;
+  query = query.range(start, end);
+
+  const { data, count, error } = await query;
 
   if (error) {
-    console.error('[getProducts] Erreur Supabase:', error.message);
-    return [];
+    console.error('[getProductsPaginated] Erreur Supabase:', error.message);
+    return { products: [], totalCount: 0, page: 1, totalPages: 1 };
   }
 
-  return (data || []).map((p: any) => dbProductToUi(p, supabaseUrl));
+  const products = (data || []).map((p: any) => dbProductToUi(p, supabaseUrl));
+  const totalCount = count || 0;
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+
+  return { products, totalCount, page, totalPages };
+}
+
+export async function getProducts(filters: ProductFilters = {}): Promise<Product[]> {
+  const result = await getProductsPaginated({ ...filters, pageSize: filters.limit || 100 });
+  return result.products;
 }
 
 /**

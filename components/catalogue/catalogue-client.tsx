@@ -1,25 +1,34 @@
 'use client';
 
-import { Suspense, useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronDown, X, MessageCircle } from 'lucide-react';
+import { ChevronDown, X, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { buildWhatsAppUrl } from '@/lib/al-furqan-data';
+import { trackBookRequest } from '@/lib/data/search';
 import type { Product } from '@/lib/types/ui';
 import { BookCard } from '@/components/books/book-card';
 import { Filters, FilterKey } from '@/components/catalogue/filters';
 
 export function CatalogueClient({
   initialProducts,
+  totalCount = 0,
+  currentPage = 1,
+  totalPages = 1,
   searchParams,
 }: {
   initialProducts: Product[];
+  totalCount?: number;
+  currentPage?: number;
+  totalPages?: number;
   searchParams: { [key: string]: string | undefined };
 }) {
   const router = useRouter();
   const [mobileFilters, setMobileFilters] = useState(false);
 
   const categoryParam = searchParams['categorie'] || '';
+  const authorParam = searchParams['auteur'] || '';
+  const publisherParam = searchParams['editeur'] || '';
   const searchParam = searchParams['q'] || '';
   const newer = searchParams['nouveautes'] === '1';
   
@@ -30,6 +39,8 @@ export function CatalogueClient({
 
   const active: Record<FilterKey, string> = {
     category: categoryParam,
+    author: authorParam,
+    publisher: publisherParam,
     language: languageParam,
     availability: availabilityParam,
     reading: readingParam,
@@ -50,16 +61,18 @@ export function CatalogueClient({
 
   const setActive = useCallback(
     (key: FilterKey, value: string) => {
-      const paramKey = key === 'category' ? 'categorie' : key;
-      updateUrl({ [paramKey]: value });
+      const paramKey = key === 'category' ? 'categorie' : key === 'author' ? 'auteur' : key === 'publisher' ? 'editeur' : key;
+      updateUrl({ [paramKey]: value, page: '1' });
     },
     [updateUrl]
   );
 
   const setSort = (val: string) => updateUrl({ sort: val });
 
-  // Les produits sont déjà filtrés par le backend pour les critères stricts.
-  // Le tri est fait côté client car il est léger et immédiat.
+  const setPage = (pageNumber: number) => {
+    updateUrl({ page: pageNumber.toString() });
+  };
+
   const sorted = useMemo(() => {
     let list = [...initialProducts];
     if (sortParam === 'Prix croissant') list.sort((a, b) => a.price - b.price);
@@ -72,6 +85,10 @@ export function CatalogueClient({
     router.push('/catalogue', { scroll: false });
   };
 
+  const handleNoResultsWhatsApp = (queryStr: string) => {
+    trackBookRequest(queryStr, 'catalogue');
+  };
+
   const title = searchParam
     ? `Résultats pour « ${searchParam} »`
     : active.category
@@ -79,6 +96,8 @@ export function CatalogueClient({
     : newer
     ? 'Nouveautés chez Al Furqan'
     : 'Le catalogue Al Furqan';
+
+  const countDisplay = totalCount > 0 ? totalCount : sorted.length;
 
   return (
     <main className="catalogue-page">
@@ -92,7 +111,7 @@ export function CatalogueClient({
           <span className="eyebrow">LE CATALOGUE</span>
           <h1>{title}</h1>
           <p>
-            {sorted.length} ouvrage{sorted.length > 1 ? 's' : ''} à découvrir.
+            {countDisplay} ouvrage{countDisplay > 1 ? 's' : ''} répertorié{countDisplay > 1 ? 's' : ''}.
           </p>
         </div>
         <div className="catalogue-actions">
@@ -114,6 +133,7 @@ export function CatalogueClient({
           </label>
         </div>
       </div>
+
       <div className="active-chips">
         {Object.entries(active)
           .filter(([, value]) => value)
@@ -128,15 +148,42 @@ export function CatalogueClient({
           </button>
         )}
       </div>
+
       <div className="catalogue-layout">
         <Filters active={active} setActive={setActive} onClear={clearAll} />
         <div className="catalogue-results">
           {sorted.length ? (
-            <div className="book-grid">
-              {sorted.map((product) => (
-                <BookCard key={product.id} product={product} />
-              ))}
-            </div>
+            <>
+              <div className="book-grid">
+                {sorted.map((product) => (
+                  <BookCard key={product.id} product={product} />
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 40 }}>
+                  <button
+                    className="button button-cream btn-sm"
+                    disabled={currentPage <= 1}
+                    onClick={() => setPage(currentPage - 1)}
+                    style={{ opacity: currentPage <= 1 ? 0.4 : 1, padding: '8px 14px' }}
+                  >
+                    <ChevronLeft size={16} /> Précédent
+                  </button>
+                  <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>
+                    Page {currentPage} sur {totalPages}
+                  </span>
+                  <button
+                    className="button button-cream btn-sm"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setPage(currentPage + 1)}
+                    style={{ opacity: currentPage >= totalPages ? 0.4 : 1, padding: '8px 14px' }}
+                  >
+                    Suivant <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
+            </>
           ) : (
             <div className="no-results">
               <span className="no-results-mark">⌕</span>
@@ -144,18 +191,22 @@ export function CatalogueClient({
               <p>Essayez une recherche plus générale ou demandez cet ouvrage directement à Al Furqan.</p>
               <a
                 className="button button-dark"
+                onClick={() => handleNoResultsWhatsApp(searchParam || active.category || 'catalogue-no-results')}
                 href={buildWhatsAppUrl(
                   `Assalāmu ʿalaykum,\nje recherche l’ouvrage « ${
                     searchParam || active.category || 'particulier'
                   } ».\nL’avez-vous actuellement ou pouvez-vous l’obtenir ?`
                 )}
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                <MessageCircle size={17} /> Demander cet ouvrage
+                <MessageCircle size={17} /> Demander cet ouvrage sur WhatsApp
               </a>
             </div>
           )}
         </div>
       </div>
+
       {mobileFilters && (
         <div className="filter-overlay">
           <div className="filter-sheet">
@@ -167,7 +218,7 @@ export function CatalogueClient({
             </div>
             <Filters active={active} setActive={setActive} onClear={clearAll} />
             <button className="button button-dark sheet-submit" onClick={() => setMobileFilters(false)}>
-              Afficher {sorted.length} livre{sorted.length > 1 ? 's' : ''}
+              Afficher les résultats
             </button>
           </div>
         </div>

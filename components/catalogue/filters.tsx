@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Sparkles, X } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { seedCategories } from '@/lib/dev/seed-products';
 
-export type FilterKey = 'category' | 'language' | 'availability' | 'reading';
+export type FilterKey = 'category' | 'author' | 'publisher' | 'language' | 'availability' | 'reading';
 
 export function Filters({
   active,
@@ -42,7 +42,7 @@ export function Filters({
     { key: 'category', label: 'Catégorie', values: categories },
     { key: 'language', label: 'Langue', values: ['Français', 'Arabe', 'Français / Arabe'] },
     { key: 'availability', label: 'Disponibilité', values: ['Disponible', 'De retour en stock', 'Derniers exemplaires'] },
-    { key: 'reading', label: 'Lecture', values: ['Hafs', 'Warsh'] },
+    { key: 'reading', label: 'Lecture du Coran', values: ['Hafs', 'Warsh'] },
   ];
 
   return (

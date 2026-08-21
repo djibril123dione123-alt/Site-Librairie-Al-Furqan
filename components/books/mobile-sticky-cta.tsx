@@ -2,31 +2,55 @@
 
 import { ShoppingBag, MessageCircle } from 'lucide-react';
 import type { Product, Variant } from '@/lib/types/ui';
-import { buildWhatsAppUrl } from '@/lib/al-furqan-data';
+import { buildWhatsAppUrl, formatPrice } from '@/lib/al-furqan-data';
+import { trackCatalogEvent } from '@/lib/data/analytics';
 import { useStore } from '../providers';
 
-export function MobileStickyCta({ product, selected }: { product: Product, selected?: Variant }) {
+export function MobileStickyCta({ product, selected }: { product: Product; selected?: Variant }) {
   const { addToCart } = useStore();
+  const price = selected?.price || product.price;
+
+  const handleAddToCart = () => {
+    addToCart(product, selected);
+    trackCatalogEvent('add_to_cart', product.id);
+  };
+
+  const handleRestockAlert = () => {
+    trackCatalogEvent('restock_interest', product.id);
+  };
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-md border-t border-[#e3dcd1] z-40" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-      {product.availability === 'Indisponible temporairement' ? (
-        <a
-          href={buildWhatsAppUrl(
-            `Assalāmu ʿalaykum,\nje suis intéressé(e) par « ${product.title} ».\nPouvez-vous me prévenir lors du prochain arrivage ?`
-          )}
-          className="button button-dark w-full shadow-lg text-sm py-3"
-        >
-          <MessageCircle size={18} /> M’alerter
-        </a>
-      ) : (
-        <button 
-          className="button button-dark w-full shadow-lg text-sm py-3" 
-          onClick={() => addToCart(product, selected)}
-        >
-          <ShoppingBag size={17} /> Ajouter au panier
-        </button>
-      )}
+    <div
+      className="md:hidden fixed bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-[#e3dcd1] z-40"
+      style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+    >
+      <div className="flex items-center justify-between gap-3 max-w-md mx-auto">
+        <div className="min-w-0 flex-1">
+          <div className="text-xs font-medium text-[#1d3035] truncate">{product.title}</div>
+          <div className="text-xs font-semibold text-[#b28a52]">{formatPrice(price)}</div>
+        </div>
+
+        {product.availability === 'Indisponible temporairement' ? (
+          <a
+            href={buildWhatsAppUrl(
+              `Assalāmu ʿalaykum,\nje suis intéressé(e) par « ${product.title} ».\nPouvez-vous me prévenir lors du prochain arrivage ?`
+            )}
+            onClick={handleRestockAlert}
+            className="button button-dark shadow-md text-xs py-2 px-3 flex items-center gap-1.5"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <MessageCircle size={15} /> M’alerter
+          </a>
+        ) : (
+          <button
+            className="button button-dark shadow-md text-xs py-2.5 px-4 flex items-center gap-1.5"
+            onClick={handleAddToCart}
+          >
+            <ShoppingBag size={15} /> Ajouter
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -34,23 +34,21 @@ const aliasMap: Record<string, string> = {
   'ibn kathîr': 'ibn kathir', 'ibn al-qayyim': 'ibn qayyim',
 };
 
+import { normalizeSearchString, expandSearchAliases } from '@/lib/utils/search-utils';
+
 export function normalizeSeedQuery(input: string): string {
-  let s = input.toLowerCase().trim();
-  s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  s = s.replace(/[''`’]/g, "'");
-  s = s.replace(/[^\w\s'-]/g, ' ');
-  s = s.replace(/\s+/g, ' ').trim();
-  return s;
+  return normalizeSearchString(input);
 }
 
 export function searchSeedProducts(query: string): Product[] {
-  const normalized = normalizeSeedQuery(query);
+  const normalized = normalizeSearchString(query);
   if (!normalized) return seedProducts;
-  const aliasExpanded = aliasMap[normalized] ? `${normalized} ${aliasMap[normalized]}` : normalized;
-  const terms = aliasExpanded.split(' ').filter(Boolean);
+  const terms = expandSearchAliases(normalized);
   return seedProducts.filter((product) => {
-    const haystack = normalizeSeedQuery(`${product.title} ${product.author} ${product.category} ${product.themes.join(' ')} ${product.language} ${product.publisher} ${product.aliases.join(' ')}`);
-    return terms.every((term) => haystack.includes(term));
+    const haystack = normalizeSearchString(
+      `${product.title} ${product.subtitle || ''} ${product.author} ${product.category} ${product.themes.join(' ')} ${product.language} ${product.publisher} ${product.reading || ''} ${product.tajwid ? 'tajwid' : ''} ${product.isbn || ''} ${product.variants?.map(v => `${v.sku || ''} ${v.attributes.map(a => a.value).join(' ')}`).join(' ') || ''}`
+    );
+    return terms.some((term) => haystack.includes(term));
   });
 }
 

@@ -1,32 +1,15 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { isSupabaseConfigured, createServerClient, shouldUseSeedData } from '@/lib/supabase/server';
-import { seedCollections } from '@/lib/dev/seed-products';
+import { getCollections } from '@/lib/data/collections';
 import { Layers, ArrowRight } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Collections Éditioriales — Librairie Al Furqan',
+  title: 'Collections Éditoriales — Librairie Al Furqan',
   description: 'Découvrez nos parcours de lecture et sélections thématiques d\'ouvrages islamiques.',
   alternates: {
     canonical: '/collections',
   },
 };
-
-async function getCollections() {
-  if (shouldUseSeedData()) {
-    return seedCollections.map((c) => ({
-      id: c.slug,
-      slug: c.slug,
-      title: c.title,
-      eyebrow: c.eyebrow,
-      description: c.description,
-    }));
-  }
-
-  const supabase = createServerClient();
-  const { data } = await supabase.from('collections').select('id, slug, title, eyebrow, description').eq('is_visible', true).order('position', { ascending: true });
-  return data || [];
-}
 
 export default async function CollectionsPage() {
   const collections = await getCollections();
@@ -63,7 +46,7 @@ export default async function CollectionsPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 24 }}>
           {collections.map((col) => (
             <Link
-              key={col.id}
+              key={col.slug}
               href={`/collections/${col.slug}`}
               className="collection-card"
               style={{

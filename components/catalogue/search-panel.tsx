@@ -38,7 +38,6 @@ export function SearchPanel() {
         const result = await getAutocompleteSuggestions(value);
         if (isMounted) {
           setSuggestions(result);
-          trackSearchEvent(value, result.products.length);
         }
       } catch {
         if (isMounted) setSuggestions({ products: [], authors: [], themes: [] });
@@ -64,6 +63,7 @@ export function SearchPanel() {
 
   const onSubmit = () => {
     if (value.trim()) {
+      trackSearchEvent(value.trim(), suggestions.products.length);
       setSearchOpen(false);
       router.push(`/catalogue?q=${encodeURIComponent(value.trim())}`);
     }

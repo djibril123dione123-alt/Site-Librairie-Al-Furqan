@@ -118,8 +118,9 @@ je souhaite finaliser ma commande Al Furqan.
 ${detailed
   .map(({ line, product }, index) => {
     const lineTotal = (line.variant?.price || product.price) * line.quantity;
+    const skuStr = line.variant?.sku ? ` (SKU: ${line.variant.sku})` : '';
     const variantStr = line.variant
-      ? `\n  ↳ ${line.variant.attributes.map((a: any) => `${a.label || 'Option'} : ${a.value}`).join(' · ')}`
+      ? `\n  ↳ ${line.variant.attributes.map((a: any) => `${a.label || 'Option'} : ${a.value}`).join(' · ')}${skuStr}`
       : '';
     const productUrl = `${baseUrl}/livres/${product.slug}`;
     return `${index + 1} × ${product.title}${variantStr}\n  Prix : ${formatPrice(lineTotal)}\n  Lien : ${productUrl}`;

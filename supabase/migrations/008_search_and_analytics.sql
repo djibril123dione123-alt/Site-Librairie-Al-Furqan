@@ -1,0 +1,61 @@
+-- ============================================================
+-- Migration 008 : Recherche V1 & Analytics du Catalogue
+-- ============================================================
+
+-- Table catalog_events (analytics anonymes sans IP ni fingerprint)
+create table if not exists catalog_events (
+  id uuid primary key default uuid_generate_v4(),
+  event_type text not null check (event_type in ('product_view', 'add_to_cart', 'whatsapp_click', 'restock_interest')),
+  product_id uuid references products(id) on delete cascade,
+  created_at timestamptz default now() not null
+);
+
+create index if not exists catalog_events_type_idx on catalog_events(event_type);
+create index if not exists catalog_events_date_idx on catalog_events(created_at);
+
+-- Fonction RPC : recherche avancée relationnelle V1 avec unaccent et alias
+create or replace function search_published_products(
+  query_text text,
+  max_limit integer default 50
+)
+returns setof uuid as $$
+declare
+  norm_query text;
+begin
+  if query_text is null or trim(query_text) = '' then
+    return;
+  end if;
+
+  norm_query := lower(unaccent(trim(query_text)));
+
+  return query
+  select distinct p.id
+  from products p
+  left join authors a on p.author_id = a.id
+  left join publishers pub on p.publisher_id = pub.id
+  left join categories c on p.category_id = c.id
+  left join product_variants v on v.product_id = p.id
+  left join product_themes pt on pt.product_id = p.id
+  left join themes t on pt.theme_id = t.id
+  left join search_aliases sa on lower(unaccent(sa.alias)) like '%' || norm_query || '%'
+  where p.status = 'published'
+    and (
+      lower(unaccent(p.title)) like '%' || norm_query || '%'
+      or lower(unaccent(coalesce(p.subtitle, ''))) like '%' || norm_query || '%'
+      or lower(unaccent(coalesce(p.description, ''))) like '%' || norm_query || '%'
+      or lower(unaccent(coalesce(p.isbn, ''))) like '%' || norm_query || '%'
+      or lower(unaccent(coalesce(p.language, ''))) like '%' || norm_query || '%'
+      or lower(unaccent(coalesce(p.reading, ''))) like '%' || norm_query || '%'
+      or lower(unaccent(coalesce(a.name, ''))) like '%' || norm_query || '%'
+      or lower(unaccent(coalesce(pub.name, ''))) like '%' || norm_query || '%'
+      or lower(unaccent(coalesce(c.name, ''))) like '%' || norm_query || '%'
+      or lower(unaccent(coalesce(v.sku, ''))) like '%' || norm_query || '%'
+      or lower(unaccent(coalesce(t.name, ''))) like '%' || norm_query || '%'
+      or (sa.canonical is not null and (
+        lower(unaccent(p.title)) like '%' || lower(unaccent(sa.canonical)) || '%'
+        or lower(unaccent(coalesce(c.name, ''))) like '%' || lower(unaccent(sa.canonical)) || '%'
+      ))
+    )
+  limit max_limit;
+end;
+$$ language plpgsql security definer;

@@ -38,8 +38,9 @@ export default function SelectionPage() {
         const supabase = createBrowserClient();
         const { data, error } = await supabase
           .from('products')
-          .select(`*, product_variants(*)`)
-          .in('id', ids);
+          .select(`*, authors(*), publishers(*), categories(*), product_images(*), product_variants(*)`)
+          .in('id', ids)
+          .eq('status', 'published');
           
         if (!error && data) {
           setProducts(data.map(d => dbProductToUi(d, supabaseUrl)));

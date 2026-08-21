@@ -34,6 +34,37 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
+  // Unique authors and publishers with published products
+  const authorSlugs = Array.from(
+    new Set(
+      products
+        .map((p) => p.author?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''))
+        .filter(Boolean)
+    )
+  );
+
+  const publisherSlugs = Array.from(
+    new Set(
+      products
+        .map((p) => p.publisher ? p.publisher.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : '')
+        .filter(Boolean)
+    )
+  );
+
+  const authorUrls = authorSlugs.map((slug) => ({
+    url: `${baseUrl}/auteurs/${slug}`,
+    lastModified: new Date(),
+    changeFrequency: 'weekly' as const,
+    priority: 0.6,
+  }));
+
+  const publisherUrls = publisherSlugs.map((slug) => ({
+    url: `${baseUrl}/editeurs/${slug}`,
+    lastModified: new Date(),
+    changeFrequency: 'weekly' as const,
+    priority: 0.6,
+  }));
+
   const staticUrls = [
     { url: baseUrl, lastModified: new Date(), changeFrequency: 'daily' as const, priority: 1.0 },
     { url: `${baseUrl}/catalogue`, lastModified: new Date(), changeFrequency: 'daily' as const, priority: 0.9 },
@@ -43,5 +74,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/contact`, lastModified: new Date(), changeFrequency: 'monthly' as const, priority: 0.5 },
   ];
 
-  return [...staticUrls, ...categoryUrls, ...collectionUrls, ...productUrls];
+  return [...staticUrls, ...categoryUrls, ...collectionUrls, ...authorUrls, ...publisherUrls, ...productUrls];
 }

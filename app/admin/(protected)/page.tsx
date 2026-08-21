@@ -53,7 +53,7 @@ async function getDashboardStats() {
     supabase.from('authors').select('*', { count: 'exact', head: true }),
     supabase.from('publishers').select('*', { count: 'exact', head: true }),
     supabase.from('products').select('id, slug, title, status, availability, stock_quantity, updated_at, authors(name)').order('updated_at', { ascending: false }).limit(5),
-    supabase.from('book_requests').select('id, query, created_at, result_count').order('created_at', { ascending: false }).limit(5),
+    supabase.from('book_requests').select('id, query, created_at, source').order('created_at', { ascending: false }).limit(5),
     supabase.from('products').select('id, slug, title, status, availability, stock_quantity').or('stock_quantity.lte.3,availability.eq.temporarily_unavailable,status.eq.draft').limit(5)
   ]);
 
@@ -77,7 +77,7 @@ async function getDashboardStats() {
       id: r.id,
       query: r.query,
       createdAt: r.created_at,
-      resultCount: r.result_count ?? 0
+      source: r.source || 'catalogue'
     })),
     attentionItems: (attentionProducts || []).map((p: any) => ({
       id: p.id,

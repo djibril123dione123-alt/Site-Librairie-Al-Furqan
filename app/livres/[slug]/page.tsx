@@ -140,6 +140,20 @@ export default async function ProductPage({ params }: { params: { slug: string }
           <span className="eyebrow">À PROPOS DE CE LIVRE</span>
           <h2>Une lecture à garder près de soi.</h2>
           <p>{product.description}</p>
+
+          {product.videoUrl && (
+            <div style={{ marginTop: 24, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--line)' }}>
+              <span className="eyebrow" style={{ display: 'block', padding: '12px 16px', background: '#FBF9F4' }}>PRÉSENTATION VIDÉO</span>
+              <iframe
+                src={product.videoUrl}
+                title={`Présentation vidéo de ${product.title}`}
+                loading="lazy"
+                style={{ width: '100%', height: 315, border: 'none' }}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          )}
         </div>
         {specs.length > 0 && (
           <div className="specs">
@@ -172,7 +186,6 @@ export default async function ProductPage({ params }: { params: { slug: string }
       )}
       
       <RecentlyViewed currentProductId={product.id} />
-      <MobileStickyCta product={product} />
     </main>
   );
 }

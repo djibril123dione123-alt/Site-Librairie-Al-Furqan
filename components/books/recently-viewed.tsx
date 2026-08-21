@@ -32,8 +32,9 @@ export function RecentlyViewed({ currentProductId }: { currentProductId: string 
         const supabase = createBrowserClient();
         const { data, error } = await supabase
           .from('products')
-          .select(`*, product_variants(*)`)
-          .in('id', ids);
+          .select(`*, authors(*), publishers(*), categories(*), product_images(*), product_variants(*)`)
+          .in('id', ids)
+          .eq('status', 'published');
           
         if (!error && data) {
           // Keep order of ids

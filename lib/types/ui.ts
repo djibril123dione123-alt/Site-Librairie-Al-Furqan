@@ -13,6 +13,7 @@ export type VariantAttribute = { label: string; value: string };
 
 export type Variant = {
   id: string;
+  sku?: string;
   attributes: VariantAttribute[];
   price: number;
   stock: number;
@@ -61,6 +62,7 @@ export type Product = {
   variants?: Variant[];
   images?: ProductImage[];
   coverUrl?: string | null;
+  videoUrl?: string;
   // Couleurs pour le composant Cover (tant qu'il n'y a pas de vraies photos)
   color: string;
   ink: string;
