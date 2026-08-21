@@ -1,9 +1,6 @@
-const { Client } = require('pg');
+const { getPgClient } = require('../lib/get-db-client');
 const fs = require('fs');
 const path = require('path');
-const dns = require('dns');
-
-dns.setDefaultResultOrder('ipv4first');
 
 const SENEGAL_REGIONS = [
   'Dakar', 'Diourbel', 'Fatick', 'Kaffrine', 'Kaolack', 'Kédougou', 
@@ -63,20 +60,15 @@ function deduceRegionStrict(name) {
     return 'Kédougou';
   }
 
-  // STRICT REQUIREMENT: NO DEFAULT 'Dakar' FALLBACK! Return NULL if unknown.
+  // EXIGENCE STRICTE: PAS DE FALLBACK DAKAR! Retourne NULL si inconnu.
   return null;
 }
 
 async function runLaPosteImport() {
   console.log("=== IMPORTATION STRICTE DES BUREAUX CARTOGRAPHIÉS DE LA POSTE SÉNÉGAL ===");
 
-  const dbUrl = "postgres://postgres:49CpzDmopfSQuTnjmWbajUfOcvTewVIz%21A1@db.ryrhopolzmcawscuwcak.supabase.co:5432/postgres";
-  const client = new Client({
-    connectionString: dbUrl,
-    ssl: { rejectUnauthorized: false }
-  });
-
-  await client.connect();
+  const client = await getPgClient();
+  console.log("✅ Connexion PostgreSQL IPv4 établie via getPgClient().");
 
   const jsonPath = path.join(process.cwd(), 'laposte_offices_parsed.json');
   if (!fs.existsSync(jsonPath)) {
@@ -131,6 +123,9 @@ async function runLaPosteImport() {
       off.id || null
     ]);
   }
+
+  // Notifier PostgREST pour recharger son cache de schéma
+  await client.query("NOTIFY pgrst, 'reload schema';");
 
   console.log(`✅ ${officesData.length} bureaux de poste cartographiés insérés avec succès dans Supabase.`);
   console.log(`- Bureaux avec Région déduite avec certitude : ${regionKnownCount}`);

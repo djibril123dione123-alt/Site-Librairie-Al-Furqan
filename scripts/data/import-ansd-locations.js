@@ -1,10 +1,6 @@
-const { Client } = require('pg');
+const { getPgClient } = require('../lib/get-db-client');
 const fs = require('fs');
 const path = require('path');
-const dns = require('dns');
-
-// Force IPv4 DNS resolution
-dns.setDefaultResultOrder('ipv4first');
 
 function removeAccents(str) {
   return str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
@@ -13,14 +9,8 @@ function removeAccents(str) {
 async function runANSDEnrichment() {
   console.log("=== ENRICHISSEMENT IDEMPOTENT DES DONNÉES ANSD RGPH-5 2023 IN SUPABASE ===");
 
-  const dbUrl = "postgres://postgres:49CpzDmopfSQuTnjmWbajUfOcvTewVIz%21A1@db.ryrhopolzmcawscuwcak.supabase.co:5432/postgres";
-  const client = new Client({
-    connectionString: dbUrl,
-    ssl: { rejectUnauthorized: false }
-  });
-
-  await client.connect();
-  console.log("✅ Connexion PostgreSQL IPv4 établie.");
+  const client = await getPgClient();
+  console.log("✅ Connexion PostgreSQL IPv4 établie via getPgClient().");
 
   const csvPath = path.join(process.cwd(), 'ansd_sample.csv');
   if (!fs.existsSync(csvPath)) {
@@ -57,15 +47,9 @@ async function runANSDEnrichment() {
     if (seenKeys.has(key)) continue;
     seenKeys.add(key);
 
-    let localityType = null;
-    const locUpper = locality.toUpperCase();
-    if (locUpper.includes('VILLAGE') || locUpper.includes('VIL.')) {
-      localityType = "Village";
-    } else if (locUpper.includes('QUARTIER') || locUpper.includes('QTR') || region === 'DAKAR') {
-      localityType = "Quartier";
-    } else if (locUpper.includes('HAMEAU')) {
-      localityType = "Hameau";
-    }
+    // EXIGENCE STRICTE SECTION 6: AUCUNE HEURISTIQUE OU DEVINNETTE
+    // Le CSV officiel RGPH-5 ne possédant pas de colonne 'type', locality_type = NULL par défaut.
+    const localityType = null;
 
     const displayName = `${locality}${commune ? ' (' + commune + ')' : department ? ' (' + department + ')' : ''}`;
     const normalizedName = removeAccents(`${locality} ${commune || ''} ${department || ''} ${region}`);
@@ -96,7 +80,7 @@ async function runANSDEnrichment() {
       const dept = r.department ? `'${r.department.replace(/'/g, "''")}'` : 'NULL';
       const com = r.commune ? `'${r.commune.replace(/'/g, "''")}'` : 'NULL';
       const loc = r.locality.replace(/'/g, "''");
-      const locType = r.locality_type ? `'${r.locality_type}'` : 'NULL';
+      const locType = 'NULL';
       const dispName = r.display_name.replace(/'/g, "''");
       const normName = r.normalized_name.replace(/'/g, "''");
       const srcName = r.source_name.replace(/'/g, "''");
@@ -123,10 +107,12 @@ async function runANSDEnrichment() {
 
     await client.query(query);
     processed += batch.length;
-    console.log(`✅ Lot ${Math.floor(i/batchSize) + 1} enrichi (${processed}/${rows.length}).`);
   }
 
-  console.log("\n🎉 Enrichissement ANSD terminé sans aucune suppression !");
+  // Notifier PostgREST pour recharger son cache de schéma
+  await client.query("NOTIFY pgrst, 'reload schema';");
+  console.log("\n🎉 Enrichissement ANSD terminé (007 / NULL strict pour locality_type) ! Cache PostgREST notifié.");
+
   await client.end();
 }
 
