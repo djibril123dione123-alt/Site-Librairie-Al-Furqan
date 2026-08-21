@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { MapPin, Navigation, Building, Truck, ChevronRight, ExternalLink } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase/client';
-import { SearchableCombobox } from '@/components/ui/searchable-combobox';
+import { SearchableCombobox, ComboboxOption } from '@/components/ui/searchable-combobox';
 
 export type DeliveryMethod = 'standard' | 'la_poste';
 
@@ -20,7 +20,9 @@ export interface LocationData {
 export interface PostOffice {
   id: string;
   name: string;
-  address: string;
+  address: string | null;
+  region: string | null;
+  locality: string | null;
   latitude: number;
   longitude: number;
   distanceKm?: number;
@@ -58,11 +60,12 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
   
   const [method, setMethod] = useState<DeliveryMethod | null>(initialData?.method || null);
   
-  // Dynamic geographical state
+  // Server-driven geographic state
   const [regions, setRegions] = useState<string[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
   const [communes, setCommunes] = useState<string[]>([]);
-  const [localities, setLocalities] = useState<string[]>([]);
+  const [localitiesOptions, setLocalitiesOptions] = useState<ComboboxOption[]>([]);
+  const [localitiesLoading, setLocalitiesLoading] = useState(false);
   
   const [selectedRegion, setSelectedRegion] = useState(initialData?.location?.region || '');
   const [selectedDept, setSelectedDept] = useState(initialData?.location?.department || '');
@@ -74,26 +77,31 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
   const [repere, setRepere] = useState(initialData?.location?.repere || '');
   
   // Post offices state
-  const [offices, setOffices] = useState<PostOffice[]>([]);
+  const [allOffices, setAllOffices] = useState<PostOffice[]>([]);
   const [selectedOffice, setSelectedOffice] = useState<PostOffice | null>(initialData?.postOffice || null);
   const [customOfficeInput, setCustomOfficeInput] = useState('');
   const [isCustomOffice, setIsCustomOffice] = useState(false);
   const [locating, setLocating] = useState(false);
   const [geoError, setGeoError] = useState('');
+  const [officeSearch, setOfficeSearch] = useState('');
 
-  // Initial regions fetch
+  // 1. Fetch Regions via RPC or Fallback
   useEffect(() => {
     async function fetchRegions() {
       try {
-        const { data, error } = await supabase
-          .from('senegal_locations')
-          .select('region')
-          .eq('is_active', true)
-          .range(0, 1000);
-          
-        if (error || !data || data.length === 0) throw new Error('No data');
-        const uniqueRegs = Array.from(new Set(data.map(d => d.region))).sort();
-        setRegions(uniqueRegs);
+        const { data, error } = await supabase.rpc('get_senegal_regions');
+        if (error || !data || data.length === 0) {
+          // Direct fallback query if RPC not yet indexed in client cache
+          const { data: dFallback } = await supabase.from('senegal_locations').select('region').limit(25000);
+          if (dFallback && dFallback.length > 0) {
+            const uniqueRegs = Array.from(new Set(dFallback.map(d => d.region))).sort();
+            setRegions(uniqueRegs);
+            return;
+          }
+          throw new Error("RPC failed");
+        }
+        const regs = data.map((r: any) => r.region).filter(Boolean);
+        setRegions(regs.length > 0 ? regs : FALLBACK_REGIONS);
       } catch (err) {
         setRegions(FALLBACK_REGIONS);
       }
@@ -101,7 +109,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
     fetchRegions();
   }, [supabase]);
 
-  // Progressive query for Departments
+  // 2. Fetch Departments via RPC
   useEffect(() => {
     if (!selectedRegion) {
       setDepartments([]);
@@ -110,17 +118,12 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
     }
     async function fetchDepts() {
       try {
-        const { data, error } = await supabase
-          .from('senegal_locations')
-          .select('department')
-          .eq('region', selectedRegion)
-          .not('department', 'is', null)
-          .eq('is_active', true)
-          .range(0, 1000);
-          
-        if (error || !data) throw error;
-        const uniqueDepts = Array.from(new Set(data.map(d => d.department).filter(Boolean))).sort() as string[];
-        setDepartments(uniqueDepts);
+        const { data, error } = await supabase.rpc('get_senegal_departments', { p_region: selectedRegion });
+        if (!error && data) {
+          setDepartments(data.map((d: any) => d.department).filter(Boolean));
+        } else {
+          setDepartments([]);
+        }
       } catch (err) {
         setDepartments([]);
       }
@@ -128,7 +131,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
     fetchDepts();
   }, [selectedRegion, supabase]);
 
-  // Progressive query for Communes
+  // 3. Fetch Communes via RPC
   useEffect(() => {
     if (!selectedRegion) {
       setCommunes([]);
@@ -137,21 +140,15 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
     }
     async function fetchCommunes() {
       try {
-        let query = supabase
-          .from('senegal_locations')
-          .select('commune')
-          .eq('region', selectedRegion)
-          .not('commune', 'is', null)
-          .eq('is_active', true);
-          
-        if (selectedDept) {
-          query = query.eq('department', selectedDept);
+        const { data, error } = await supabase.rpc('get_senegal_communes', { 
+          p_region: selectedRegion, 
+          p_department: selectedDept || null 
+        });
+        if (!error && data) {
+          setCommunes(data.map((c: any) => c.commune).filter(Boolean));
+        } else {
+          setCommunes([]);
         }
-        
-        const { data, error } = await query.range(0, 1000);
-        if (error || !data) throw error;
-        const uniqueComs = Array.from(new Set(data.map(d => d.commune).filter(Boolean))).sort() as string[];
-        setCommunes(uniqueComs);
       } catch (err) {
         setCommunes([]);
       }
@@ -159,42 +156,50 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
     fetchCommunes();
   }, [selectedRegion, selectedDept, supabase]);
 
-  // Progressive query for Localities
-  useEffect(() => {
-    if (!selectedRegion) {
-      setLocalities([]);
-      setSelectedLocality('');
-      return;
-    }
-    async function fetchLocalities() {
-      try {
-        let query = supabase
-          .from('senegal_locations')
-          .select('locality')
-          .eq('region', selectedRegion)
-          .eq('is_active', true);
-          
-        if (selectedDept) query = query.eq('department', selectedDept);
-        if (selectedCommune) query = query.eq('commune', selectedCommune);
+  // 4. Server-side Locality Search via RPC
+  const searchLocalitiesServer = useCallback(async (queryText: string) => {
+    if (!selectedRegion) return;
+    setLocalitiesLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('search_senegal_localities', {
+        p_region: selectedRegion,
+        p_department: selectedDept || null,
+        p_commune: selectedCommune || null,
+        p_query: queryText || null,
+        p_limit: 50
+      });
 
-        const { data, error } = await query.range(0, 500);
-        if (error || !data) throw error;
-        const uniqueLocs = Array.from(new Set(data.map(d => d.locality))).sort();
-        setLocalities(uniqueLocs);
-      } catch (err) {
-        setLocalities([]);
+      if (!error && data) {
+        const opts: ComboboxOption[] = data.map((item: any) => ({
+          value: item.locality,
+          label: item.locality,
+          sublabel: [item.commune, item.department, item.region].filter(Boolean).join(' · ')
+        }));
+        setLocalitiesOptions(opts);
       }
+    } catch (err) {
+      console.error('Locality search error:', err);
+    } finally {
+      setLocalitiesLoading(false);
     }
-    fetchLocalities();
   }, [selectedRegion, selectedDept, selectedCommune, supabase]);
 
-  // Fetch La Poste offices for region/locality
   useEffect(() => {
-    if (method !== 'la_poste' || !selectedRegion) {
-      setOffices([]);
+    if (selectedRegion) {
+      searchLocalitiesServer('');
+    } else {
+      setLocalitiesOptions([]);
+      setSelectedLocality('');
+    }
+  }, [selectedRegion, selectedDept, selectedCommune, searchLocalitiesServer]);
+
+  // 5. Fetch ALL 129 Cartographed Post Offices
+  useEffect(() => {
+    if (method !== 'la_poste') {
+      setAllOffices([]);
       return;
     }
-    async function fetchOffices() {
+    async function fetchAllOffices() {
       try {
         const { data, error } = await supabase
           .from('delivery_points')
@@ -203,14 +208,15 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
           .eq('is_active', true);
           
         if (error) throw error;
-        setOffices(data || []);
+        setAllOffices(data || []);
       } catch (err) {
         console.error('Failed to load post offices');
       }
     }
-    fetchOffices();
-  }, [method, selectedRegion, supabase]);
+    fetchAllOffices();
+  }, [method, supabase]);
 
+  // Haversine Geolocation across ALL cartographed offices
   const handleGeolocation = () => {
     if (!navigator.geolocation) {
       setGeoError('Géolocalisation non supportée par votre navigateur.');
@@ -223,26 +229,45 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
         setLocating(false);
         const { latitude, longitude } = pos.coords;
         
-        if (offices.length > 0) {
-          const withDistance = offices.map(o => ({
+        const validOffices = allOffices.filter(o => o.latitude !== null && o.longitude !== null);
+        if (validOffices.length > 0) {
+          const withDistance = validOffices.map(o => ({
             ...o,
-            distanceKm: getDistanceFromLatLonInKm(latitude, longitude, o.latitude, o.longitude)
+            distanceKm: getDistanceFromLatLonInKm(latitude, longitude, Number(o.latitude), Number(o.longitude))
           })).sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
           
-          setOffices(withDistance);
+          setAllOffices(withDistance);
           setSelectedOffice(withDistance[0]);
           setIsCustomOffice(false);
         }
       },
       () => {
         setLocating(false);
-        setGeoError('Géolocalisation refusée. Veuillez sélectionner votre bureau dans la liste.');
+        setGeoError('Géolocalisation refusée. Veuillez choisir votre bureau ci-dessous.');
       }
     );
   };
 
+  // Filtered offices for display
+  const displayedOffices = useMemo(() => {
+    let list = allOffices;
+    
+    // Filter by region if user selected a region AND office has region defined
+    if (selectedRegion) {
+      const regUpper = selectedRegion.toUpperCase();
+      const filteredByReg = list.filter(o => !o.region || o.region.toUpperCase() === regUpper);
+      if (filteredByReg.length > 0) list = filteredByReg;
+    }
+
+    if (officeSearch.trim()) {
+      const q = officeSearch.toLowerCase();
+      list = list.filter(o => o.name.toLowerCase().includes(q) || (o.address && o.address.toLowerCase().includes(q)));
+    }
+
+    return list;
+  }, [allOffices, selectedRegion, officeSearch]);
+
   const finalLocality = selectedLocality === "Je ne trouve pas ma localité" ? customLocalityInput : selectedLocality;
-  const finalOfficeName = isCustomOffice ? customOfficeInput : selectedOffice?.name;
 
   const isFormValid = Boolean(
     method &&
@@ -267,7 +292,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
       },
       postOffice: method === 'la_poste' ? (
         isCustomOffice 
-          ? { id: 'custom', name: customOfficeInput, address: customOfficeInput, latitude: 0, longitude: 0, isCustomOffice: true } 
+          ? { id: 'custom', name: customOfficeInput, address: null, region: selectedRegion || null, locality: null, latitude: 0, longitude: 0, isCustomOffice: true } 
           : selectedOffice!
       ) : undefined
     });
@@ -317,7 +342,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Région */}
             <div>
-              <label className="block text-xs uppercase tracking-widest text-[#b28a52] mb-2 font-semibold">Région (14 régions)</label>
+              <label className="block text-xs uppercase tracking-widest text-[#b28a52] mb-2 font-semibold">Région (14 régions du Sénégal)</label>
               <SearchableCombobox
                 options={regions}
                 value={selectedRegion}
@@ -365,16 +390,18 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
               />
             </div>
 
-            {/* Localité / Quartier */}
+            {/* Localité / Quartier (Serveur Search Engine) */}
             <div>
               <label className="block text-xs uppercase tracking-widest text-[#b28a52] mb-2 font-semibold">Localité / Quartier / Village</label>
               <SearchableCombobox
-                options={localities}
+                options={localitiesOptions}
                 value={selectedLocality}
                 disabled={!selectedRegion}
+                loading={localitiesLoading}
                 onChange={(val) => setSelectedLocality(val)}
-                placeholder={!selectedRegion ? "Choisissez une région d'abord" : "Sélectionner une localité..."}
-                searchPlaceholder="Rechercher quartier, village..."
+                onSearchChange={(q) => searchLocalitiesServer(q)}
+                placeholder={!selectedRegion ? "Choisissez une région d'abord" : "Rechercher une localité..."}
+                searchPlaceholder="Tapez un nom de village, quartier..."
                 customFallbackOption="Je ne trouve pas ma localité"
               />
             </div>
@@ -424,11 +451,11 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
       )}
 
       {/* 3. Sélection Bureau La Poste */}
-      {method === 'la_poste' && selectedRegion && (
+      {method === 'la_poste' && (
         <div className="step-block border-t border-[#e3dcd1] pt-8 animate-in fade-in space-y-4">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
-              <h3 className="serif text-xl font-medium">3. Bureau de Poste (129 points cartographiés)</h3>
+              <h3 className="serif text-xl font-medium">3. Bureau de Poste ({allOffices.length} points cartographiés)</h3>
               <p className="text-xs text-[#64736f] mt-0.5">Points de service officiellement cartographiés par La Poste Sénégal.</p>
             </div>
             
@@ -456,9 +483,19 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
 
           <p className="text-[11px] text-[#64736f]">Votre position sert uniquement à trouver les bureaux de poste les plus proches.</p>
           {geoError && <p className="text-xs text-red-500 font-medium">{geoError}</p>}
+
+          <div className="mb-3">
+            <input
+              type="text"
+              value={officeSearch}
+              onChange={(e) => setOfficeSearch(e.target.value)}
+              placeholder="Filtrer les bureaux de poste par nom..."
+              className="w-full border border-[#e3dcd1] bg-[#fbf9f4] p-2.5 rounded-md text-xs"
+            />
+          </div>
           
           <div className="grid grid-cols-1 gap-3 max-h-80 overflow-y-auto pr-1">
-            {offices.map(office => (
+            {displayedOffices.map(office => (
               <label 
                 key={office.id} 
                 className={`office-card p-4 border rounded-xl cursor-pointer transition-all ${
@@ -480,10 +517,19 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
                     className="mt-1 accent-[#b28a52]"
                   />
                   <div className="flex-1">
-                    <strong className="block text-sm text-[#1a1a2e]">{office.name}</strong>
-                    <span className="text-xs text-[#64736f] flex items-center gap-1 mt-1">
-                      <MapPin size={12} className="text-[#b28a52]" /> {office.address}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <strong className="block text-sm text-[#1a1a2e]">{office.name}</strong>
+                      {office.region && (
+                        <span className="text-[10px] bg-[#e3dcd1]/50 text-[#64736f] px-2 py-0.5 rounded">
+                          {office.region}
+                        </span>
+                      )}
+                    </div>
+                    {office.address && (
+                      <span className="text-xs text-[#64736f] flex items-center gap-1 mt-1">
+                        <MapPin size={12} className="text-[#b28a52]" /> {office.address}
+                      </span>
+                    )}
                   </div>
                   {office.distanceKm !== undefined && (
                     <span className="text-xs font-semibold text-[#b28a52] bg-white border border-[#e3dcd1] px-2.5 py-1 rounded-full shadow-sm">

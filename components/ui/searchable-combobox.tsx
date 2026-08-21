@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, ChevronDown, Check, X } from 'lucide-react';
+import { Search, ChevronDown, Check, X, Loader2 } from 'lucide-react';
 
-interface ComboboxOption {
+export interface ComboboxOption {
   value: string;
   label: string;
   sublabel?: string;
@@ -13,6 +13,8 @@ interface SearchableComboboxProps {
   options: (string | ComboboxOption)[];
   value: string;
   onChange: (val: string) => void;
+  onSearchChange?: (query: string) => void;
+  loading?: boolean;
   placeholder?: string;
   searchPlaceholder?: string;
   disabled?: boolean;
@@ -21,13 +23,15 @@ interface SearchableComboboxProps {
 }
 
 function removeAccents(str: string) {
-  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
 }
 
 export function SearchableCombobox({
   options,
   value,
   onChange,
+  onSearchChange,
+  loading = false,
   placeholder = "Sélectionner...",
   searchPlaceholder = "Rechercher...",
   disabled = false,
@@ -48,12 +52,13 @@ export function SearchableCombobox({
   }, [options]);
 
   const filteredOptions = useMemo(() => {
+    if (onSearchChange) return normalizedOptions; // Server filtered
     if (!search.trim()) return normalizedOptions.slice(0, 100);
     const q = removeAccents(search.trim());
     return normalizedOptions
       .filter(opt => removeAccents(opt.label).includes(q) || (opt.sublabel && removeAccents(opt.sublabel).includes(q)))
       .slice(0, 100);
-  }, [normalizedOptions, search]);
+  }, [normalizedOptions, search, onSearchChange]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -65,7 +70,15 @@ export function SearchableCombobox({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const selectedOption = normalizedOptions.find(o => o.value === value);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearch(val);
+    if (onSearchChange) {
+      onSearchChange(val);
+    }
+  };
+
+  const selectedOption = normalizedOptions.find(o => o.value === value) || (value ? { value, label: value } : null);
 
   return (
     <div className="relative w-full" ref={containerRef}>
@@ -89,19 +102,27 @@ export function SearchableCombobox({
               type="text"
               autoFocus
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={handleInputChange}
               placeholder={searchPlaceholder}
               className="w-full bg-transparent text-sm focus:outline-none text-[#1a1a2e]"
             />
-            {search && (
-              <button type="button" onClick={() => setSearch('')} className="text-[#8c7b6c] hover:text-[#1a1a2e]">
+            {loading && <Loader2 size={14} className="animate-spin text-[#b28a52] shrink-0" />}
+            {search && !loading && (
+              <button 
+                type="button" 
+                onClick={() => {
+                  setSearch('');
+                  if (onSearchChange) onSearchChange('');
+                }} 
+                className="text-[#8c7b6c] hover:text-[#1a1a2e]"
+              >
                 <X size={14} />
               </button>
             )}
           </div>
 
           <div className="overflow-y-auto max-h-56 p-1">
-            {filteredOptions.length === 0 ? (
+            {filteredOptions.length === 0 && !loading ? (
               <div className="p-3 text-xs text-[#64736f] text-center">{emptyText}</div>
             ) : (
               filteredOptions.map((opt) => (
