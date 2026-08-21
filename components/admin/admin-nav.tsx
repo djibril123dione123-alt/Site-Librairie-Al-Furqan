@@ -48,7 +48,7 @@ export function AdminNav() {
     } catch {
       // Ignorer si mode dev / non configuré
     }
-    router.push('/admin/login');
+    window.location.href = '/admin/login';
   };
 
   const getPageTitle = () => {

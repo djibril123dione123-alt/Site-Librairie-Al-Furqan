@@ -83,8 +83,7 @@ function AdminLoginForm() {
         return;
       }
 
-      router.push(redirect);
-      router.refresh();
+      window.location.href = redirect;
     } catch (err: any) {
       setError(`Une erreur imprévue est survenue (${err.message || 'Erreur réseau'}).`);
       setLoading(false);

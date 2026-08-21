@@ -1,8 +1,11 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createBrowserClient as createSupabaseBrowserClient } from '@supabase/ssr';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 /**
- * Client Supabase pour le navigateur (utilise la clé anon publique).
- * À utiliser dans les Client Components uniquement.
+ * Client Supabase SSR pour le navigateur.
+ * Utilise @supabase/ssr pour synchroniser automatiquement les tokens d'authentification
+ * avec les cookies HTTP (sb-<project-ref>-auth-token), assurant la persistance
+ * de session entre le navigateur client et le serveur Next.js.
  */
 let browserClient: SupabaseClient | undefined;
 
@@ -18,6 +21,6 @@ export function createBrowserClient(): SupabaseClient {
     );
   }
 
-  browserClient = createClient(url, key);
+  browserClient = createSupabaseBrowserClient(url, key);
   return browserClient;
 }
