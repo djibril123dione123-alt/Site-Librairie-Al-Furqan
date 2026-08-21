@@ -1,4 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
@@ -19,7 +18,7 @@ export async function middleware(request: NextRequest) {
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.split(' ')[1];
   } else {
-    // 2. Récupération du Cookie @supabase/ssr (supporte le chunking)
+    // 2. Récupération du Cookie
     const projectRef = supabaseUrl?.split('//')[1]?.split('.')[0] ?? '';
     const cookieName = `sb-${projectRef}-auth-token`;
     
@@ -31,30 +30,16 @@ export async function middleware(request: NextRequest) {
     }
     if (!cookieStr) cookieStr = request.cookies.get(cookieName)?.value || '';
 
-    if (cookieStr) {
-      try {
-        const parsed = JSON.parse(decodeURIComponent(cookieStr));
-        if (Array.isArray(parsed) && parsed.length > 0) token = parsed[0];
-      } catch {
-        token = cookieStr;
-      }
-    }
+    if (cookieStr) token = cookieStr; // Simple vérification de présence
   }
 
-  // Validation cryptographique de la session via le token
-  let isValidSession = false;
-  if (token) {
-    const supabase = createClient(supabaseUrl!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-      auth: { persistSession: false }
-    });
-    const { data: { user } } = await supabase.auth.getUser(token);
-    if (user) isValidSession = true;
-  }
+  // Présence d'un token (la vraie validation cryptographique se fait dans requireAdmin côté Node.js)
+  const hasSession = !!token;
 
   const isApiAdminRoute = pathname.startsWith('/api/admin');
   const isAdminPageRoute = pathname.startsWith('/admin') && !pathname.startsWith('/admin/login');
 
-  if (!isValidSession && (isApiAdminRoute || isAdminPageRoute)) {
+  if (!hasSession && (isApiAdminRoute || isAdminPageRoute)) {
     // Non connecté
     if (isApiAdminRoute) {
       return NextResponse.json({ error: 'Non autorisé (Middleware)' }, { status: 401 });
