@@ -18,7 +18,8 @@ import {
   Image as ImageIcon, 
   Layers, 
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  AlertCircle
 } from 'lucide-react';
 import type { Availability } from '@/lib/types/ui';
 
@@ -118,12 +119,12 @@ const DEFAULT_FORM: FormData = {
   authorId: '',
   publisher: '',
   publisherId: '',
-  category: 'Coran',
+  category: '',
   categoryId: '',
   price: '',
   compareAtPrice: '',
   availability: 'Disponible',
-  stockQuantity: '10',
+  stockQuantity: '',
   shortDescription: '',
   description: '',
   language: 'Français',
@@ -170,12 +171,13 @@ export function ProductForm({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
   const [success, setSuccess] = useState('');
   const [biblioOpen, setBiblioOpen] = useState(true);
   
   const router = useRouter();
 
-  // Charger les catégories de la DB si non transmises via props
+  // Charger les catégories de la DB si non transmises
   useEffect(() => {
     if (!externalCategories || externalCategories.length === 0) {
       fetch('/api/admin/categories')
@@ -216,10 +218,13 @@ export function ProductForm({
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Synchronisation de la catégorie sélectionnée (ID + Nom)
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedId = e.target.value;
-    const catObj = categoriesList.find((c) => c.id === selectedId || c.name === selectedId);
+    const selectedVal = e.target.value;
+    if (!selectedVal) {
+      setForm((prev) => ({ ...prev, category: '', categoryId: '' }));
+      return;
+    }
+    const catObj = categoriesList.find((c) => c.id === selectedVal || c.name === selectedVal);
     if (catObj) {
       setForm((prev) => ({
         ...prev,
@@ -229,7 +234,7 @@ export function ProductForm({
     } else {
       setForm((prev) => ({
         ...prev,
-        category: e.target.value,
+        category: selectedVal,
         categoryId: '',
       }));
     }
@@ -309,7 +314,6 @@ export function ProductForm({
     }
   };
 
-  // Définir la couverture principale (garantie 1 seule image 'cover')
   const setPrimaryImage = (index: number) => {
     setImages((prev) =>
       prev.map((img, i) => ({
@@ -319,7 +323,6 @@ export function ProductForm({
     );
   };
 
-  // Création rapide Auteur
   const handleQuickCreateAuthor = async () => {
     if (!newAuthorName.trim()) return;
     try {
@@ -344,7 +347,6 @@ export function ProductForm({
     }
   };
 
-  // Création rapide Éditeur
   const handleQuickCreatePublisher = async () => {
     if (!newPublisherName.trim()) return;
     try {
@@ -386,22 +388,41 @@ export function ProductForm({
     );
   };
 
-  // Soumission globale
+  // Soumission globale avec validation différenciée Brouillon vs Publication
   const handleFormSubmit = async (e: React.FormEvent, targetStatus?: 'draft' | 'published' | 'archived') => {
     e.preventDefault();
     setError('');
+    setWarning('');
     setSuccess('');
 
     const finalStatus = targetStatus || form.status;
 
+    // 1. Validation de base (Titre requis même pour les brouillons)
     if (!form.title.trim()) {
       setError('Le titre du livre est obligatoire.');
       return;
     }
 
-    if (form.price && isNaN(parseInt(form.price))) {
-      setError('Le prix doit être un nombre valide en FCFA.');
-      return;
+    // 2. Validation stricte pour la PUBLICATION
+    if (finalStatus === 'published') {
+      if (!form.category && !form.categoryId) {
+        setError('Veuillez choisir une catégorie réelle avant de publier le livre.');
+        return;
+      }
+      if (form.price === '' || isNaN(Number(form.price))) {
+        setError('Un prix de vente valide (FCFA) est obligatoire pour publier un livre.');
+        return;
+      }
+      if (form.stockQuantity === '' || isNaN(Number(form.stockQuantity))) {
+        setError('Le stock disponible doit être explicitement renseigné (ex: 0, 10, etc.) avant de publier.');
+        return;
+      }
+
+      // Avertissement non-bloquant si pas d'image
+      const hasCover = images.some((img) => img.type === 'cover' || img.storagePath);
+      if (!hasCover) {
+        setWarning('Publication effectuée sans photo de couverture. Le visuel 3D virtuel sera affiché.');
+      }
     }
 
     setSaving(true);
@@ -415,21 +436,21 @@ export function ProductForm({
         authorId: form.authorId || null,
         publisher: form.publisher.trim() || null,
         publisherId: form.publisherId || null,
-        category: form.category,
+        category: form.category || null,
         categoryId: form.categoryId || null,
-        price: form.price !== '' ? parseInt(form.price) : null,
-        compareAtPrice: form.compareAtPrice !== '' ? parseInt(form.compareAtPrice) : null,
+        price: form.price !== '' ? Number(form.price) : null,
+        compareAtPrice: form.compareAtPrice !== '' ? Number(form.compareAtPrice) : null,
         availability: form.availability,
-        stockQuantity: form.stockQuantity !== '' ? parseInt(form.stockQuantity) : null,
+        stockQuantity: form.stockQuantity !== '' ? Number(form.stockQuantity) : null,
         shortDescription: form.shortDescription.trim() || null,
         description: form.description.trim() || null,
         language: form.language,
         isbn: form.isbn.trim() || null,
-        pages: form.pages !== '' ? parseInt(form.pages) : null,
+        pages: form.pages !== '' ? Number(form.pages) : null,
         dimensions: form.dimensions.trim() || null,
         binding: form.binding.trim() || null,
         edition: form.edition.trim() || null,
-        year: form.year !== '' ? parseInt(form.year) : null,
+        year: form.year !== '' ? Number(form.year) : null,
         themes: form.themes ? form.themes.split(',').map((t) => t.trim()).filter(Boolean) : [],
         reading: form.reading || null,
         tajwid: form.tajwid,
@@ -445,8 +466,8 @@ export function ProductForm({
         })),
         variants: form.hasVariants ? variants.map((v) => ({
           attributes: v.attributes,
-          price: v.price !== '' ? parseInt(v.price) : null,
-          stock: v.stock !== '' ? parseInt(v.stock) : null,
+          price: v.price !== '' ? Number(v.price) : null,
+          stock: v.stock !== '' ? Number(v.stock) : null,
         })) : [],
       };
 
@@ -546,6 +567,13 @@ export function ProductForm({
       {error && (
         <div className="admin-alert admin-alert-error" style={{ marginBottom: 20 }}>
           {error}
+        </div>
+      )}
+
+      {warning && (
+        <div className="admin-alert admin-alert-warning" style={{ marginBottom: 20 }}>
+          <AlertCircle size={16} />
+          <span>{warning}</span>
         </div>
       )}
 
@@ -709,7 +737,7 @@ export function ProductForm({
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label" htmlFor="price">
-                  Prix de vente (FCFA) <span style={{ color: '#DC2626' }}>*</span>
+                  Prix de vente (FCFA) {form.status === 'published' && <span style={{ color: '#DC2626' }}>*</span>}
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
@@ -747,13 +775,13 @@ export function ProductForm({
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label" htmlFor="stockQuantity">
-                  Quantité en stock physique
+                  Quantité en stock physique {form.status === 'published' && <span style={{ color: '#DC2626' }}>*</span>}
                 </label>
                 <input
                   id="stockQuantity"
                   type="number"
                   className="form-input"
-                  placeholder="Ex: 25"
+                  placeholder="Ex: 0, 5, 25"
                   min={0}
                   value={form.stockQuantity}
                   onChange={(e) => setField('stockQuantity', e.target.value)}
@@ -818,6 +846,7 @@ export function ProductForm({
                 <div className="image-preview-grid">
                   {images.map((img, i) => (
                     <div key={i} className="image-preview-card">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={img.preview} alt={`Aperçu ${i + 1}`} />
                       <button
                         type="button"
@@ -1093,14 +1122,14 @@ export function ProductForm({
             </div>
 
             <div className="form-group">
-              <label className="form-label" htmlFor="category-select">Catégorie <span style={{ color: '#DC2626' }}>*</span></label>
+              <label className="form-label" htmlFor="category-select">Catégorie {form.status === 'published' && <span style={{ color: '#DC2626' }}>*</span>}</label>
               <select
                 id="category-select"
                 className="form-select"
                 value={form.categoryId || form.category}
                 onChange={handleCategoryChange}
-                required
               >
+                <option value="">— Choisir une catégorie —</option>
                 {categoriesList.map((c) => (
                   <option key={c.id} value={c.id || c.name}>{c.name}</option>
                 ))}
@@ -1162,7 +1191,7 @@ export function ProductForm({
         </div>
       </form>
 
-      {/* Modal / Dialog Auteur */}
+      {/* Modal Auteur */}
       {showAuthorModal && (
         <div className="admin-drawer-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="admin-card" style={{ maxWidth: 450, width: '100%', margin: 'auto', backgroundColor: '#FFF', position: 'relative' }}>
@@ -1200,7 +1229,7 @@ export function ProductForm({
         </div>
       )}
 
-      {/* Modal / Dialog Éditeur */}
+      {/* Modal Éditeur */}
       {showPublisherModal && (
         <div className="admin-drawer-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="admin-card" style={{ maxWidth: 450, width: '100%', margin: 'auto', backgroundColor: '#FFF', position: 'relative' }}>

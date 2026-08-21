@@ -239,6 +239,7 @@ export function ProductListTable({
                   <td>
                     <div style={{ width: 36, height: 48, borderRadius: 4, overflow: 'hidden', flexShrink: 0, border: '1px solid var(--admin-border)' }}>
                       {product.coverUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
                         <img src={product.coverUrl} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
                         <Cover product={product as any} small />

@@ -16,6 +16,12 @@ function generateSlug(title: string): string {
     .replace(/\s+/g, '-');
 }
 
+function parseNumberOrNull(val: any): number | null {
+  if (val === null || val === undefined || val === '') return null;
+  const n = Number(val);
+  return isNaN(n) ? null : n;
+}
+
 const imageSchema = z.object({
   id: z.string().optional(),
   storagePath: z.string(),
@@ -27,8 +33,8 @@ const imageSchema = z.object({
 const variantSchema = z.object({
   id: z.string().optional(),
   attributes: z.string(),
-  price: z.number().nullable().optional(),
-  stock: z.number().nullable().optional(),
+  price: z.union([z.number(), z.string()]).nullable().optional(),
+  stock: z.union([z.number(), z.string()]).nullable().optional(),
 });
 
 const productSchema = z.object({
@@ -41,19 +47,19 @@ const productSchema = z.object({
   publisherId: z.string().optional(),
   category: z.string().optional(),
   categoryId: z.string().optional(),
-  price: z.number().nullable().optional(),
-  compareAtPrice: z.number().nullable().optional(),
+  price: z.union([z.number(), z.string()]).nullable().optional(),
+  compareAtPrice: z.union([z.number(), z.string()]).nullable().optional(),
   availability: z.string().optional(),
-  stockQuantity: z.number().nullable().optional(),
+  stockQuantity: z.union([z.number(), z.string()]).nullable().optional(),
   shortDescription: z.string().optional(),
   description: z.string().optional(),
   language: z.string().optional(),
   isbn: z.string().optional(),
-  pages: z.number().nullable().optional(),
+  pages: z.union([z.number(), z.string()]).nullable().optional(),
   dimensions: z.string().optional(),
   binding: z.string().optional(),
   edition: z.string().optional(),
-  year: z.number().nullable().optional(),
+  year: z.union([z.number(), z.string()]).nullable().optional(),
   themes: z.array(z.string()).optional(),
   reading: z.string().optional(),
   tajwid: z.boolean().optional(),
@@ -84,6 +90,21 @@ export async function POST(request: NextRequest) {
 
   const data = parsed.data;
   const supabase = createAdminClient();
+
+  // Validation stricte pour la PUBLICATION
+  if (data.status === 'published') {
+    if (!data.category && !data.categoryId) {
+      return NextResponse.json({ error: 'Une catégorie est obligatoire pour publier un livre.' }, { status: 400 });
+    }
+    const priceNum = parseNumberOrNull(data.price);
+    if (priceNum === null) {
+      return NextResponse.json({ error: 'Un prix de vente valide est obligatoire pour publier un livre.' }, { status: 400 });
+    }
+    const stockNum = parseNumberOrNull(data.stockQuantity);
+    if (stockNum === null) {
+      return NextResponse.json({ error: 'La quantité en stock doit être renseignée pour publier un livre.' }, { status: 400 });
+    }
+  }
 
   // 1. Résolution Auteur
   let authorId: string | null = data.authorId || null;
@@ -127,32 +148,36 @@ export async function POST(request: NextRequest) {
     slug = `${baseSlug}-${Date.now()}`;
   }
 
-  // 5. Ajustement de disponibilité si stock = 0
+  // 5. Règle de disponibilité et stock
+  const stockQuantity = parseNumberOrNull(data.stockQuantity);
   let dbAvailability = data.availability ? uiAvailabilityToDb(data.availability as any) : 'in_stock';
-  if (data.stockQuantity === 0 && dbAvailability === 'in_stock') {
+  
+  if (stockQuantity === 0) {
     dbAvailability = 'out_of_stock';
+  } else if (stockQuantity !== null && stockQuantity >= 1 && stockQuantity <= 3 && data.availability !== 'Indisponible temporairement') {
+    dbAvailability = 'in_stock'; // Mappé sur low_stock au niveau UI
   }
 
-  // 6. Insérer le produit principal
+  // 6. Insérer le produit principal (en préservant 0)
   const { data: product, error } = await supabase.from('products').insert({
     slug,
     title: data.title,
     subtitle: data.subtitle || null,
     short_description: data.shortDescription || null,
     description: data.description || null,
-    price: data.price || null,
-    compare_at_price: data.compareAtPrice || null,
+    price: parseNumberOrNull(data.price),
+    compare_at_price: parseNumberOrNull(data.compareAtPrice),
     availability: dbAvailability,
-    stock_quantity: data.stockQuantity || null,
+    stock_quantity: stockQuantity,
     currency: 'XOF',
     status: data.status,
     language: data.language || null,
     isbn: data.isbn || null,
-    pages: data.pages || null,
+    pages: parseNumberOrNull(data.pages),
     dimensions: data.dimensions || null,
     binding: data.binding || null,
     edition: data.edition || null,
-    publication_year: data.year || null,
+    publication_year: parseNumberOrNull(data.year),
     featured: data.featured || false,
     new_arrival: data.newArrival || false,
     restocked: false,
@@ -171,7 +196,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error?.message || 'Erreur création produit' }, { status: 500 });
   }
 
-  // 7. Persistance P0 des IMAGES dans product_images
+  // 7. Images
   if (data.images && data.images.length > 0) {
     let coverAssigned = false;
     const imageRows = data.images.map((img, idx) => {
@@ -189,13 +214,10 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    const { error: imgErr } = await supabase.from('product_images').insert(imageRows as any);
-    if (imgErr) {
-      console.error('Erreur insertion product_images:', imgErr);
-    }
+    await supabase.from('product_images').insert(imageRows as any);
   }
 
-  // 8. Persistance P0 des VARIANTES dans product_variants
+  // 8. Variantes (en préservant 0 pour le stock et prix)
   if (data.hasVariants && data.variants && data.variants.length > 0) {
     const variantRows = data.variants.map((v) => {
       const attrs: Record<string, string> = {};
@@ -208,15 +230,15 @@ export async function POST(request: NextRequest) {
       return {
         product_id: product.id,
         attributes: attrs,
-        price: v.price || null,
-        stock_quantity: v.stock || null,
+        price: parseNumberOrNull(v.price),
+        stock_quantity: parseNumberOrNull(v.stock),
         availability: 'in_stock',
       };
     });
     await supabase.from('product_variants').insert(variantRows as any);
   }
 
-  // 9. Persistance des THÈMES dans product_themes
+  // 9. Thèmes
   if (data.themes && data.themes.length > 0) {
     for (const themeName of data.themes) {
       if (!themeName.trim()) continue;
@@ -235,7 +257,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Revalidation avec le slug réel du produit
   revalidatePath(`/livres/${product.slug}`);
   revalidatePath('/catalogue');
   revalidatePath('/');

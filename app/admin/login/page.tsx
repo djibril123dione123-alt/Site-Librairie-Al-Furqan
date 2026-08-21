@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BookOpen, Loader2, AlertCircle } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase/client';
 
-export default function AdminLoginPage() {
+function AdminLoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,7 +24,6 @@ export default function AdminLoginPage() {
     setLoading(true);
     setError('');
 
-    // Mode développement sans Supabase configuré
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     if (!supabaseUrl || supabaseUrl === 'https://your-project.supabase.co') {
       if (email === 'admin@alfurqan.local' && password === 'dev') {
@@ -39,7 +38,6 @@ export default function AdminLoginPage() {
     try {
       const supabase = createBrowserClient();
       
-      // 1. Authentification Supabase Auth
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
@@ -65,7 +63,6 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // 2. Vérification du profil et du rôle admin
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
@@ -86,7 +83,6 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // Connexion réussie -> Redirection + Refresh
       router.push(redirect);
       router.refresh();
     } catch (err: any) {
@@ -96,71 +92,79 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="admin-login-page">
-      <div className="admin-login-card">
-        <div className="admin-login-logo">
-          <BookOpen size={24} className="text-[#0c2d38]" />
-          <div>
-            <strong>Al Furqan</strong>
-            <small className="block text-[#718096]">Espace Administration</small>
-          </div>
+    <div className="admin-login-card">
+      <div className="admin-login-logo">
+        <BookOpen size={24} className="text-[#0c2d38]" />
+        <div>
+          <strong>Al Furqan</strong>
+          <small className="block text-[#718096]">Espace Administration</small>
+        </div>
+      </div>
+
+      <h1 className="admin-login-title">Connexion Admin</h1>
+      <p className="admin-login-sub">Accès réservé aux gestionnaires de la librairie.</p>
+
+      {error && (
+        <div className="admin-login-error flex items-start gap-2">
+          <AlertCircle size={18} className="shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <form onSubmit={handleLogin} className="space-y-4">
+        <div className="form-group">
+          <label className="form-label" htmlFor="email">Email administrateur</label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="form-input"
+            placeholder="admin@alfurqan.sn"
+            autoComplete="email"
+            required
+          />
         </div>
 
-        <h1 className="admin-login-title">Connexion Admin</h1>
-        <p className="admin-login-sub">Accès réservé aux gestionnaires de la librairie.</p>
+        <div className="form-group">
+          <label className="form-label" htmlFor="password">Mot de passe</label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="form-input"
+            placeholder="••••••••"
+            autoComplete="current-password"
+            required
+          />
+        </div>
 
-        {error && (
-          <div className="admin-login-error flex items-start gap-2">
-            <AlertCircle size={18} className="shrink-0 mt-0.5" />
-            <span>{error}</span>
-          </div>
-        )}
+        <button
+          type="submit"
+          className="btn-primary w-full justify-center text-sm py-3 mt-2"
+          disabled={loading}
+        >
+          {loading ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              Vérification...
+            </>
+          ) : (
+            'Se connecter à l\'admin'
+          )}
+        </button>
+      </form>
+    </div>
+  );
+}
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="form-group">
-            <label className="form-label" htmlFor="email">Email administrateur</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="form-input"
-              placeholder="admin@alfurqan.sn"
-              autoComplete="email"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="password">Mot de passe</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="form-input"
-              placeholder="••••••••"
-              autoComplete="current-password"
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="btn-primary w-full justify-center text-sm py-3 mt-2"
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Vérification...
-              </>
-            ) : (
-              'Se connecter à l\'admin'
-            )}
-          </button>
-        </form>
-      </div>
+export default function AdminLoginPage() {
+  return (
+    <div className="admin-login-page">
+      <Suspense fallback={<div className="text-center p-8">Chargement...</div>}>
+        <AdminLoginForm />
+      </Suspense>
     </div>
   );
 }

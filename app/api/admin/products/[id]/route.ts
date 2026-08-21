@@ -15,6 +15,12 @@ function generateSlug(title: string): string {
     .replace(/\s+/g, '-');
 }
 
+function parseNumberOrNull(val: any): number | null {
+  if (val === null || val === undefined || val === '') return null;
+  const n = Number(val);
+  return isNaN(n) ? null : n;
+}
+
 // GET single product with full relational payload
 export async function GET(
   request: NextRequest,
@@ -40,7 +46,6 @@ export async function GET(
 
   if (error || !data) return NextResponse.json({ error: 'Produit non trouvé' }, { status: 404 });
 
-  // Tri garanti des images par position ASC
   if (Array.isArray(data.product_images)) {
     data.product_images.sort((a: any, b: any) => a.position - b.position);
   }
@@ -66,6 +71,21 @@ export async function PUT(
 
   const body = await request.json();
   const supabase = createAdminClient();
+
+  // Validation de PUBLICATION
+  if (body.status === 'published') {
+    if (!body.category && !body.categoryId) {
+      return NextResponse.json({ error: 'Une catégorie est obligatoire pour publier un livre.' }, { status: 400 });
+    }
+    const priceNum = parseNumberOrNull(body.price);
+    if (priceNum === null) {
+      return NextResponse.json({ error: 'Un prix de vente valide est obligatoire pour publier un livre.' }, { status: 400 });
+    }
+    const stockNum = parseNumberOrNull(body.stockQuantity);
+    if (stockNum === null) {
+      return NextResponse.json({ error: 'La quantité en stock doit être renseignée pour publier un livre.' }, { status: 400 });
+    }
+  }
 
   // 1. Récupérer le produit actuel
   const { data: currentProduct, error: fetchErr } = await supabase
@@ -110,7 +130,7 @@ export async function PUT(
     categoryId = cat?.id || null;
   }
 
-  // 3. Gestion prudente du Slug : ne change que si explicite et unique
+  // 3. Gestion du Slug
   let targetSlug = currentProduct.slug;
   if (body.slug && body.slug !== currentProduct.slug) {
     const requestedSlug = generateSlug(body.slug);
@@ -121,9 +141,11 @@ export async function PUT(
     targetSlug = requestedSlug;
   }
 
-  // 4. Ajustement stock & disponibilité
+  // 4. Ajustement stock & disponibilité (en préservant 0)
+  const stockQuantity = parseNumberOrNull(body.stockQuantity);
   let dbAvailability = body.availability ? uiAvailabilityToDb(body.availability as any) : undefined;
-  if (body.stockQuantity === 0 && dbAvailability === 'in_stock') {
+  
+  if (stockQuantity === 0) {
     dbAvailability = 'out_of_stock';
   }
 
@@ -137,18 +159,18 @@ export async function PUT(
   if ('subtitle' in body) updatePayload.subtitle = body.subtitle || null;
   if ('shortDescription' in body) updatePayload.short_description = body.shortDescription || null;
   if ('description' in body) updatePayload.description = body.description || null;
-  if ('price' in body) updatePayload.price = body.price !== null ? Number(body.price) : null;
-  if ('compareAtPrice' in body) updatePayload.compare_at_price = body.compareAtPrice !== null ? Number(body.compareAtPrice) : null;
+  if ('price' in body) updatePayload.price = parseNumberOrNull(body.price);
+  if ('compareAtPrice' in body) updatePayload.compare_at_price = parseNumberOrNull(body.compareAtPrice);
   if (dbAvailability) updatePayload.availability = dbAvailability;
-  if ('stockQuantity' in body) updatePayload.stock_quantity = body.stockQuantity !== null ? Number(body.stockQuantity) : null;
+  if ('stockQuantity' in body) updatePayload.stock_quantity = stockQuantity;
   if (body.status) updatePayload.status = body.status;
   if ('language' in body) updatePayload.language = body.language || null;
   if ('isbn' in body) updatePayload.isbn = body.isbn || null;
-  if ('pages' in body) updatePayload.pages = body.pages !== null ? Number(body.pages) : null;
+  if ('pages' in body) updatePayload.pages = parseNumberOrNull(body.pages);
   if ('dimensions' in body) updatePayload.dimensions = body.dimensions || null;
   if ('binding' in body) updatePayload.binding = body.binding || null;
   if ('edition' in body) updatePayload.edition = body.edition || null;
-  if ('year' in body) updatePayload.publication_year = body.year !== null ? Number(body.year) : null;
+  if ('year' in body) updatePayload.publication_year = parseNumberOrNull(body.year);
   if ('featured' in body) updatePayload.featured = body.featured;
   if ('newArrival' in body) updatePayload.new_arrival = body.newArrival;
   if ('hasVariants' in body) updatePayload.has_variants = body.hasVariants;
@@ -169,9 +191,8 @@ export async function PUT(
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 
-  // 6. Synchronisation P0 des IMAGES (product_images & Nettoyage Storage)
+  // 6. Synchronisation IMAGES
   if (Array.isArray(body.images)) {
-    // Récupérer les anciennes images pour détecter celles supprimées
     const { data: oldImages } = await supabase
       .from('product_images')
       .select('id, storage_path')
@@ -179,13 +200,11 @@ export async function PUT(
 
     const newPaths = new Set(body.images.map((img: any) => img.storagePath));
 
-    // Supprimer de product_images les images absentes du nouveau payload
     if (oldImages && oldImages.length > 0) {
       const removedImages = oldImages.filter((oldImg: any) => !newPaths.has(oldImg.storage_path));
       for (const removed of removedImages) {
         await supabase.from('product_images').delete().eq('id', removed.id);
         
-        // Vérifier si le fichier Storage est orphelin
         const { count } = await supabase
           .from('product_images')
           .select('*', { count: 'exact', head: true })
@@ -197,7 +216,6 @@ export async function PUT(
       }
     }
 
-    // Ré-insérer l'état propre des images avec garantie de 1 seule couverture principale
     await supabase.from('product_images').delete().eq('product_id', id);
     let coverAssigned = false;
     const newImageRows = body.images.map((img: any, idx: number) => {
@@ -220,8 +238,7 @@ export async function PUT(
     }
   }
 
-  // 7. Synchronisation P0 des VARIANTES (product_variants)
-  // Ne remplacer les variantes QUE si has_variants=true ET le tableau variants est explicite
+  // 7. Synchronisation VARIANTES (en préservant 0 pour les sous-champs)
   if (body.hasVariants === false) {
     await supabase.from('product_variants').delete().eq('product_id', id);
   } else if (body.hasVariants === true && Array.isArray(body.variants)) {
@@ -239,8 +256,8 @@ export async function PUT(
       return {
         product_id: id,
         attributes: attrs,
-        price: v.price !== null && v.price !== '' ? Number(v.price) : null,
-        stock_quantity: v.stock !== null && v.stock !== '' ? Number(v.stock) : null,
+        price: parseNumberOrNull(v.price),
+        stock_quantity: parseNumberOrNull(v.stock),
         availability: 'in_stock',
       };
     });
@@ -250,7 +267,7 @@ export async function PUT(
     }
   }
 
-  // 8. Synchronisation des THÈMES (product_themes)
+  // 8. Synchronisation THÈMES
   if (Array.isArray(body.themes)) {
     await supabase.from('product_themes').delete().eq('product_id', id);
     for (const themeName of body.themes) {
@@ -270,7 +287,6 @@ export async function PUT(
     }
   }
 
-  // Revalidation avec le slug réel du produit
   revalidatePath(`/livres/${targetSlug}`);
   revalidatePath('/catalogue');
   revalidatePath('/');
@@ -278,7 +294,7 @@ export async function PUT(
   return NextResponse.json({ success: true, slug: targetSlug });
 }
 
-// DELETE archive / delete product
+// DELETE product
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -292,13 +308,10 @@ export async function DELETE(
   }
 
   const supabase = createAdminClient();
-
-  // Si suppression physique demandée via query param ?hard=true (pour le cleanup QA)
   const url = new URL(request.url);
   const hardDelete = url.searchParams.get('hard') === 'true';
 
   if (hardDelete) {
-    // Supprimer les images du storage
     const { data: images } = await supabase.from('product_images').select('storage_path').eq('product_id', params.id);
     if (images && images.length > 0) {
       const paths = images.map((i: any) => i.storage_path).filter(Boolean);
@@ -306,10 +319,8 @@ export async function DELETE(
         await supabase.storage.from('product-images').remove(paths);
       }
     }
-    // Suppression physique (cascade supprime variants & images)
     await supabase.from('products').delete().eq('id', params.id);
   } else {
-    // Sinon archivage doux
     await supabase.from('products').update({ status: 'archived' } as any).eq('id', params.id);
   }
 
