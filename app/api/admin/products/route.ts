@@ -27,7 +27,7 @@ const imageSchema = z.object({
   storagePath: z.string(),
   type: z.string().optional(),
   position: z.number().optional(),
-  altText: z.string().optional(),
+  altText: z.string().nullable().optional(),
 });
 
 const variantSchema = z.object({
@@ -38,38 +38,38 @@ const variantSchema = z.object({
 });
 
 const productSchema = z.object({
-  slug: z.string().optional(),
+  slug: z.string().nullable().optional(),
   title: z.string().min(1, 'Titre requis'),
-  subtitle: z.string().optional(),
-  author: z.string().optional(),
-  authorId: z.string().optional(),
-  publisher: z.string().optional(),
-  publisherId: z.string().optional(),
-  category: z.string().optional(),
-  categoryId: z.string().optional(),
+  subtitle: z.string().nullable().optional(),
+  author: z.string().nullable().optional(),
+  authorId: z.string().nullable().optional(),
+  publisher: z.string().nullable().optional(),
+  publisherId: z.string().nullable().optional(),
+  category: z.string().nullable().optional(),
+  categoryId: z.string().nullable().optional(),
   price: z.union([z.number(), z.string()]).nullable().optional(),
   compareAtPrice: z.union([z.number(), z.string()]).nullable().optional(),
-  availability: z.string().optional(),
+  availability: z.string().nullable().optional(),
   stockQuantity: z.union([z.number(), z.string()]).nullable().optional(),
-  shortDescription: z.string().optional(),
-  description: z.string().optional(),
-  language: z.string().optional(),
-  isbn: z.string().optional(),
+  shortDescription: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  isbn: z.string().nullable().optional(),
   pages: z.union([z.number(), z.string()]).nullable().optional(),
-  dimensions: z.string().optional(),
-  binding: z.string().optional(),
-  edition: z.string().optional(),
+  dimensions: z.string().nullable().optional(),
+  binding: z.string().nullable().optional(),
+  edition: z.string().nullable().optional(),
   year: z.union([z.number(), z.string()]).nullable().optional(),
-  themes: z.array(z.string()).optional(),
-  reading: z.string().optional(),
-  tajwid: z.boolean().optional(),
-  featured: z.boolean().optional(),
-  newArrival: z.boolean().optional(),
+  themes: z.array(z.string()).nullable().optional(),
+  reading: z.string().nullable().optional(),
+  tajwid: z.boolean().nullable().optional(),
+  featured: z.boolean().nullable().optional(),
+  newArrival: z.boolean().nullable().optional(),
   status: z.enum(['draft', 'published', 'archived']),
-  color: z.string().optional(),
-  hasVariants: z.boolean().optional(),
-  variants: z.array(variantSchema).optional(),
-  images: z.array(imageSchema).optional(),
+  color: z.string().nullable().optional(),
+  hasVariants: z.boolean().nullable().optional(),
+  variants: z.array(variantSchema).nullable().optional(),
+  images: z.array(imageSchema).nullable().optional(),
 });
 
 // POST — créer un produit
@@ -85,7 +85,8 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const parsed = productSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    const errorMessages = parsed.error.issues.map(issue => `Champ invalide : ${issue.path.join('.')} — ${issue.message}`).join(', ');
+    return NextResponse.json({ error: errorMessages }, { status: 400 });
   }
 
   const data = parsed.data;
