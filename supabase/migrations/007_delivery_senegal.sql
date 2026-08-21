@@ -74,14 +74,14 @@ create policy "delivery_points_public_read"
 create policy "senegal_locations_admin_all"
   on senegal_locations for all
   to authenticated
-  using (is_admin(auth.uid()))
-  with check (is_admin(auth.uid()));
+  using (is_admin())
+  with check (is_admin());
 
 create policy "delivery_points_admin_all"
   on delivery_points for all
   to authenticated
-  using (is_admin(auth.uid()))
-  with check (is_admin(auth.uid()));
+  using (is_admin())
+  with check (is_admin());
 
 -- ============================================================
 -- Données de test / seed minimal pour le développement UX
