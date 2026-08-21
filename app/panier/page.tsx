@@ -1,16 +1,13 @@
 'use client';
 
-import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ChevronDown, Minus, Plus, X, MessageCircle, Check, ShoppingBag, ArrowRight } from 'lucide-react';
-import { findProduct, formatPrice, generateOrderRef, buildWhatsAppUrl, Product } from '@/lib/al-furqan-data';
+import { ChevronDown, Minus, Plus, X, Check, ShoppingBag, ArrowRight } from 'lucide-react';
+import { findProduct, formatPrice, Product } from '@/lib/al-furqan-data';
 import { useStore, CartLine } from '@/components/providers';
 import { Cover } from '@/components/books/cover';
 
 export default function CartPage() {
   const { cart, updateQuantity, removeFromCart } = useStore();
-  const [destination, setDestination] = useState('Dakar');
-  const [delivery, setDelivery] = useState('À confirmer');
   
   const detailed = cart
     .map((line) => ({ line, product: findProduct(line.productId) }))
@@ -21,32 +18,7 @@ export default function CartPage() {
     0
   );
   
-  const ref = useRef(generateOrderRef());
-  
-  const message = `Assalāmu ʿalaykum,
 
-je souhaite commander les ouvrages suivants depuis le site Al Furqan :
-
-${detailed
-  .map(({ line, product }, index) => {
-    const lineTotal = (line.variant?.price || product.price) * line.quantity;
-    const variantStr = line.variant
-      ? `\n${line.variant.attributes.map((a) => `${a.label} : ${a.value}`).join('\n')}`
-      : '';
-    return `${index + 1} × ${product.title}${variantStr}\n— ${formatPrice(lineTotal)}`;
-  })
-  .join('\n\n')}
-
-Sous-total des articles : ${formatPrice(subtotal)}
-
-Destination : ${destination}
-Mode de livraison souhaité : ${delivery}
-
-Pouvez-vous me confirmer la disponibilité et le montant final avec la livraison ?
-
-Référence : ${ref.current}
-
-Merci.`;
 
   return (
     <main className="cart-page">
@@ -103,29 +75,13 @@ Merci.`;
               <span>Sous-total</span>
               <strong>{formatPrice(subtotal)}</strong>
             </div>
-            <p>Le montant de la livraison sera confirmé par Al Furqan selon votre destination.</p>
-            <label>
-              Destination
-              <select value={destination} onChange={(e) => setDestination(e.target.value)}>
-                <option>Saint-Louis</option>
-                <option>Dakar</option>
-                <option>Autre région</option>
-              </select>
-            </label>
-            <label>
-              Mode de livraison
-              <select value={delivery} onChange={(e) => setDelivery(e.target.value)}>
-                <option>À confirmer</option>
-                <option>La Poste</option>
-                <option>Dem Dikk</option>
-                <option>Tiak Tiak</option>
-              </select>
-            </label>
-            <a href={buildWhatsAppUrl(message)} className="button button-dark whatsapp-button">
-              <MessageCircle size={18} /> Continuer sur WhatsApp
-            </a>
+            <p>Frais de livraison calculés à l'étape suivante.</p>
+            
+            <Link href="/livraison" className="button button-dark whatsapp-button">
+              Continuer vers la livraison <ArrowRight size={18} />
+            </Link>
             <span className="summary-note">
-              <Check size={15} /> La commande se finalise directement sur WhatsApp
+              <Check size={15} /> Étape 1/3 — Paiement à la réception
             </span>
           </aside>
         </div>

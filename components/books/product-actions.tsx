@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { MessageCircle, ShoppingBag, Heart } from 'lucide-react';
 import { Product, Variant, buildWhatsAppUrl } from '@/lib/al-furqan-data';
 import { useStore } from '../providers';
+import { VariantSelector } from './variant-selector';
+import { MobileStickyCta } from './mobile-sticky-cta';
 
 export function ProductActions({ product }: { product: Product }) {
   const [selected, setSelected] = useState<Variant | undefined>(product.variants?.[0]);
@@ -13,37 +15,10 @@ export function ProductActions({ product }: { product: Product }) {
 
   return (
     <>
-      {product.variants && (
-        <div className="variant-box">
-          <span className="variant-label">Choisir votre édition</span>
-          {Array.from(
-            new Set(product.variants.flatMap((variant) => variant.attributes.map((attribute) => attribute.label)))
-          ).map((label) => (
-            <div className="variant-row" key={label}>
-              <strong>{label}</strong>
-              <div>
-                {product.variants
-                  ?.filter((variant) => variant.attributes.some((attribute) => attribute.label === label))
-                  .map((variant) => {
-                    const attribute = variant.attributes.find((item) => item.label === label);
-                    return (
-                      <button
-                        key={variant.id}
-                        className={selected?.id === variant.id ? 'selected' : ''}
-                        onClick={() => setSelected(variant)}
-                        aria-pressed={selected?.id === variant.id}
-                      >
-                        {attribute?.value}
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <VariantSelector product={product} selected={selected} onChange={setSelected} />
       
-      <div className="product-actions">
+      {/* Desktop/Tablet Actions */}
+      <div className="product-actions hidden md:flex">
         {product.availability === 'Indisponible temporairement' ? (
           <a
             href={buildWhatsAppUrl(
@@ -67,6 +42,9 @@ export function ProductActions({ product }: { product: Product }) {
           {wished ? 'Dans ma sélection' : 'Ma sélection'}
         </button>
       </div>
+
+      {/* Mobile Sticky CTA */}
+      <MobileStickyCta product={product} selected={selected} />
     </>
   );
 }

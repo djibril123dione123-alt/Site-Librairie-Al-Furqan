@@ -13,45 +13,63 @@ function CatalogueContent() {
   const categoryParam = params.get('categorie') || '';
   const searchParam = params.get('q') || '';
   const newer = params.get('nouveautes') === '1';
+  
+  const languageParam = params.get('language') || '';
+  const availabilityParam = params.get('availability') || '';
+  const readingParam = params.get('reading') || '';
+  const sortParam = params.get('sort') || 'Pertinence';
+  
   const router = useRouter();
-
-  const [active, setActiveState] = useState<Record<FilterKey, string>>({
-    category: categoryParam,
-    language: '',
-    availability: '',
-    reading: '',
-  });
-  const [sort, setSort] = useState('Pertinence');
   const [mobileFilters, setMobileFilters] = useState(false);
 
-  useEffect(() => {
-    setActiveState((current) => ({ ...current, category: categoryParam }));
-  }, [categoryParam]);
+  const active: Record<FilterKey, string> = {
+    category: categoryParam,
+    language: languageParam,
+    availability: availabilityParam,
+    reading: readingParam,
+  };
+
+  const updateUrl = useCallback(
+    (updates: Record<string, string | null>) => {
+      const current = new URLSearchParams(Array.from(params.entries()));
+      Object.entries(updates).forEach(([key, value]) => {
+        if (!value) current.delete(key);
+        else current.set(key, value);
+      });
+      const search = current.toString();
+      router.push(search ? `?${search}` : '/catalogue', { scroll: false });
+    },
+    [params, router]
+  );
 
   const setActive = useCallback(
-    (key: FilterKey, value: string) => setActiveState((current) => ({ ...current, [key]: value })),
-    []
+    (key: FilterKey, value: string) => {
+      const paramKey = key === 'category' ? 'categorie' : key;
+      updateUrl({ [paramKey]: value });
+    },
+    [updateUrl]
   );
+
+  const setSort = (val: string) => updateUrl({ sort: val });
 
   const filtered = useMemo(() => {
     let list = searchProducts(searchParam);
     list = list.filter(
       (p) =>
-        (!active.category || p.category === active.category) &&
-        (!active.language || p.language === active.language) &&
-        (!active.availability || p.availability === active.availability) &&
-        (!active.reading || p.reading === active.reading) &&
+        (!categoryParam || p.category === categoryParam) &&
+        (!languageParam || p.language === languageParam) &&
+        (!availabilityParam || p.availability === availabilityParam) &&
+        (!readingParam || p.reading === readingParam) &&
         (!newer || p.newArrival)
     );
-    if (sort === 'Prix croissant') list = [...list].sort((a, b) => a.price - b.price);
-    if (sort === 'Prix décroissant') list = [...list].sort((a, b) => b.price - a.price);
-    if (sort === 'Nouveautés') list = [...list].sort((a, b) => (b.newArrival ? 1 : 0) - (a.newArrival ? 1 : 0));
+    if (sortParam === 'Prix croissant') list = [...list].sort((a, b) => a.price - b.price);
+    if (sortParam === 'Prix décroissant') list = [...list].sort((a, b) => b.price - a.price);
+    if (sortParam === 'Nouveautés') list = [...list].sort((a, b) => (b.newArrival ? 1 : 0) - (a.newArrival ? 1 : 0));
     return list;
-  }, [active, newer, searchParam, sort]);
+  }, [categoryParam, languageParam, availabilityParam, readingParam, newer, searchParam, sortParam]);
 
   const clearAll = () => {
-    setActiveState({ category: '', language: '', availability: '', reading: '' });
-    if (searchParam || newer || categoryParam) router.push('/catalogue');
+    router.push('/catalogue', { scroll: false });
   };
 
   const title = searchParam
@@ -86,7 +104,7 @@ function CatalogueContent() {
           </button>
           <label className="sort-select">
             Trier par{' '}
-            <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Trier">
+            <select value={sortParam} onChange={(e) => setSort(e.target.value)} aria-label="Trier">
               <option>Pertinence</option>
               <option>Nouveautés</option>
               <option>Prix croissant</option>

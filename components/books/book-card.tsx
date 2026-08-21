@@ -18,8 +18,6 @@ export function BookCard({ product }: { product: Product }) {
         <Link href={`/livres/${product.slug}`} aria-label={`Voir la fiche de ${product.title}`}>
           <Cover product={product} />
         </Link>
-        {product.newArrival && <span className="badge">Nouveau</span>}
-        {product.restocked && <span className="badge badge-restock">Retour</span>}
         <button
           className={`wish-button ${wished ? 'is-wished' : ''}`}
           onClick={() => toggleWish(product.id)}

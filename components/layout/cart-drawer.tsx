@@ -44,7 +44,7 @@ export function CartDrawer() {
               })}
             </div>
             <Link href="/panier" onClick={() => setCartOpen(false)} className="button button-dark drawer-cta">
-              Voir le panier <ArrowRight size={17} />
+              Préparer ma commande <ArrowRight size={17} />
             </Link>
           </>
         ) : (
