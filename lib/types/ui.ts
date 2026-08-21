@@ -60,6 +60,7 @@ export type Product = {
   audience?: string;
   variants?: Variant[];
   images?: ProductImage[];
+  coverUrl?: string | null;
   // Couleurs pour le composant Cover (tant qu'il n'y a pas de vraies photos)
   color: string;
   ink: string;

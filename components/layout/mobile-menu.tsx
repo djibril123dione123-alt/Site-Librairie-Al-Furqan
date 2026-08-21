@@ -57,7 +57,7 @@ export function MobileMenu() {
           <Link href="/catalogue?nouveautes=1" onClick={() => setMenuOpen(false)}>
             Nouveautés
           </Link>
-          <Link href="/collections/mieux-comprendre-le-coran" onClick={() => setMenuOpen(false)}>
+          <Link href="/collections" onClick={() => setMenuOpen(false)}>
             Sélections
           </Link>
           <Link href="/selection" onClick={() => setMenuOpen(false)}>

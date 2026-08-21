@@ -8,13 +8,13 @@ import { QuickSearchBox } from '@/components/home/search-buttons';
 import { SectionTitle } from '@/components/ui/section-title';
 import { BookCard } from '@/components/books/book-card';
 import { Cover } from '@/components/books/cover';
+import { TikTokFeature } from '@/components/home/tiktok-feature';
 
 export default async function Home() {
-  const [categories, featuredProducts, restockedProducts, quranProducts] = await Promise.all([
+  const [categories, featuredProducts, restockedProducts] = await Promise.all([
     getCategories(),
     getProducts({ featured: true, limit: 4 }),
     getProducts({ restocked: true, limit: 4 }),
-    getProducts({ category: 'Coran', limit: 3 }) // Simulation pour la section Editoriale si pas de vraie collection
   ]);
 
   return (
@@ -32,7 +32,7 @@ export default async function Home() {
         
         {categories.length > 0 && (
           <section className="category-section" id="categories">
-            <SectionTitle eyebrow="PARCOURIR PAR UNIVERS" title="Le savoir, par affinités." link="Voir le catalogue" />
+            <SectionTitle eyebrow="PARCOURIR PAR UNIVERS" title="Le savoir, par affinités." link="Voir le catalogue" href="/catalogue" />
             <div className="category-grid">
               {categories.map((category, index) => (
                 <Link href={`/catalogue?categorie=${encodeURIComponent(category.name)}`} key={category.id} className={`category-pill category-${index}`}>
@@ -56,30 +56,6 @@ export default async function Home() {
             <div className="book-grid">
               {featuredProducts.map((product) => (
                 <BookCard key={product.id} product={product} />
-              ))}
-            </div>
-          </section>
-        )}
-        
-        {quranProducts.length > 0 && (
-          <section className="editorial-band">
-            <div className="editorial-copy">
-              <span className="eyebrow">COLLECTION ÉDITORIALE</span>
-              <h2>
-                Pour mieux
-                <br />
-                <em>comprendre</em> le Coran
-              </h2>
-              <p>Des ouvrages choisis pour passer de la lecture à la compréhension, et garder le plaisir d’apprendre.</p>
-              <Link href="/catalogue?categorie=Coran" className="button button-cream">
-                Découvrir la sélection <ArrowRight size={17} />
-              </Link>
-            </div>
-            <div className="editorial-books">
-              {quranProducts.map((product) => (
-                <div key={product.id}>
-                  <Cover product={product} />
-                </div>
               ))}
             </div>
           </section>
@@ -117,7 +93,7 @@ export default async function Home() {
         
         {restockedProducts.length > 0 && (
           <section className="products-section restocked">
-            <SectionTitle eyebrow="RÉAPPROVISIONNEMENTS" title="De retour chez Al Furqan" link="Voir les ouvrages" />
+            <SectionTitle eyebrow="RÉAPPROVISIONNEMENTS" title="De retour chez Al Furqan" link="Voir les ouvrages" href="/catalogue" />
             <div className="book-grid">
               {restockedProducts.map((product) => (
                 <BookCard key={product.id} product={product} />
@@ -125,38 +101,8 @@ export default async function Home() {
             </div>
           </section>
         )}
-        
-        <section className="social-section">
-          <div className="social-heading">
-            <span className="eyebrow">DEPUIS TIKTOK</span>
-            <h2>
-              Al Furqan
-              <br />
-              <em>vous présente.</em>
-            </h2>
-            <p>
-              Une vidéo peut ouvrir la porte vers une sélection de livres. Découvrez les ouvrages présentés par la
-              librairie.
-            </p>
-            <a href={siteConfig.tiktok} className="text-link" target="_blank" rel="noopener noreferrer">
-              Voir TikTok <ArrowRight size={16} />
-            </a>
-          </div>
-          <div className="video-grid">
-            <Link href="/catalogue?categorie=Coran" className="video-card video-one">
-              <span className="play">▶</span>
-              <span>5 ouvrages pour mieux comprendre le Coran</span>
-            </Link>
-            <Link href="/catalogue?categorie=Arabe" className="video-card video-two">
-              <span className="play">▶</span>
-              <span>Par où commencer pour apprendre l’arabe ?</span>
-            </Link>
-            <Link href="/catalogue?categorie=Mariage" className="video-card video-three">
-              <span className="play">▶</span>
-              <span>Une sélection autour du mariage</span>
-            </Link>
-          </div>
-        </section>
+
+        <TikTokFeature />
         
         <section className="delivery-section">
           <div>

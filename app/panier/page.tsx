@@ -28,7 +28,6 @@ export default function CartPage() {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       
       if (!supabaseUrl) {
-        // Fallback seed
         const map: Record<string, Product> = {};
         ids.forEach(id => {
           const p = seedProducts.find(s => s.id === id);
@@ -72,7 +71,7 @@ export default function CartPage() {
   );
 
   if (loading) {
-    return <div style={{ padding: '100px 32px', textAlign: 'center' }}>Chargement de votre panier...</div>;
+    return <div style={{ padding: '100px 32px', textAlign: 'center', color: 'var(--muted)' }}>Chargement de votre panier...</div>;
   }
 
   return (
@@ -130,13 +129,15 @@ export default function CartPage() {
               <span>Sous-total</span>
               <strong>{formatPrice(subtotal)}</strong>
             </div>
-            <p>Frais de livraison calculés à l’étape suivante.</p>
+            <p style={{ fontSize: 12, color: 'var(--muted)', margin: '12px 0' }}>
+              Les frais et le délai de livraison sont confirmés sur WhatsApp selon votre destination.
+            </p>
             
             <Link href="/livraison" className="button button-dark whatsapp-button">
               Continuer vers la livraison <ArrowRight size={18} />
             </Link>
-            <span className="summary-note">
-              <Check size={15} /> Étape 1/3 — Paiement à la réception
+            <span className="summary-note" style={{ marginTop: 12 }}>
+              <Check size={15} /> Commande finalisée avec Al Furqan sur WhatsApp.
             </span>
           </aside>
         </div>

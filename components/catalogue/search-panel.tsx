@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Search, X, ArrowRight } from 'lucide-react';
 import { getAutocompleteSuggestions } from '@/lib/data/products';
+import { trackSearchEvent, trackBookRequest } from '@/lib/data/search';
 import { buildWhatsAppUrl } from '@/lib/al-furqan-data';
 import { useStore } from '../providers';
 import { Cover } from '../books/cover';
@@ -35,16 +36,18 @@ export function SearchPanel() {
       }
       try {
         const result = await getAutocompleteSuggestions(value);
-        if (isMounted) setSuggestions(result);
-      } catch (err) {
+        if (isMounted) {
+          setSuggestions(result);
+          trackSearchEvent(value, result.products.length);
+        }
+      } catch {
         if (isMounted) setSuggestions({ products: [], authors: [], themes: [] });
       }
     };
     
-    // Simple debounce
     const timer = setTimeout(() => {
       fetchSuggestions();
-    }, 150);
+    }, 180);
     
     return () => {
       isMounted = false;
@@ -66,6 +69,10 @@ export function SearchPanel() {
     }
   };
 
+  const handleBookRequest = (query: string) => {
+    trackBookRequest(query, 'search');
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -77,7 +84,8 @@ export function SearchPanel() {
       e.preventDefault();
       if (activeIndex >= 0 && activeIndex < suggestions.products.length) {
         const p = suggestions.products[activeIndex];
-        window.location.href = `/livres/${p.slug}`;
+        setSearchOpen(false);
+        router.push(`/livres/${p.slug}`);
       } else {
         onSubmit();
       }
@@ -87,7 +95,7 @@ export function SearchPanel() {
   };
 
   return (
-    <div className="search-panel" role="dialog" aria-label="Recherche" onClick={onClose}>
+    <div className="search-panel" role="dialog" aria-label="Recherche d'ouvrages" onClick={onClose}>
       <div className="search-panel-inner" onClick={(e) => e.stopPropagation()}>
         <div className="search-line">
           <Search size={21} />
@@ -96,8 +104,8 @@ export function SearchPanel() {
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Rechercher un titre, un auteur, un thème…"
-            aria-label="Champ de recherche"
+            placeholder="Titre, auteur, thème, ISBN, éditeur…"
+            aria-label="Champ de recherche d'ouvrages"
             aria-controls="search-suggestions"
           />
           <button onClick={onClose} aria-label="Fermer la recherche">
@@ -130,6 +138,7 @@ export function SearchPanel() {
                 ))}
               </div>
             )}
+
             {suggestions.authors.length > 0 && (
               <div className="suggestion-group">
                 <span className="suggestion-label">Auteurs</span>
@@ -148,6 +157,7 @@ export function SearchPanel() {
                 ))}
               </div>
             )}
+
             {suggestions.themes.length > 0 && (
               <div className="suggestion-group">
                 <span className="suggestion-label">Thèmes</span>
@@ -166,14 +176,21 @@ export function SearchPanel() {
                 ))}
               </div>
             )}
+
             {allItems.length === 0 ? (
-              <div className="empty-search">
-                <strong>Aucun ouvrage trouvé</strong>
-                <p>Essayez un titre, un auteur ou demandez directement cet ouvrage à Al Furqan.</p>
+              <div className="empty-search" style={{ padding: '24px 16px', textAlign: 'center' }}>
+                <strong style={{ display: 'block', fontSize: 16, marginBottom: 6 }}>Aucun ouvrage trouvé pour « {value} »</strong>
+                <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>
+                  Cet ouvrage n&apos;est pas encore disponible en ligne. Vous pouvez transmettre votre demande directement à la librairie.
+                </p>
                 <a
+                  className="button button-dark"
+                  onClick={() => handleBookRequest(value)}
                   href={buildWhatsAppUrl(
-                    `Assalāmu ʿalaykum,\nje recherche l’ouvrage « ${value} ».\nL’avez-vous actuellement ou pouvez-vous l’obtenir ?`
+                    `Assalāmu ʿalaykum,\nje recherche l’ouvrage « ${value} ».\nL’avez-vous actuellement en stock ou pouvez-vous l’obtenir ?`
                   )}
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
                   Demander cet ouvrage sur WhatsApp <ArrowRight size={16} />
                 </a>
@@ -191,7 +208,7 @@ export function SearchPanel() {
           <div className="popular-search">
             <span>Recherches populaires</span>
             <div>
-              {['Coran', 'Tafsir', 'Warsh', 'Arabe', 'Jeunesse'].map((term) => (
+              {['Coran', 'Tafsir', 'Warsh', 'Arabe', 'Jeunesse', 'Hisn al-Muslim'].map((term) => (
                 <button key={term} onClick={() => setValue(term)}>
                   {term}
                 </button>

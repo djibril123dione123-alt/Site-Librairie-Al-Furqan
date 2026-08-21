@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Heart, Plus } from 'lucide-react';
+import { Heart, Plus, ChevronRight } from 'lucide-react';
 import type { Product } from '@/lib/types/ui';
 import { formatPrice } from '@/lib/al-furqan-data';
 import { Cover } from './cover';
@@ -12,6 +12,7 @@ export function BookCard({ product }: { product: Product }) {
   
   const unavailable = product.availability === 'Indisponible temporairement';
   const wished = isWished(product.id);
+  const hasVariants = Boolean(product.variants && product.variants.length > 0);
 
   return (
     <article className="book-card">
@@ -38,13 +39,23 @@ export function BookCard({ product }: { product: Product }) {
           <strong>{formatPrice(product.price)}</strong>
           {unavailable ? (
             <span className="stock-unavailable-text">Indisponible</span>
+          ) : hasVariants ? (
+            <Link
+              href={`/livres/${product.slug}`}
+              className="add-mini"
+              aria-label={`Choisir les options de ${product.title}`}
+            >
+              <span>Options</span>
+              <ChevronRight size={14} />
+            </Link>
           ) : (
             <button
               className="add-mini"
               onClick={() => addToCart(product)}
-              aria-label={product.variants ? `Voir les options de ${product.title}` : `Ajouter ${product.title} au panier`}
+              aria-label={`Ajouter ${product.title} au panier`}
             >
-              {product.variants ? 'Voir les options' : 'Ajouter'} {!product.variants && <Plus size={15} />}
+              <span>Ajouter</span>
+              <Plus size={15} />
             </button>
           )}
         </div>

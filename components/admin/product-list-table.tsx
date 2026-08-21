@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { useState, useMemo } from 'react';
-import { Edit2, Eye, Search, Plus, Archive, BookOpen } from 'lucide-react';
+import { Edit2, Eye, Search, Plus, Archive, BookOpen, FileSpreadsheet } from 'lucide-react';
 import { Cover } from '@/components/books/cover';
 import { QuickStockEditor } from './quick-stock-editor';
+import { CsvImportModal } from './csv-import-modal';
 import type { Availability } from '@/lib/types/ui';
 import { useRouter } from 'next/navigation';
 
@@ -57,6 +58,7 @@ export function ProductListTable({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [availabilityFilter, setAvailabilityFilter] = useState<string>('all');
+  const [csvModalOpen, setCsvModalOpen] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const router = useRouter();
 
@@ -182,6 +184,16 @@ export function ProductListTable({
             <option value="low_stock">Stock faible (≤ 3)</option>
             <option value="out_of_stock">Rupture de stock</option>
           </select>
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            onClick={() => setCsvModalOpen(true)}
+          >
+            <FileSpreadsheet size={14} />
+            <span>Importer CSV</span>
+          </button>
         </div>
       </div>
 
@@ -319,6 +331,8 @@ export function ProductListTable({
           </tbody>
         </table>
       </div>
+
+      <CsvImportModal isOpen={csvModalOpen} onClose={() => setCsvModalOpen(false)} />
     </>
   );
 }

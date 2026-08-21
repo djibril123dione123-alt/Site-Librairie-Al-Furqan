@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { BookOpen, Search, Heart, ShoppingBag, Menu } from 'lucide-react';
+import Image from 'next/image';
+import { Search, Heart, ShoppingBag, Menu, BookOpen } from 'lucide-react';
 import { useStore } from '../providers';
 
 export function Header() {
@@ -11,9 +12,20 @@ export function Header() {
     <header className="site-header">
       <div className="header-inner">
         <Link href="/" className="brand" aria-label="Al Furqan, accueil">
-          <span className="brand-symbol">
-            <BookOpen size={18} />
-          </span>
+          <div className="brand-symbol" style={{ position: 'relative', overflow: 'hidden' }}>
+            <Image
+              src="/assets/images/image.png"
+              alt="Logo Al Furqan"
+              width={34}
+              height={34}
+              style={{ objectFit: 'contain' }}
+              onError={(e) => {
+                // Fallback icon if image fails
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <BookOpen size={18} className="brand-fallback-icon" style={{ display: 'none' }} />
+          </div>
           <span>
             <strong>Al Furqan</strong>
             <small>Librairie islamique</small>
@@ -22,7 +34,7 @@ export function Header() {
         <nav className="desktop-nav" aria-label="Navigation principale">
           <Link href="/catalogue">Catalogue</Link>
           <Link href="/catalogue?nouveautes=1">Nouveautés</Link>
-          <Link href="/collections/mieux-comprendre-le-coran">Sélections</Link>
+          <Link href="/collections">Sélections</Link>
           <Link href="/a-propos">À propos</Link>
         </nav>
         <div className="header-actions">

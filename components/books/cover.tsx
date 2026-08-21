@@ -17,13 +17,34 @@ const colorMap: Record<string, string> = {
 };
 
 export function Cover({ product, small = false }: { product: Product; small?: boolean }) {
+  if (product.coverUrl) {
+    return (
+      <div className={`cover-real-wrap ${small ? 'cover-small' : ''}`} style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={product.coverUrl}
+          alt={`Couverture de ${product.title}`}
+          style={{
+            maxWidth: '100%',
+            maxHeight: small ? 60 : 210,
+            objectFit: 'contain',
+            borderRadius: 4,
+            filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.15))',
+          }}
+        />
+      </div>
+    );
+  }
+
+  const bgColor = colorMap[product.color] || '#0f3746';
+
   return (
     <div
       className={`cover cover-${product.color} ${small ? 'cover-small' : ''}`}
       style={
         {
-          '--cover-color': colorMap[product.color],
-          '--cover-ink': product.ink,
+          '--cover-color': bgColor,
+          '--cover-ink': product.ink || '#f7e6c4',
         } as React.CSSProperties
       }
     >

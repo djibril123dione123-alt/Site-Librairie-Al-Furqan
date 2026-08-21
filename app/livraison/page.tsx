@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { ChevronDown, MessageCircle, ArrowLeft, ArrowRight } from 'lucide-react';
-import { formatPrice, generateOrderRef, buildWhatsAppUrl } from '@/lib/al-furqan-data';
+import { ChevronDown, MessageCircle, ArrowLeft } from 'lucide-react';
+import { formatPrice, generateOrderRef, buildWhatsAppUrl, getSiteUrl } from '@/lib/al-furqan-data';
 import { useStore, CartLine } from '@/components/providers';
 import { DeliveryForm, DeliveryMethod, LocationData, PostOffice } from '@/components/delivery/delivery-form';
 import { createBrowserClient } from '@/lib/supabase/client';
@@ -23,13 +23,11 @@ export default function LivraisonPage() {
     postOffice?: PostOffice;
   } | null>(null);
   
-  // Coordonnées utilisateur
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   
   const ref = useRef<string | null>(null);
   if (!ref.current && typeof window !== 'undefined') {
-    // Generate only once per session
     const stored = sessionStorage.getItem('af-order-ref');
     if (stored) {
       ref.current = stored;
@@ -40,10 +38,8 @@ export default function LivraisonPage() {
     }
   }
 
-  // Load products for cart
   const [products, setProducts] = useState<Record<string, Product>>({});
   const [loading, setLoading] = useState(true);
-  const supabase = createBrowserClient();
 
   useEffect(() => {
     async function loadProducts() {
@@ -56,11 +52,10 @@ export default function LivraisonPage() {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       
       if (!supabaseUrl) {
-        // Fallback seed
         const map: Record<string, Product> = {};
         ids.forEach(id => {
           const p = seedProducts.find(s => s.id === id);
-          if (p) map[id] = p; // Note: In real app, we should adapt the seed product, but UI type matches mostly
+          if (p) map[id] = p;
         });
         setProducts(map);
         setLoading(false);
@@ -68,6 +63,7 @@ export default function LivraisonPage() {
       }
 
       try {
+        const supabase = createBrowserClient();
         const { data, error } = await supabase
           .from('products')
           .select(`*, product_variants(*)`)
@@ -87,7 +83,7 @@ export default function LivraisonPage() {
       }
     }
     loadProducts();
-  }, [cart, supabase]);
+  }, [cart]);
   
   const detailed = cart
     .map((line) => ({ line, product: products[line.productId] }))
@@ -106,6 +102,8 @@ export default function LivraisonPage() {
   const handleFinalSubmit = () => {
     if (!deliveryData || !name || !phone) return;
 
+    const baseUrl = getSiteUrl();
+
     let deliveryText = '';
     if (deliveryData.method === 'la_poste') {
       deliveryText = `Mode : La Poste Sénégal\nRégion : ${deliveryData.location.region}${deliveryData.location.department ? `\nDépartement : ${deliveryData.location.department}` : ''}${deliveryData.location.commune ? `\nCommune : ${deliveryData.location.commune}` : ''}\nLocalité : ${deliveryData.location.locality}\nBureau retenu : ${deliveryData.postOffice?.name}`;
@@ -121,30 +119,30 @@ ${detailed
   .map(({ line, product }, index) => {
     const lineTotal = (line.variant?.price || product.price) * line.quantity;
     const variantStr = line.variant
-      ? `\n  ↳ ${line.variant.attributes.map((a: any) => `${a.value}`).join(' · ')}`
+      ? `\n  ↳ ${line.variant.attributes.map((a: any) => `${a.label || 'Option'} : ${a.value}`).join(' · ')}`
       : '';
-    return `${index + 1} × ${product.title}${variantStr}\n  ${formatPrice(lineTotal)}`;
+    const productUrl = `${baseUrl}/livres/${product.slug}`;
+    return `${index + 1} × ${product.title}${variantStr}\n  Prix : ${formatPrice(lineTotal)}\n  Lien : ${productUrl}`;
   })
-  .join('\n')}
+  .join('\n\n')}
 
 Sous-total livres : ${formatPrice(subtotal)}
-Livraison : à confirmer
+Frais de livraison : à confirmer avec Al Furqan
 
 *INFORMATIONS DE LIVRAISON*
 ${deliveryText}
 
-*COORDONNÉES*
+*COORDONNÉES CLIENT*
 Nom : ${name}
 Téléphone : ${phone}
 
-Référence : ${ref.current}`;
+Référence commande : ${ref.current}`;
 
-    // Redirect to WhatsApp
     window.location.href = buildWhatsAppUrl(message);
   };
 
   if (loading) {
-    return <div style={{ padding: '100px 32px', textAlign: 'center' }}>Chargement de la commande...</div>;
+    return <div style={{ padding: '100px 32px', textAlign: 'center', color: 'var(--muted)' }}>Chargement de la commande...</div>;
   }
 
   return (
@@ -203,7 +201,7 @@ Référence : ${ref.current}`;
                   <div key={idx} className="flex justify-between text-sm">
                     <div>
                       <span className="font-medium">{line.quantity} × {product.title}</span>
-                      {line.variant && <div className="text-xs text-[#64736f] mt-1">{line.variant.attributes.map((a: any) => a.value).join(' · ')}</div>}
+                      {line.variant && <div className="text-xs text-[#64736f] mt-1">{line.variant.attributes.map((a: any) => `${a.label || 'Option'} : ${a.value}`).join(' · ')}</div>}
                     </div>
                     <span className="font-medium">{formatPrice((line.variant?.price || product.price) * line.quantity)}</span>
                   </div>

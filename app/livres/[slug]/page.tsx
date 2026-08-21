@@ -4,19 +4,20 @@ import Link from 'next/link';
 import { ChevronDown, Truck, MessageCircle } from 'lucide-react';
 import { formatPrice, buildWhatsAppUrl, getSiteUrl } from '@/lib/al-furqan-data';
 import { getProductBySlug, getRelatedProducts } from '@/lib/data/products';
-import { Cover } from '@/components/books/cover';
 import { StockBadge } from '@/components/books/stock-badge';
 import { ProductActions } from '@/components/books/product-actions';
 import { RecentlyViewed } from '@/components/books/recently-viewed';
 import { SectionTitle } from '@/components/ui/section-title';
 import { BookCard } from '@/components/books/book-card';
+import { ProductGallery } from '@/components/books/product-gallery';
+import { MobileStickyCta } from '@/components/books/mobile-sticky-cta';
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const product = await getProductBySlug(params.slug);
   if (!product) return {};
 
   return {
-    title: product.title,
+    title: `${product.title} — Librairie Al Furqan`,
     description: product.description,
     alternates: {
       canonical: `/livres/${product.slug}`,
@@ -37,10 +38,18 @@ export default async function ProductPage({ params }: { params: { slug: string }
   }
 
   const related = await getRelatedProducts(product);
-  const specs: { label: string; value?: string }[] = [
-    { label: 'Auteur', value: product.author },
-    { label: 'Éditeur', value: product.publisher },
+
+  const authorSlug = product.author.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const publisherSlug = product.publisher ? product.publisher.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : '';
+  const categorySlug = product.category.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+  const specs: { label: string; value?: string; href?: string }[] = [
+    { label: 'Auteur', value: product.author, href: `/auteurs/${authorSlug}` },
+    { label: 'Éditeur', value: product.publisher, href: publisherSlug ? `/editeurs/${publisherSlug}` : undefined },
+    { label: 'Catégorie', value: product.category, href: `/categories/${categorySlug}` },
     { label: 'Langue', value: product.language },
+    { label: 'Lecture', value: product.reading },
+    { label: 'Tajwid', value: product.tajwid ? 'Code couleur repères de récitation' : undefined },
     { label: 'Format', value: product.format },
     { label: 'Reliure', value: product.binding },
     { label: 'Édition', value: product.edition },
@@ -71,7 +80,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
     "@type": "BreadcrumbList",
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Accueil", "item": getSiteUrl() },
-      { "@type": "ListItem", "position": 2, "name": product.category, "item": `${getSiteUrl()}/catalogue?categorie=${encodeURIComponent(product.category)}` },
+      { "@type": "ListItem", "position": 2, "name": product.category, "item": `${getSiteUrl()}/categories/${categorySlug}` },
       { "@type": "ListItem", "position": 3, "name": product.title }
     ]
   };
@@ -81,29 +90,26 @@ export default async function ProductPage({ params }: { params: { slug: string }
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       
-      <div className="breadcrumb">
+      <nav className="breadcrumb" aria-label="Fil d'Ariane">
         <Link href="/">Accueil</Link>
         <ChevronDown size={14} />
-        <Link href={`/catalogue?categorie=${encodeURIComponent(product.category)}`}>{product.category}</Link>
+        <Link href={`/categories/${categorySlug}`}>{product.category}</Link>
         <ChevronDown size={14} />
         <span>{product.title}</span>
-      </div>
+      </nav>
       
       <div className="product-layout">
-        <div className="product-gallery">
-          <div className="gallery-main">
-            <Cover product={product} />
-          </div>
-          <div className="gallery-caption">
-            <span>Couverture de l’édition</span>
-          </div>
-        </div>
+        <ProductGallery product={product} />
         
         <div className="product-info">
-          <span className="eyebrow">{product.category}</span>
+          <Link href={`/categories/${categorySlug}`} className="eyebrow" style={{ textDecoration: 'none' }}>
+            {product.category}
+          </Link>
           <h1>{product.title}</h1>
           <p className="product-author">
-            par <strong>{product.author}</strong>
+            par <Link href={`/auteurs/${authorSlug}`} style={{ textDecoration: 'underline', color: 'inherit' }}>
+              <strong>{product.author}</strong>
+            </Link>
           </p>
           <div className="product-price">{formatPrice(product.price)}</div>
           <StockBadge availability={product.availability} />
@@ -117,7 +123,11 @@ export default async function ProductPage({ params }: { params: { slug: string }
             <MessageCircle size={17} />
             <span>
               Vous préférez discuter d’abord ?{' '}
-              <a href={buildWhatsAppUrl(`Assalāmu ʿalaykum,\nje souhaite des informations sur « ${product.title} ».`)}>
+              <a
+                href={buildWhatsAppUrl(`Assalāmu ʿalaykum,\nje souhaite des informations sur « ${product.title} ».`)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Écrire sur WhatsApp
               </a>
             </span>
@@ -133,11 +143,17 @@ export default async function ProductPage({ params }: { params: { slug: string }
         </div>
         {specs.length > 0 && (
           <div className="specs">
-            <span className="eyebrow">INFORMATIONS</span>
+            <span className="eyebrow">INFORMATIONS BIBLIOGRAPHIQUES</span>
             {specs.map((spec) => (
               <div key={spec.label}>
                 <span>{spec.label}</span>
-                <strong>{spec.value}</strong>
+                {spec.href ? (
+                  <Link href={spec.href} style={{ color: 'var(--ink)', textDecoration: 'underline' }}>
+                    <strong>{spec.value}</strong>
+                  </Link>
+                ) : (
+                  <strong>{spec.value}</strong>
+                )}
               </div>
             ))}
           </div>
@@ -156,6 +172,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
       )}
       
       <RecentlyViewed currentProductId={product.id} />
+      <MobileStickyCta product={product} />
     </main>
   );
 }
