@@ -1,20 +1,25 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
-import { Edit2, Copy, Eye, Search } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Edit2, Copy, Eye, Search, Plus, Filter, Archive, BookOpen, AlertCircle } from 'lucide-react';
 import { Cover } from '@/components/books/cover';
 import { QuickStockEditor } from './quick-stock-editor';
 import type { Availability } from '@/lib/types/ui';
+import { useRouter } from 'next/navigation';
 
-type AdminProduct = {
+export type AdminProduct = {
   id: string;
   slug: string;
   title: string;
+  subtitle?: string | null;
+  isbn?: string | null;
   author: string;
+  category: string;
   price: number;
   status: 'published' | 'draft' | 'archived';
   availability: Availability;
+  stockQuantity: number;
   updatedAt: string;
   color: string;
   ink: string;
@@ -26,99 +31,256 @@ function StatusBadge({ status }: { status: AdminProduct['status'] }) {
     draft: { label: 'Brouillon', className: 'status-draft' },
     archived: { label: 'Archivé', className: 'status-archived' },
   };
-  const { label, className } = map[status];
+  const { label, className } = map[status] || map.draft;
   return <span className={`status-badge ${className}`}>{label}</span>;
 }
 
 function AvailabilityBadge({ availability }: { availability: Availability }) {
   const map: Record<Availability, { label: string; className: string }> = {
-    'Disponible': { label: 'Disponible', className: 'status-in-stock' },
-    'Derniers exemplaires': { label: 'Derniers ex.', className: 'status-low' },
-    'De retour en stock': { label: 'Retour', className: 'status-restocked' },
-    'Indisponible temporairement': { label: 'Indisponible', className: 'status-unavailable' },
+    'Disponible': { label: 'En stock', className: 'status-in-stock' },
+    'Derniers exemplaires': { label: 'Stock faible', className: 'status-low-stock' },
+    'De retour en stock': { label: 'Réappro', className: 'status-in-stock' },
+    'Indisponible temporairement': { label: 'Rupture', className: 'status-out-of-stock' },
   };
-  const { label, className } = map[availability];
+  const { label, className } = map[availability] || { label: availability, className: 'status-draft' };
   return <span className={`status-badge ${className}`}>{label}</span>;
 }
 
 function formatPrice(price: number) {
-  return `${price.toLocaleString('fr-FR')} F`;
+  if (!price || price === 0) return 'Gratuit / N.C.';
+  return `${price.toLocaleString('fr-FR')} F CFA`;
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  if (!dateStr) return '—';
+  return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: '2-digit' });
 }
 
-export function ProductListTable({ products }: { products: AdminProduct[] }) {
+export function ProductListTable({ 
+  products, 
+  categories = [] 
+}: { 
+  products: AdminProduct[];
+  categories?: string[];
+}) {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [availabilityFilter, setAvailabilityFilter] = useState<string>('all');
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const router = useRouter();
 
-  const filtered = products.filter((p) => {
-    const matchSearch = !search || p.title.toLowerCase().includes(search.toLowerCase()) || p.author.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === 'all' || p.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
+  // Filtrage combiné rapide
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      const query = search.toLowerCase().trim();
+      const matchSearch = !query || 
+        p.title.toLowerCase().includes(query) || 
+        p.author.toLowerCase().includes(query) ||
+        (p.isbn && p.isbn.toLowerCase().includes(query)) ||
+        (p.subtitle && p.subtitle.toLowerCase().includes(query));
+
+      const matchStatus = statusFilter === 'all' || p.status === statusFilter;
+      const matchCategory = categoryFilter === 'all' || p.category === categoryFilter;
+      
+      let matchAvailability = true;
+      if (availabilityFilter === 'in_stock') {
+        matchAvailability = p.stockQuantity > 3 && p.availability === 'Disponible';
+      } else if (availabilityFilter === 'low_stock') {
+        matchAvailability = p.stockQuantity > 0 && p.stockQuantity <= 3;
+      } else if (availabilityFilter === 'out_of_stock') {
+        matchAvailability = p.stockQuantity === 0 || p.availability === 'Indisponible temporairement';
+      }
+
+      return matchSearch && matchStatus && matchCategory && matchAvailability;
+    });
+  }, [products, search, statusFilter, categoryFilter, availabilityFilter]);
+
+  // Actions de duplication ou archivage
+  const handleArchive = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'archived' ? 'draft' : 'archived';
+    if (!confirm(newStatus === 'archived' ? 'Archiver ce livre ? Il ne sera plus affiché dans la boutique.' : 'Désarchiver ce livre ?')) return;
+
+    setArchivingId(id);
+    try {
+      const res = await fetch(`/api/admin/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        router.refresh();
+      }
+    } catch {
+      alert('Erreur lors de la modification du statut.');
+    } finally {
+      setArchivingId(null);
+    }
+  };
+
+  const counts = useMemo(() => ({
+    all: products.length,
+    published: products.filter(p => p.status === 'published').length,
+    drafts: products.filter(p => p.status === 'draft').length,
+    archived: products.filter(p => p.status === 'archived').length,
+  }), [products]);
 
   return (
     <>
+      {/* Onglets rapides de statut */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid var(--admin-border)', paddingBottom: 12, overflowX: 'auto' }}>
+        <button
+          className={`btn btn-sm ${statusFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setStatusFilter('all')}
+        >
+          Tous ({counts.all})
+        </button>
+        <button
+          className={`btn btn-sm ${statusFilter === 'published' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setStatusFilter('published')}
+        >
+          Publiés ({counts.published})
+        </button>
+        <button
+          className={`btn btn-sm ${statusFilter === 'draft' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setStatusFilter('draft')}
+        >
+          Brouillons ({counts.drafts})
+        </button>
+        {counts.archived > 0 && (
+          <button
+            className={`btn btn-sm ${statusFilter === 'archived' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setStatusFilter('archived')}
+          >
+            Archivés ({counts.archived})
+          </button>
+        )}
+      </div>
+
+      {/* Barre de filtres et recherche */}
       <div className="admin-toolbar">
-        <div className="admin-search">
-          <Search size={14} className="admin-search-icon" />
+        <div className="admin-search-box">
+          <Search size={15} className="admin-search-icon" />
           <input
             type="text"
-            placeholder="Rechercher par titre ou auteur…"
+            className="admin-search-input"
+            placeholder="Rechercher par titre, auteur, ISBN..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13 }}
-        >
-          <option value="all">Tous les statuts</option>
-          <option value="published">Publiés</option>
-          <option value="draft">Brouillons</option>
-          <option value="archived">Archivés</option>
-        </select>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {categories.length > 0 && (
+            <select
+              className="form-select"
+              style={{ width: 'auto', minWidth: 140 }}
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              <option value="all">Toutes les catégories</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          )}
+
+          <select
+            className="form-select"
+            style={{ width: 'auto', minWidth: 140 }}
+            value={availabilityFilter}
+            onChange={(e) => setAvailabilityFilter(e.target.value)}
+          >
+            <option value="all">Toutes disponibilités</option>
+            <option value="in_stock">En stock</option>
+            <option value="low_stock">Stock faible (≤ 3)</option>
+            <option value="out_of_stock">Rupture de stock</option>
+          </select>
+        </div>
       </div>
 
-      <div className="admin-card" style={{ padding: 0 }}>
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
+      {/* Compteur de résultats */}
+      <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
+        <span>Affichage de {filteredProducts.length} sur {products.length} livre(s)</span>
+        {(search || statusFilter !== 'all' || categoryFilter !== 'all' || availabilityFilter !== 'all') && (
+          <button 
+            style={{ background: 'none', border: 'none', color: 'var(--admin-petrol)', cursor: 'pointer', fontSize: 12, textDecoration: 'underline' }}
+            onClick={() => { setSearch(''); setStatusFilter('all'); setCategoryFilter('all'); setAvailabilityFilter('all'); }}
+          >
+            Réinitialiser les filtres
+          </button>
+        )}
+      </div>
+
+      {/* Table de produits */}
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th style={{ width: 44 }}>Visuel</th>
+              <th>Titre & Édition</th>
+              <th>Catégorie</th>
+              <th>Prix</th>
+              <th>Stock / Dispo</th>
+              <th>Statut</th>
+              <th>Modifié</th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredProducts.length === 0 ? (
               <tr>
-                <th>Couverture</th>
-                <th>Titre</th>
-                <th>Prix</th>
-                <th>Stock / Dispo</th>
-                <th>Statut</th>
-                <th>Modifié</th>
-                <th>Actions</th>
+                <td colSpan={8} style={{ padding: 0 }}>
+                  <div className="empty-state">
+                    <div className="empty-state-icon">
+                      <BookOpen size={24} />
+                    </div>
+                    <h3 className="empty-state-title">Aucun livre ne correspond</h3>
+                    <p className="empty-state-text">
+                      {products.length === 0 
+                        ? 'Le catalogue est actuellement vide. Ajoutez le premier livre d\'Al Furqan.'
+                        : 'Modifiez vos critères de recherche ou réinitialisez les filtres.'}
+                    </p>
+                    {products.length === 0 && (
+                      <Link href="/admin/produits/nouveau" className="btn btn-primary">
+                        <Plus size={15} /> Ajouter un livre
+                      </Link>
+                    )}
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: '#718096' }}>
-                    Aucun produit trouvé.
-                  </td>
-                </tr>
-              )}
-              {filtered.map((product) => (
+            ) : (
+              filteredProducts.map((product) => (
                 <tr key={product.id}>
-                  <td style={{ width: 48 }}>
-                    <div style={{ width: 36, flexShrink: 0 }}>
+                  <td>
+                    <div style={{ width: 36, height: 48, borderRadius: 4, overflow: 'hidden', flexShrink: 0 }}>
                       <Cover product={product as any} small />
                     </div>
                   </td>
                   <td>
                     <div>
-                      <strong style={{ fontSize: 13 }}>{product.title}</strong>
-                      <div style={{ color: '#718096', fontSize: 12 }}>{product.author}</div>
+                      <Link 
+                        href={`/admin/produits/${product.id}`}
+                        style={{ fontWeight: 600, color: 'var(--admin-text)', textDecoration: 'none' }}
+                      >
+                        {product.title}
+                      </Link>
+                      {product.subtitle && (
+                        <div style={{ color: 'var(--admin-text-muted)', fontSize: 12 }}>{product.subtitle}</div>
+                      )}
+                      <div style={{ color: 'var(--admin-text-subtle)', fontSize: 11, marginTop: 2 }}>
+                        Auteur : <strong>{product.author}</strong> {product.isbn ? `• ISBN ${product.isbn}` : ''}
+                      </div>
                     </div>
                   </td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{formatPrice(product.price)}</td>
+                  <td>
+                    <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 4, backgroundColor: 'var(--admin-surface-muted)', border: '1px solid var(--admin-border)' }}>
+                      {product.category}
+                    </span>
+                  </td>
+                  <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    {formatPrice(product.price)}
+                  </td>
                   <td>
                     <QuickStockEditor
                       productId={product.id}
@@ -128,27 +290,45 @@ export function ProductListTable({ products }: { products: AdminProduct[] }) {
                   <td>
                     <StatusBadge status={product.status} />
                   </td>
-                  <td style={{ color: '#718096', fontSize: 12, whiteSpace: 'nowrap' }}>
+                  <td style={{ color: 'var(--admin-text-muted)', fontSize: 12, whiteSpace: 'nowrap' }}>
                     {formatDate(product.updatedAt)}
                   </td>
-                  <td>
-                    <div className="row-actions">
-                      <Link href={`/admin/produits/${product.id}`} className="btn btn-secondary btn-sm" title="Modifier">
+                  <td style={{ textAlign: 'right' }}>
+                    <div style={{ display: 'inline-flex', gap: 6 }}>
+                      <Link 
+                        href={`/admin/produits/${product.id}`} 
+                        className="btn btn-secondary btn-sm"
+                        title="Modifier la fiche"
+                      >
                         <Edit2 size={13} />
                       </Link>
-                      <Link href={`/livres/${product.slug}`} target="_blank" className="btn btn-secondary btn-sm" title="Voir sur le site">
-                        <Eye size={13} />
-                      </Link>
-                      <Link href={`/admin/produits/${product.id}/dupliquer`} className="btn btn-secondary btn-sm" title="Dupliquer">
-                        <Copy size={13} />
-                      </Link>
+
+                      {product.status === 'published' && (
+                        <Link 
+                          href={`/livres/${product.slug}`} 
+                          target="_blank" 
+                          className="btn btn-secondary btn-sm"
+                          title="Voir sur la boutique"
+                        >
+                          <Eye size={13} />
+                        </Link>
+                      )}
+
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => handleArchive(product.id, product.status)}
+                        disabled={archivingId === product.id}
+                        title={product.status === 'archived' ? 'Désarchiver' : 'Archiver'}
+                      >
+                        <Archive size={13} style={{ color: product.status === 'archived' ? 'var(--admin-gold)' : undefined }} />
+                      </button>
                     </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </>
   );

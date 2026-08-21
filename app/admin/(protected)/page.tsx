@@ -1,89 +1,320 @@
 import Link from 'next/link';
-import { BookMarked, Tag, Library, Plus, AlertCircle } from 'lucide-react';
-import { isSupabaseConfigured } from '@/lib/supabase/server';
-import { createServerClient } from '@/lib/supabase/server';
+import { 
+  BookMarked, 
+  Tag, 
+  Library, 
+  Plus, 
+  AlertTriangle, 
+  CheckCircle2, 
+  Clock, 
+  Users, 
+  Building2, 
+  ArrowRight,
+  MessageSquare,
+  PackageX
+} from 'lucide-react';
+import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
 
 async function getDashboardStats() {
   if (!isSupabaseConfigured()) {
-    return { published: 12, drafts: 0, unavailable: 1, categories: 12, collections: 3 };
+    return {
+      published: 0,
+      drafts: 0,
+      lowStock: 0,
+      categories: 0,
+      collections: 0,
+      authors: 0,
+      publishers: 0,
+      recentProducts: [],
+      recentRequests: [],
+      attentionItems: [],
+    };
   }
+
   const supabase = createServerClient();
-  const [{ count: published }, { count: drafts }, { count: unavailable }, { count: categories }, { count: collections }] =
-    await Promise.all([
-      supabase.from('products').select('*', { count: 'exact', head: true }).eq('status', 'published'),
-      supabase.from('products').select('*', { count: 'exact', head: true }).eq('status', 'draft'),
-      supabase.from('products').select('*', { count: 'exact', head: true }).eq('availability', 'temporarily_unavailable'),
-      supabase.from('categories').select('*', { count: 'exact', head: true }).eq('is_visible', true),
-      supabase.from('collections').select('*', { count: 'exact', head: true }).eq('status', 'published'),
-    ]);
-  return { published: published ?? 0, drafts: drafts ?? 0, unavailable: unavailable ?? 0, categories: categories ?? 0, collections: collections ?? 0 };
+
+  const [
+    { count: published },
+    { count: drafts },
+    { count: lowStock },
+    { count: categories },
+    { count: collections },
+    { count: authors },
+    { count: publishers },
+    { data: recentProducts },
+    { data: recentRequests },
+    { data: attentionProducts }
+  ] = await Promise.all([
+    supabase.from('products').select('*', { count: 'exact', head: true }).eq('status', 'published'),
+    supabase.from('products').select('*', { count: 'exact', head: true }).eq('status', 'draft'),
+    supabase.from('products').select('*', { count: 'exact', head: true }).or('stock_quantity.lte.3,availability.eq.temporarily_unavailable'),
+    supabase.from('categories').select('*', { count: 'exact', head: true }).eq('is_visible', true),
+    supabase.from('collections').select('*', { count: 'exact', head: true }).eq('status', 'published'),
+    supabase.from('authors').select('*', { count: 'exact', head: true }),
+    supabase.from('publishers').select('*', { count: 'exact', head: true }),
+    supabase.from('products').select('id, slug, title, status, availability, stock_quantity, updated_at, authors(name)').order('updated_at', { ascending: false }).limit(5),
+    supabase.from('book_requests').select('id, query, created_at, result_count').order('created_at', { ascending: false }).limit(5),
+    supabase.from('products').select('id, slug, title, status, availability, stock_quantity').or('stock_quantity.lte.3,availability.eq.temporarily_unavailable,status.eq.draft').limit(5)
+  ]);
+
+  return {
+    published: published ?? 0,
+    drafts: drafts ?? 0,
+    lowStock: lowStock ?? 0,
+    categories: categories ?? 0,
+    collections: collections ?? 0,
+    authors: authors ?? 0,
+    publishers: publishers ?? 0,
+    recentProducts: (recentProducts || []).map((p: any) => ({
+      id: p.id,
+      slug: p.slug,
+      title: p.title,
+      author: p.authors?.name || 'Inconnu',
+      status: p.status,
+      updatedAt: p.updated_at
+    })),
+    recentRequests: (recentRequests || []).map((r: any) => ({
+      id: r.id,
+      query: r.query,
+      createdAt: r.created_at,
+      resultCount: r.result_count ?? 0
+    })),
+    attentionItems: (attentionProducts || []).map((p: any) => ({
+      id: p.id,
+      slug: p.slug,
+      title: p.title,
+      reason: p.status === 'draft' ? 'Brouillon non publié' : p.stock_quantity === 0 ? 'Rupture de stock' : 'Stock faible'
+    }))
+  };
 }
 
-export default async function AdminDashboard() {
+function formatDate(dateStr: string) {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+export default async function AdminDashboardPage() {
   const stats = await getDashboardStats();
-  const configured = isSupabaseConfigured();
+  const isConfigured = isSupabaseConfigured();
 
   return (
-    <div className="admin-page">
+    <div>
+      {/* Header de page avec titre et CTA principal */}
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Vue d&apos;ensemble</h1>
-          <p className="admin-page-subtitle">Bienvenue dans l&apos;interface d&apos;administration d&apos;Al Furqan.</p>
+          <p className="admin-page-subtitle">Gestion du catalogue et aperçu de l&apos;activité de la Librairie Al Furqan.</p>
         </div>
         <Link href="/admin/produits/nouveau" className="btn btn-primary">
-          <Plus size={15} /> Ajouter un livre
+          <Plus size={16} />
+          <span>Ajouter un livre</span>
         </Link>
       </div>
 
-      {!configured && (
-        <div className="admin-alert admin-alert-warning" style={{ marginBottom: 24 }}>
-          <strong>⚠ Mode développement</strong> — Supabase non configuré. Données affichées depuis le seed local.
-          Consultez <code>docs/SUPABASE_SETUP.md</code> pour connecter la base de données.
+      {!isConfigured && (
+        <div className="admin-alert admin-alert-warning">
+          <AlertTriangle size={18} />
+          <div>
+            <strong>Mode développement</strong> — Base Supabase non configurée.
+            Consultez <code>docs/SUPABASE_SETUP.md</code> pour lier votre projet de production.
+          </div>
         </div>
       )}
 
-      <div className="admin-stats">
-        <div className="admin-stat">
-          <div className="admin-stat-label">Publiés</div>
+      {/* Cartes de statistiques clés */}
+      <div className="admin-stats-grid">
+        <div className="admin-stat-card">
+          <div className="admin-stat-label">Livres publiés</div>
           <div className="admin-stat-value">{stats.published}</div>
-          <div className="admin-stat-link"><Link href="/admin/produits?status=published">Voir →</Link></div>
+          <div className="admin-stat-footer">
+            <span>Visibles sur le site</span>
+            <Link href="/admin/produits?status=published">Gérer <ArrowRight size={12} style={{ display: 'inline' }} /></Link>
+          </div>
         </div>
-        <div className="admin-stat">
+
+        <div className="admin-stat-card">
           <div className="admin-stat-label">Brouillons</div>
           <div className="admin-stat-value">{stats.drafts}</div>
-          <div className="admin-stat-link"><Link href="/admin/produits?status=draft">Voir →</Link></div>
+          <div className="admin-stat-footer">
+            <span>En cours de rédaction</span>
+            <Link href="/admin/produits?status=draft">Gérer <ArrowRight size={12} style={{ display: 'inline' }} /></Link>
+          </div>
         </div>
-        <div className="admin-stat">
-          <div className="admin-stat-label">Indisponibles</div>
-          <div className="admin-stat-value">{stats.unavailable}</div>
-          <div className="admin-stat-link"><Link href="/admin/produits?availability=unavailable">Voir →</Link></div>
+
+        <div className="admin-stat-card">
+          <div className="admin-stat-label">Stock faible / Ruptures</div>
+          <div className="admin-stat-value" style={{ color: stats.lowStock > 0 ? '#B91C1C' : 'var(--admin-petrol)' }}>
+            {stats.lowStock}
+          </div>
+          <div className="admin-stat-footer">
+            <span>Nécessitent attention</span>
+            <Link href="/admin/produits?availability=out_of_stock">Vérifier <ArrowRight size={12} style={{ display: 'inline' }} /></Link>
+          </div>
         </div>
-        <div className="admin-stat">
-          <div className="admin-stat-label">Catégories</div>
-          <div className="admin-stat-value">{stats.categories}</div>
-          <div className="admin-stat-link"><Link href="/admin/categories">Gérer →</Link></div>
-        </div>
-        <div className="admin-stat">
-          <div className="admin-stat-label">Collections</div>
-          <div className="admin-stat-value">{stats.collections}</div>
-          <div className="admin-stat-link"><Link href="/admin/collections">Gérer →</Link></div>
+
+        <div className="admin-stat-card">
+          <div className="admin-stat-label">Catégories & Collections</div>
+          <div className="admin-stat-value">{stats.categories + stats.collections}</div>
+          <div className="admin-stat-footer">
+            <span>{stats.categories} cat. / {stats.collections} coll.</span>
+            <Link href="/admin/categories">Explorer <ArrowRight size={12} style={{ display: 'inline' }} /></Link>
+          </div>
         </div>
       </div>
 
+      {/* Grille principale 2 colonnes : Dernières modifications & Attention requise */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 24, marginBottom: 24 }}>
+        {/* Derniers livres modifiés */}
+        <div className="admin-card">
+          <div className="admin-card-header">
+            <h2 className="admin-card-title">
+              <Clock size={16} />
+              Derniers livres modifiés
+            </h2>
+            <Link href="/admin/produits" className="btn btn-secondary btn-sm">
+              Tout voir
+            </Link>
+          </div>
+
+          {stats.recentProducts.length === 0 ? (
+            <div className="empty-state" style={{ padding: '24px 16px' }}>
+              <div className="empty-state-icon">
+                <BookMarked size={20} />
+              </div>
+              <h3 className="empty-state-title">Aucun livre pour le moment</h3>
+              <p className="empty-state-text">Commencez par ajouter le premier ouvrage de la librairie.</p>
+              <Link href="/admin/produits/nouveau" className="btn btn-primary btn-sm">
+                <Plus size={14} /> Ajouter un livre
+              </Link>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {stats.recentProducts.map((p) => (
+                <div 
+                  key={p.id} 
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--admin-radius-sm)',
+                    backgroundColor: 'var(--admin-bg)',
+                    border: '1px solid var(--admin-border)'
+                  }}
+                >
+                  <div style={{ minWidth: 0, paddingRight: 12 }}>
+                    <Link 
+                      href={`/admin/produits/${p.id}`}
+                      style={{ fontWeight: 600, fontSize: 13, color: 'var(--admin-text)', textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >
+                      {p.title}
+                    </Link>
+                    <div style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>
+                      Par {p.author} • {formatDate(p.updatedAt)}
+                    </div>
+                  </div>
+
+                  <span className={`status-badge ${p.status === 'published' ? 'status-published' : 'status-draft'}`}>
+                    {p.status === 'published' ? 'Publié' : 'Brouillon'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Produits nécessitant une attention */}
+        <div className="admin-card">
+          <div className="admin-card-header">
+            <h2 className="admin-card-title">
+              <AlertTriangle size={16} style={{ color: '#D97706' }} />
+              Attention requise
+            </h2>
+            <span style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>
+              {stats.attentionItems.length} élément(s)
+            </span>
+          </div>
+
+          {stats.attentionItems.length === 0 ? (
+            <div className="empty-state" style={{ padding: '24px 16px' }}>
+              <div className="empty-state-icon" style={{ backgroundColor: 'var(--admin-success-bg)', color: 'var(--admin-success-text)' }}>
+                <CheckCircle2 size={20} />
+              </div>
+              <h3 className="empty-state-title">Tout est en ordre</h3>
+              <p className="empty-state-text">Tous les livres sont publiés et le stock est suffisant.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {stats.attentionItems.map((item) => (
+                <div 
+                  key={item.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--admin-radius-sm)',
+                    backgroundColor: '#FFFBEB',
+                    border: '1px solid #FDE68A'
+                  }}
+                >
+                  <div style={{ minWidth: 0, paddingRight: 12 }}>
+                    <Link 
+                      href={`/admin/produits/${item.id}`}
+                      style={{ fontWeight: 600, fontSize: 13, color: '#92400E', textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >
+                      {item.title}
+                    </Link>
+                    <div style={{ fontSize: 11, fontWeight: 500, color: '#B45309' }}>
+                      {item.reason}
+                    </div>
+                  </div>
+
+                  <Link href={`/admin/produits/${item.id}`} className="btn btn-secondary btn-sm">
+                    Corriger
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Raccourcis d'organisation du catalogue */}
       <div className="admin-card">
-        <h2 className="admin-card-title">Raccourcis rapides</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+        <h2 className="admin-card-title" style={{ marginBottom: 16 }}>
+          Raccourcis de gestion du catalogue
+        </h2>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <Link href="/admin/produits/nouveau" className="btn btn-secondary" style={{ justifyContent: 'flex-start' }}>
-            <Plus size={15} /> Ajouter un livre
-          </Link>
-          <Link href="/admin/produits" className="btn btn-secondary" style={{ justifyContent: 'flex-start' }}>
-            <BookMarked size={15} /> Gérer les produits
+            <Plus size={16} />
+            <span>Nouveau livre</span>
           </Link>
           <Link href="/admin/categories" className="btn btn-secondary" style={{ justifyContent: 'flex-start' }}>
-            <Tag size={15} /> Gérer les catégories
+            <Tag size={16} />
+            <span>Gérer catégories ({stats.categories})</span>
           </Link>
           <Link href="/admin/collections" className="btn btn-secondary" style={{ justifyContent: 'flex-start' }}>
-            <Library size={15} /> Gérer les collections
+            <Library size={16} />
+            <span>Gérer collections ({stats.collections})</span>
+          </Link>
+          <Link href="/admin/auteurs" className="btn btn-secondary" style={{ justifyContent: 'flex-start' }}>
+            <Users size={16} />
+            <span>Gérer auteurs ({stats.authors})</span>
+          </Link>
+          <Link href="/admin/editeurs" className="btn btn-secondary" style={{ justifyContent: 'flex-start' }}>
+            <Building2 size={16} />
+            <span>Gérer éditeurs ({stats.publishers})</span>
+          </Link>
+          <Link href="/admin/demandes" className="btn btn-secondary" style={{ justifyContent: 'flex-start' }}>
+            <MessageSquare size={16} />
+            <span>Demandes d&apos;ouvrages</span>
           </Link>
         </div>
       </div>
