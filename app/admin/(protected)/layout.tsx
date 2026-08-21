@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { AdminNav } from '@/components/admin/admin-nav';
 import { requireAdmin } from '@/lib/supabase/auth';
 import { redirect } from 'next/navigation';
-import './admin.css';
+import '../admin.css';
 
 export const metadata: Metadata = {
   title: {

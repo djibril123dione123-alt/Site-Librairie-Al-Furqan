@@ -3,9 +3,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { siteConfig, getSiteUrl } from '@/lib/al-furqan-data';
 import { StoreProvider } from '@/components/providers';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
-import { GlobalUI } from '@/components/layout/global-ui';
+import { StorefrontLayout } from '@/components/layout/storefront-layout';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
 const lora = Lora({ subsets: ['latin'], variable: '--font-serif', display: 'swap' });
@@ -61,10 +59,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <StoreProvider>
-          <Header />
-          {children}
-          <Footer />
-          <GlobalUI />
+          <StorefrontLayout>
+            {children}
+          </StorefrontLayout>
         </StoreProvider>
       </body>
     </html>
