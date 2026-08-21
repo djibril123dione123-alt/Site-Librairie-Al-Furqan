@@ -2,7 +2,7 @@
 -- Migration 008 : Recherche V1 & Analytics du Catalogue (Sécurisé)
 -- ============================================================
 
--- Table catalog_events (analytics anonymes sans IP, user-agent ni fingerprint)
+-- 1. Table catalog_events (analytics anonymes sans IP, user-agent ni fingerprint)
 create table if not exists catalog_events (
   id uuid primary key default uuid_generate_v4(),
   event_type text not null check (event_type in ('product_view', 'add_to_cart', 'whatsapp_click', 'restock_interest')),
@@ -32,7 +32,17 @@ create policy "Admins can select catalog events" on catalog_events
     )
   );
 
--- Fonction RPC : recherche avancée relationnelle V1 avec extensions.unaccent et alias
+-- 2. Déduplication et contrainte d'unicité sur search_aliases
+delete from search_aliases a
+using search_aliases b
+where a.id < b.id
+  and lower(trim(a.alias)) = lower(trim(b.alias))
+  and lower(trim(a.canonical)) = lower(trim(b.canonical));
+
+alter table search_aliases drop constraint if exists search_aliases_alias_canonical_key;
+alter table search_aliases add constraint search_aliases_alias_canonical_key unique (alias, canonical);
+
+-- 3. Fonction RPC : recherche avancée relationnelle V1 avec extensions.unaccent et alias canoniques complets
 create or replace function search_published_products(
   query_text text,
   max_limit integer default 50
@@ -72,7 +82,12 @@ begin
       or lower(extensions.unaccent(coalesce(t.name, ''))) like '%' || norm_query || '%'
       or (sa.canonical is not null and (
         lower(extensions.unaccent(p.title)) like '%' || lower(extensions.unaccent(sa.canonical)) || '%'
+        or lower(extensions.unaccent(coalesce(p.subtitle, ''))) like '%' || lower(extensions.unaccent(sa.canonical)) || '%'
+        or lower(extensions.unaccent(coalesce(p.reading, ''))) like '%' || lower(extensions.unaccent(sa.canonical)) || '%'
+        or lower(extensions.unaccent(coalesce(a.name, ''))) like '%' || lower(extensions.unaccent(sa.canonical)) || '%'
+        or lower(extensions.unaccent(coalesce(pub.name, ''))) like '%' || lower(extensions.unaccent(sa.canonical)) || '%'
         or lower(extensions.unaccent(coalesce(c.name, ''))) like '%' || lower(extensions.unaccent(sa.canonical)) || '%'
+        or lower(extensions.unaccent(coalesce(t.name, ''))) like '%' || lower(extensions.unaccent(sa.canonical)) || '%'
       ))
     )
   limit max_limit;
