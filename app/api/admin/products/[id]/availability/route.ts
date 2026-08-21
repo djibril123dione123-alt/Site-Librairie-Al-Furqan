@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { requireAdmin } from '@/lib/supabase/auth';
 import { uiAvailabilityToDb } from '@/lib/types/mappers';
 import { z } from 'zod';
 
@@ -12,6 +13,9 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const { error: authError } = await requireAdmin();
+    if (authError === 'UNAUTHORIZED') return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+    if (authError === 'FORBIDDEN') return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
     const body = await request.json();
     const parsed = schema.safeParse(body);
 

@@ -1,55 +1,87 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { NextResponse, type NextRequest } from 'next/server';
 
-/**
- * Middleware de protection des routes admin.
- *
- * Stratégie Edge-compatible :
- * - On ne peut pas importer @supabase/supabase-js dans le middleware
- *   (Edge Runtime ne supporte pas process.versions / websocket natif).
- * - On vérifie simplement la présence d'un cookie de session Supabase.
- * - La vérification du rôle admin est faite dans les Server Components
- *   (app/admin/layout.tsx et chaque page admin) via createServerClient.
- *
- * Si Supabase n'est pas configuré (dev sans .env.local) → accès libre.
- */
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-
-  // Uniquement /admin/* (sauf /admin/login)
-  if (!pathname.startsWith('/admin') || pathname.startsWith('/admin/login')) {
-    return NextResponse.next();
-  }
-
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-  // Dev sans Supabase configuré → accès libre (warning dans les pages)
+  // Dev sans Supabase configuré → accès libre
   if (!supabaseUrl || supabaseUrl === 'https://your-project.supabase.co') {
-    return NextResponse.next();
+    if (process.env.USE_SEED_DATA === 'true' || process.env.NODE_ENV !== 'production') {
+      return NextResponse.next();
+    }
   }
 
-  // Vérifier la présence d'un cookie de session Supabase
-  // Le nom du cookie varie selon la version du SDK : on teste plusieurs patterns
-  const projectRef = supabaseUrl.split('//')[1]?.split('.')[0] ?? '';
-  const cookieNames = [
-    'sb-access-token',
-    `sb-${projectRef}-auth-token`,
-    `supabase-auth-token`,
-  ];
+  let token: string | undefined;
 
-  const hasSession = cookieNames.some(
-    (name) => !!request.cookies.get(name)?.value
-  );
+  // 1. Bearer Token (priorité pour les API)
+  const authHeader = request.headers.get('authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else {
+    // 2. Récupération du Cookie @supabase/ssr (supporte le chunking)
+    const projectRef = supabaseUrl?.split('//')[1]?.split('.')[0] ?? '';
+    const cookieName = `sb-${projectRef}-auth-token`;
+    
+    let cookieStr = '';
+    for (let i = 0; i < 5; i++) {
+      const chunk = request.cookies.get(`${cookieName}.${i}`);
+      if (chunk) cookieStr += chunk.value;
+      else break;
+    }
+    if (!cookieStr) cookieStr = request.cookies.get(cookieName)?.value || '';
 
-  if (!hasSession) {
-    const loginUrl = new URL('/admin/login', request.url);
-    loginUrl.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(loginUrl);
+    if (cookieStr) {
+      try {
+        const parsed = JSON.parse(decodeURIComponent(cookieStr));
+        if (Array.isArray(parsed) && parsed.length > 0) token = parsed[0];
+      } catch {
+        token = cookieStr;
+      }
+    }
   }
 
-  // Session présente → laisser passer, la vérification du rôle est dans les pages
+  // Validation cryptographique de la session via le token
+  let isValidSession = false;
+  if (token) {
+    const supabase = createClient(supabaseUrl!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      auth: { persistSession: false }
+    });
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (user) isValidSession = true;
+  }
+
+  const isApiAdminRoute = pathname.startsWith('/api/admin');
+  const isAdminPageRoute = pathname.startsWith('/admin') && !pathname.startsWith('/admin/login');
+
+  if (!isValidSession && (isApiAdminRoute || isAdminPageRoute)) {
+    // Non connecté
+    if (isApiAdminRoute) {
+      return NextResponse.json({ error: 'Non autorisé (Middleware)' }, { status: 401 });
+    } else {
+      const loginUrl = new URL('/admin/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  // Si l'utilisateur est connecté mais que c'est une API, le Helper requireAdmin() 
+  // dans la route finale vérifiera son rôle. Le middleware laisse passer la requête.
+  // Pareil pour les pages, le layout vérifiera le rôle.
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public (public files)
+     * - images, icons, etc.
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 };

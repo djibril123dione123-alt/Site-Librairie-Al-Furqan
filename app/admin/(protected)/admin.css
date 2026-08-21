@@ -469,7 +469,7 @@
   .admin-shell { flex-direction: column; }
   .admin-sidebar {
     width: 100%;
-    min-height: auto;
+    min-height: 0;
     position: static;
   }
   .admin-nav { display: flex; flex-wrap: wrap; padding: 8px; gap: 4px; }

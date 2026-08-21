@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfigured } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/supabase/auth';
 import { uiAvailabilityToDb } from '@/lib/types/mappers';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
@@ -51,6 +52,10 @@ const productSchema = z.object({
 
 // POST — créer un produit
 export async function POST(request: NextRequest) {
+  const { error: authError } = await requireAdmin();
+  if (authError === 'UNAUTHORIZED') return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (authError === 'FORBIDDEN') return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ success: true, id: 'dev-mode', message: 'Mode dev — non persisté' });
   }
@@ -173,6 +178,10 @@ export async function PUT(
   request: NextRequest,
   { params }: { params?: { id?: string } } = {}
 ) {
+  const { error: authError } = await requireAdmin();
+  if (authError === 'UNAUTHORIZED') return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (authError === 'FORBIDDEN') return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ success: true, message: 'Mode dev — non persisté' });
   }

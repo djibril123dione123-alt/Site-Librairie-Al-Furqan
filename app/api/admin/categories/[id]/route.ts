@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfigured } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/supabase/auth';
 import { revalidatePath } from 'next/cache';
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+  const { error: authError } = await requireAdmin();
+  if (authError === 'UNAUTHORIZED') return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (authError === 'FORBIDDEN') return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ success: true });
   }

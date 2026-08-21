@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { isSupabaseConfigured } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/supabase/auth';
 
 // Client sans typage générique pour éviter les conflits d'inférence 'never'
 function getRawAdminClient() {
@@ -13,6 +14,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const { error: authError } = await requireAdmin();
+  if (authError === 'UNAUTHORIZED') return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (authError === 'FORBIDDEN') return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: 'Supabase non configuré' }, { status: 503 });
   }
