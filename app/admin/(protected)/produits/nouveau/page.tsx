@@ -1,10 +1,32 @@
 import { ProductForm } from '@/components/admin/product-form';
+import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
 
-export default function NouveauProduitPage({
+async function getAdminCategories() {
+  if (!isSupabaseConfigured()) {
+    return [];
+  }
+  const supabase = createServerClient();
+  const { data } = await supabase
+    .from('categories')
+    .select('id, name, slug, position, is_visible')
+    .eq('is_visible', true)
+    .order('position');
+
+  return (data || []).map((c: any) => ({
+    id: c.id,
+    name: c.name,
+    slug: c.slug,
+    position: c.position,
+    isVisible: c.is_visible,
+  }));
+}
+
+export default async function NouveauProduitPage({
   searchParams,
 }: {
   searchParams?: { prefill?: string; title?: string };
 }) {
+  const categories = await getAdminCategories();
   const initialTitle = searchParams?.prefill || searchParams?.title || '';
 
   return (
@@ -16,7 +38,10 @@ export default function NouveauProduitPage({
         </div>
       </div>
 
-      <ProductForm initialData={{ title: initialTitle, status: 'draft' }} />
+      <ProductForm 
+        initialData={{ title: initialTitle, status: 'draft' }} 
+        categories={categories}
+      />
     </div>
   );
 }

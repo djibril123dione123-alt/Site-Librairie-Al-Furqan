@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useMemo } from 'react';
-import { Edit2, Copy, Eye, Search, Plus, Filter, Archive, BookOpen, AlertCircle } from 'lucide-react';
+import { Edit2, Eye, Search, Plus, Archive, BookOpen } from 'lucide-react';
 import { Cover } from '@/components/books/cover';
 import { QuickStockEditor } from './quick-stock-editor';
 import type { Availability } from '@/lib/types/ui';
@@ -23,6 +23,7 @@ export type AdminProduct = {
   updatedAt: string;
   color: string;
   ink: string;
+  coverUrl?: string | null;
 };
 
 function StatusBadge({ status }: { status: AdminProduct['status'] }) {
@@ -32,17 +33,6 @@ function StatusBadge({ status }: { status: AdminProduct['status'] }) {
     archived: { label: 'Archivé', className: 'status-archived' },
   };
   const { label, className } = map[status] || map.draft;
-  return <span className={`status-badge ${className}`}>{label}</span>;
-}
-
-function AvailabilityBadge({ availability }: { availability: Availability }) {
-  const map: Record<Availability, { label: string; className: string }> = {
-    'Disponible': { label: 'En stock', className: 'status-in-stock' },
-    'Derniers exemplaires': { label: 'Stock faible', className: 'status-low-stock' },
-    'De retour en stock': { label: 'Réappro', className: 'status-in-stock' },
-    'Indisponible temporairement': { label: 'Rupture', className: 'status-out-of-stock' },
-  };
-  const { label, className } = map[availability] || { label: availability, className: 'status-draft' };
   return <span className={`status-badge ${className}`}>{label}</span>;
 }
 
@@ -70,7 +60,6 @@ export function ProductListTable({
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const router = useRouter();
 
-  // Filtrage combiné rapide
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       const query = search.toLowerCase().trim();
@@ -96,7 +85,6 @@ export function ProductListTable({
     });
   }, [products, search, statusFilter, categoryFilter, availabilityFilter]);
 
-  // Actions de duplication ou archivage
   const handleArchive = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === 'archived' ? 'draft' : 'archived';
     if (!confirm(newStatus === 'archived' ? 'Archiver ce livre ? Il ne sera plus affiché dans la boutique.' : 'Désarchiver ce livre ?')) return;
@@ -127,7 +115,6 @@ export function ProductListTable({
 
   return (
     <>
-      {/* Onglets rapides de statut */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid var(--admin-border)', paddingBottom: 12, overflowX: 'auto' }}>
         <button
           className={`btn btn-sm ${statusFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
@@ -157,7 +144,6 @@ export function ProductListTable({
         )}
       </div>
 
-      {/* Barre de filtres et recherche */}
       <div className="admin-toolbar">
         <div className="admin-search-box">
           <Search size={15} className="admin-search-icon" />
@@ -199,7 +185,6 @@ export function ProductListTable({
         </div>
       </div>
 
-      {/* Compteur de résultats */}
       <div style={{ fontSize: 12, color: 'var(--admin-text-muted)', marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
         <span>Affichage de {filteredProducts.length} sur {products.length} livre(s)</span>
         {(search || statusFilter !== 'all' || categoryFilter !== 'all' || availabilityFilter !== 'all') && (
@@ -212,7 +197,6 @@ export function ProductListTable({
         )}
       </div>
 
-      {/* Table de produits */}
       <div className="admin-table-wrap">
         <table className="admin-table">
           <thead>
@@ -253,8 +237,12 @@ export function ProductListTable({
               filteredProducts.map((product) => (
                 <tr key={product.id}>
                   <td>
-                    <div style={{ width: 36, height: 48, borderRadius: 4, overflow: 'hidden', flexShrink: 0 }}>
-                      <Cover product={product as any} small />
+                    <div style={{ width: 36, height: 48, borderRadius: 4, overflow: 'hidden', flexShrink: 0, border: '1px solid var(--admin-border)' }}>
+                      {product.coverUrl ? (
+                        <img src={product.coverUrl} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <Cover product={product as any} small />
+                      )}
                     </div>
                   </td>
                   <td>

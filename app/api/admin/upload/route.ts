@@ -60,3 +60,40 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err.message || 'Erreur lors de l\'upload' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  const { error: authError } = await requireAdmin();
+  if (authError === 'UNAUTHORIZED') return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (authError === 'FORBIDDEN') return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
+
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ success: true });
+  }
+
+  try {
+    const { path } = await request.json();
+    if (!path) return NextResponse.json({ error: 'Chemin de fichier requis' }, { status: 400 });
+
+    const supabase = createAdminClient();
+
+    // Vérifier si le fichier est encore référencé dans product_images
+    const { count } = await supabase
+      .from('product_images')
+      .select('*', { count: 'exact', head: true })
+      .eq('storage_path', path);
+
+    if ((count ?? 0) === 0) {
+      const { error } = await supabase.storage
+        .from('product-images')
+        .remove([path]);
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Erreur suppression fichier' }, { status: 500 });
+  }
+}

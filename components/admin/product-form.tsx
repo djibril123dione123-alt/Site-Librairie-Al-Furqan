@@ -17,16 +17,24 @@ import {
   Tag as TagIcon, 
   Image as ImageIcon, 
   Layers, 
-  HelpCircle,
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
 import type { Availability } from '@/lib/types/ui';
 
-const CATEGORIES = [
-  'Coran', 'Tafsir', 'Invocations & Dhikr', 'Croyance & Foi', 
-  'Spiritualité', 'Mariage', 'Femme', 'Jeunesse', 'Récits', 
-  'Éducation', 'Arabe', 'Packs'
+const DEFAULT_CATEGORIES = [
+  { id: '1', name: 'Coran', slug: 'coran' },
+  { id: '2', name: 'Tafsir', slug: 'tafsir' },
+  { id: '3', name: 'Invocations & Dhikr', slug: 'invocations-dhikr' },
+  { id: '4', name: 'Croyance & Foi', slug: 'croyance-foi' },
+  { id: '5', name: 'Spiritualité', slug: 'spiritualite' },
+  { id: '6', name: 'Mariage', slug: 'mariage' },
+  { id: '7', name: 'Femme', slug: 'femme' },
+  { id: '8', name: 'Jeunesse', slug: 'jeunesse' },
+  { id: '9', name: 'Récits', slug: 'recits' },
+  { id: '10', name: 'Éducation', slug: 'education' },
+  { id: '11', name: 'Arabe', slug: 'arabe' },
+  { id: '12', name: 'Packs', slug: 'packs' }
 ];
 
 const LANGUAGES = ['Français', 'Arabe', 'Français / Arabe', 'Wolof'];
@@ -47,16 +55,17 @@ const COVER_COLORS = [
   { value: 'slate', label: 'Ardoise / Gris', bg: '#334155' },
 ];
 
-type ImageItem = {
+export type ImageItem = {
   id?: string;
   file?: File;
   preview: string;
   storagePath?: string;
   type: 'cover' | 'back' | 'spine' | 'inside' | 'toc' | 'other';
+  position?: number;
   uploading?: boolean;
 };
 
-type VariantItem = {
+export type VariantItem = {
   id: string;
   attributes: string;
   price: string;
@@ -67,6 +76,7 @@ type AuthorOption = { id: string; name: string };
 type PublisherOption = { id: string; name: string };
 
 type FormData = {
+  slug: string;
   title: string;
   subtitle: string;
   author: string;
@@ -74,6 +84,7 @@ type FormData = {
   publisher: string;
   publisherId: string;
   category: string;
+  categoryId: string;
   price: string;
   compareAtPrice: string;
   availability: Availability;
@@ -95,9 +106,12 @@ type FormData = {
   status: 'draft' | 'published' | 'archived';
   color: string;
   hasVariants: boolean;
+  images?: ImageItem[];
+  variants?: VariantItem[];
 };
 
 const DEFAULT_FORM: FormData = {
+  slug: '',
   title: '',
   subtitle: '',
   author: '',
@@ -105,6 +119,7 @@ const DEFAULT_FORM: FormData = {
   publisher: '',
   publisherId: '',
   category: 'Coran',
+  categoryId: '',
   price: '',
   compareAtPrice: '',
   availability: 'Disponible',
@@ -131,13 +146,18 @@ const DEFAULT_FORM: FormData = {
 export function ProductForm({
   initialData,
   productId,
+  categories: externalCategories,
 }: {
   initialData?: Partial<FormData>;
   productId?: string;
+  categories?: { id: string; name: string; slug: string }[];
 }) {
   const [form, setForm] = useState<FormData>({ ...DEFAULT_FORM, ...initialData });
-  const [variants, setVariants] = useState<VariantItem[]>([]);
-  const [images, setImages] = useState<ImageItem[]>([]);
+  const [categoriesList, setCategoriesList] = useState<{ id: string; name: string; slug: string }[]>(
+    externalCategories && externalCategories.length > 0 ? externalCategories : DEFAULT_CATEGORIES
+  );
+  const [variants, setVariants] = useState<VariantItem[]>(initialData?.variants || []);
+  const [images, setImages] = useState<ImageItem[]>(initialData?.images || []);
   
   const [authorsList, setAuthorsList] = useState<AuthorOption[]>([]);
   const [publishersList, setPublishersList] = useState<PublisherOption[]>([]);
@@ -155,7 +175,21 @@ export function ProductForm({
   
   const router = useRouter();
 
-  // Charger les auteurs et éditeurs existants
+  // Charger les catégories de la DB si non transmises via props
+  useEffect(() => {
+    if (!externalCategories || externalCategories.length === 0) {
+      fetch('/api/admin/categories')
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setCategoriesList(data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [externalCategories]);
+
+  // Charger les auteurs et éditeurs
   useEffect(() => {
     async function loadOptions() {
       try {
@@ -172,7 +206,7 @@ export function ProductForm({
           setPublishersList(dataP || []);
         }
       } catch {
-        // Mode dev / fallback
+        // Fallback
       }
     }
     loadOptions();
@@ -182,7 +216,26 @@ export function ProductForm({
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Upload d'image vers /api/admin/upload
+  // Synchronisation de la catégorie sélectionnée (ID + Nom)
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedId = e.target.value;
+    const catObj = categoriesList.find((c) => c.id === selectedId || c.name === selectedId);
+    if (catObj) {
+      setForm((prev) => ({
+        ...prev,
+        category: catObj.name,
+        categoryId: catObj.id,
+      }));
+    } else {
+      setForm((prev) => ({
+        ...prev,
+        category: e.target.value,
+        categoryId: '',
+      }));
+    }
+  };
+
+  // Upload d'images
   const handleImageSelect = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
@@ -202,12 +255,12 @@ export function ProductForm({
         file,
         preview: tempPreview,
         type: images.length === 0 ? 'cover' : 'inside',
-        uploading: true
+        uploading: true,
+        position: images.length,
       };
 
       setImages((prev) => [...prev, newImg]);
 
-      // Upload effectif
       try {
         const formData = new FormData();
         formData.append('file', file);
@@ -238,20 +291,35 @@ export function ProductForm({
     }
   };
 
-  const removeImage = (index: number) => {
+  // Suppression d'image avec nettoyage du stockage
+  const removeImage = async (index: number) => {
+    const target = images[index];
     setImages((prev) => prev.filter((_, i) => i !== index));
+
+    if (target && target.storagePath) {
+      try {
+        await fetch('/api/admin/upload', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: target.storagePath }),
+        });
+      } catch {
+        // Silencieux
+      }
+    }
   };
 
+  // Définir la couverture principale (garantie 1 seule image 'cover')
   const setPrimaryImage = (index: number) => {
     setImages((prev) =>
       prev.map((img, i) => ({
         ...img,
-        type: i === index ? 'cover' : img.type === 'cover' ? 'inside' : img.type,
+        type: i === index ? 'cover' : (img.type === 'cover' ? 'inside' : img.type),
       }))
     );
   };
 
-  // Création rapide auteur
+  // Création rapide Auteur
   const handleQuickCreateAuthor = async () => {
     if (!newAuthorName.trim()) return;
     try {
@@ -276,7 +344,7 @@ export function ProductForm({
     }
   };
 
-  // Création rapide éditeur
+  // Création rapide Éditeur
   const handleQuickCreatePublisher = async () => {
     if (!newPublisherName.trim()) return;
     try {
@@ -330,10 +398,7 @@ export function ProductForm({
       setError('Le titre du livre est obligatoire.');
       return;
     }
-    if (!form.category) {
-      setError('La catégorie est obligatoire.');
-      return;
-    }
+
     if (form.price && isNaN(parseInt(form.price))) {
       setError('Le prix doit être un nombre valide en FCFA.');
       return;
@@ -343,6 +408,7 @@ export function ProductForm({
 
     try {
       const payload = {
+        slug: form.slug.trim() || undefined,
         title: form.title.trim(),
         subtitle: form.subtitle.trim() || null,
         author: form.author.trim() || null,
@@ -350,19 +416,20 @@ export function ProductForm({
         publisher: form.publisher.trim() || null,
         publisherId: form.publisherId || null,
         category: form.category,
-        price: form.price ? parseInt(form.price) : null,
-        compareAtPrice: form.compareAtPrice ? parseInt(form.compareAtPrice) : null,
+        categoryId: form.categoryId || null,
+        price: form.price !== '' ? parseInt(form.price) : null,
+        compareAtPrice: form.compareAtPrice !== '' ? parseInt(form.compareAtPrice) : null,
         availability: form.availability,
-        stockQuantity: form.stockQuantity ? parseInt(form.stockQuantity) : null,
+        stockQuantity: form.stockQuantity !== '' ? parseInt(form.stockQuantity) : null,
         shortDescription: form.shortDescription.trim() || null,
         description: form.description.trim() || null,
         language: form.language,
         isbn: form.isbn.trim() || null,
-        pages: form.pages ? parseInt(form.pages) : null,
+        pages: form.pages !== '' ? parseInt(form.pages) : null,
         dimensions: form.dimensions.trim() || null,
         binding: form.binding.trim() || null,
         edition: form.edition.trim() || null,
-        year: form.year ? parseInt(form.year) : null,
+        year: form.year !== '' ? parseInt(form.year) : null,
         themes: form.themes ? form.themes.split(',').map((t) => t.trim()).filter(Boolean) : [],
         reading: form.reading || null,
         tajwid: form.tajwid,
@@ -378,8 +445,8 @@ export function ProductForm({
         })),
         variants: form.hasVariants ? variants.map((v) => ({
           attributes: v.attributes,
-          price: v.price ? parseInt(v.price) : null,
-          stock: v.stock ? parseInt(v.stock) : null,
+          price: v.price !== '' ? parseInt(v.price) : null,
+          stock: v.stock !== '' ? parseInt(v.stock) : null,
         })) : [],
       };
 
@@ -404,6 +471,10 @@ export function ProductForm({
           ? `Fiche mise à jour (${finalStatus === 'published' ? 'Publiée' : 'Brouillon'}).` 
           : `Livre enregistré avec succès.`
       );
+
+      if (result.slug) {
+        setForm((prev) => ({ ...prev, slug: result.slug }));
+      }
 
       if (!productId && result.id) {
         setTimeout(() => router.push(`/admin/produits/${result.id}`), 800);
@@ -439,9 +510,9 @@ export function ProductForm({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {productId && form.status === 'published' && (
+          {productId && form.status === 'published' && form.slug && (
             <Link 
-              href={`/livres/${productId}`} 
+              href={`/livres/${form.slug}`} 
               target="_blank" 
               className="btn btn-secondary btn-sm"
             >
@@ -484,9 +555,9 @@ export function ProductForm({
         </div>
       )}
 
-      {/* Grille principale à 2 colonnes */}
+      {/* Grille principale 2 colonnes */}
       <form onSubmit={(e) => handleFormSubmit(e, form.status)} className="admin-form-container">
-        {/* COLONNE GAUCHE (70%) : Informations du livre */}
+        {/* COLONNE GAUCHE (70%) */}
         <div className="admin-form-main">
           
           {/* Section 1 : Informations essentielles */}
@@ -574,26 +645,24 @@ export function ProductForm({
                     + Créer auteur
                   </button>
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input
-                    id="author"
-                    type="text"
-                    className="form-input"
-                    placeholder="Ex: L'Imam An-Nawawi"
-                    value={form.author}
-                    onChange={(e) => {
-                      setField('author', e.target.value);
-                      const found = authorsList.find((a) => a.name.toLowerCase() === e.target.value.toLowerCase());
-                      setField('authorId', found ? found.id : '');
-                    }}
-                    list="authors-datalist"
-                  />
-                  <datalist id="authors-datalist">
-                    {authorsList.map((a) => (
-                      <option key={a.id} value={a.name} />
-                    ))}
-                  </datalist>
-                </div>
+                <input
+                  id="author"
+                  type="text"
+                  className="form-input"
+                  placeholder="Ex: L'Imam An-Nawawi"
+                  value={form.author}
+                  onChange={(e) => {
+                    setField('author', e.target.value);
+                    const found = authorsList.find((a) => a.name.toLowerCase() === e.target.value.toLowerCase());
+                    setField('authorId', found ? found.id : '');
+                  }}
+                  list="authors-datalist"
+                />
+                <datalist id="authors-datalist">
+                  {authorsList.map((a) => (
+                    <option key={a.id} value={a.name} />
+                  ))}
+                </datalist>
               </div>
 
               {/* Éditeur */}
@@ -630,7 +699,7 @@ export function ProductForm({
             </div>
           </div>
 
-          {/* Section 3 : Prix & Gestion du Stock */}
+          {/* Section 3 : Prix & Stock */}
           <div className="form-section">
             <div className="form-section-title">
               <span>3 — Prix & Stock (FCFA / XOF)</span>
@@ -658,7 +727,7 @@ export function ProductForm({
 
               <div className="form-group">
                 <label className="form-label" htmlFor="compareAtPrice">
-                  Prix barré / d&apos;origine <span className="form-label-optional">facultatif</span>
+                  Prix barré / d&apos;origine <span className="form-label-optional">facultatif (pour promotions)</span>
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
@@ -709,7 +778,7 @@ export function ProductForm({
             </div>
           </div>
 
-          {/* Section 4 : Images & Photos Supabase Storage */}
+          {/* Section 4 : Photos Supabase Storage */}
           <div className="form-section">
             <div className="form-section-title">
               <span>4 — Photos de l&apos;ouvrage</span>
@@ -795,7 +864,7 @@ export function ProductForm({
             </div>
           </div>
 
-          {/* Section 5 : Informations bibliographiques (repliable) */}
+          {/* Section 5 : Informations bibliographiques */}
           <div className="form-section">
             <div 
               className="form-section-title"
@@ -924,7 +993,7 @@ export function ProductForm({
                       checked={form.tajwid}
                       onChange={(e) => setField('tajwid', e.target.checked)}
                     />
-                    <span style={{ fontWeight: 600, color: '#92400E' }}>Tajwid (Code couleur repères de récilation)</span>
+                    <span style={{ fontWeight: 600, color: '#92400E' }}>Tajwid (Code couleur repères de récitation)</span>
                   </label>
                 </div>
               </div>
@@ -1002,12 +1071,12 @@ export function ProductForm({
           </div>
         </div>
 
-        {/* COLONNE DROITE (30%) : Statut & Publication */}
+        {/* COLONNE DROITE (30%) */}
         <div className="admin-form-sidebar">
           
-          {/* Card Statut de publication */}
+          {/* Card Statut & Catégorie */}
           <div className="form-section">
-            <div className="form-section-title">Publication & Visibilité</div>
+            <div className="form-section-title">Publication & Catégorie</div>
 
             <div className="form-group">
               <label className="form-label" htmlFor="status">Statut de publication</label>
@@ -1028,14 +1097,29 @@ export function ProductForm({
               <select
                 id="category-select"
                 className="form-select"
-                value={form.category}
-                onChange={(e) => setField('category', e.target.value)}
+                value={form.categoryId || form.category}
+                onChange={handleCategoryChange}
                 required
               >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                {categoriesList.map((c) => (
+                  <option key={c.id} value={c.id || c.name}>{c.name}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="slug">Slug URL personnalisable</label>
+              <input
+                id="slug"
+                type="text"
+                className="form-input"
+                placeholder="Ex: le-jardin-des-vertueux"
+                value={form.slug}
+                onChange={(e) => setField('slug', e.target.value)}
+              />
+              <span style={{ fontSize: 11, color: 'var(--admin-text-subtle)' }}>
+                Identifiant de l&apos;URL publique sur /livres/[slug]
+              </span>
             </div>
 
             <div className="form-group">
@@ -1051,7 +1135,7 @@ export function ProductForm({
             </div>
           </div>
 
-          {/* Card Mise en avant & Badges */}
+          {/* Card Mise en avant */}
           <div className="form-section">
             <div className="form-section-title">Mise en avant éditoriale</div>
 
@@ -1078,7 +1162,7 @@ export function ProductForm({
         </div>
       </form>
 
-      {/* Modal / Dialog rapide de création d'Auteur */}
+      {/* Modal / Dialog Auteur */}
       {showAuthorModal && (
         <div className="admin-drawer-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="admin-card" style={{ maxWidth: 450, width: '100%', margin: 'auto', backgroundColor: '#FFF', position: 'relative' }}>
@@ -1116,7 +1200,7 @@ export function ProductForm({
         </div>
       )}
 
-      {/* Modal / Dialog rapide de création d'Éditeur */}
+      {/* Modal / Dialog Éditeur */}
       {showPublisherModal && (
         <div className="admin-drawer-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="admin-card" style={{ maxWidth: 450, width: '100%', margin: 'auto', backgroundColor: '#FFF', position: 'relative' }}>
@@ -1137,7 +1221,7 @@ export function ProductForm({
               <textarea
                 className="form-textarea"
                 rows={3}
-                placeholder="Maison d'édition spécialisée dans l'édition d'ouvrages islamiques..."
+                placeholder="Maison d'édition spécialisée..."
                 value={newPublisherDesc}
                 onChange={(e) => setNewPublisherDesc(e.target.value)}
               />
