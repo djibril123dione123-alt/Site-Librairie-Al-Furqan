@@ -1,3 +1,6 @@
+// TEMPORARY SEED DATA / À REMPLACER AVANT MISE EN PRODUCTION.
+// Les données ci-dessous contiennent des claims générés et non confirmés commercialement.
+
 export type Availability = 'Disponible' | 'Derniers exemplaires' | 'De retour en stock' | 'Indisponible temporairement';
 
 export type VariantAttribute = { label: string; value: string };
@@ -54,7 +57,7 @@ export const siteConfig = {
   brand: 'Librairie Al Furqan',
   shortBrand: 'Al Furqan',
   tagline: 'Librairie islamique',
-  description: 'Librairie islamique à Saint-Louis, Sénégal. Corans, tafsirs, ouvrages de croyance, spiritualité, éducation, langue arabe et plus. Commande simple via WhatsApp, livraison au Sénégal.',
+  description: 'Librairie islamique à Saint-Louis, Sénégal. Corans, tafsirs, ouvrages de croyance, spiritualité, éducation, langue arabe.',
   whatsapp: '221777008562',
   phoneDisplay: '+221 77 700 85 62',
   location: 'Saint-Louis, Sénégal',
@@ -62,11 +65,21 @@ export const siteConfig = {
   facebook: 'https://www.facebook.com/marketplace/profile/100011780529274/',
   currency: 'XOF',
   deliveryOptions: [
-    { name: 'La Poste', description: 'Couvre l’ensemble du territoire sénégalais.' },
-    { name: 'Dem Dikk', description: 'Disponible pour Dakar et sa région.' },
-    { name: 'Tiak Tiak', description: 'Solution de livraison locale.' },
+    { name: 'La Poste', description: 'Mode de livraison observé.' },
+    { name: 'Dem Dikk', description: 'Mode de livraison observé.' },
+    { name: 'Tiak Tiak', description: 'Mode de livraison observé.' },
   ] as DeliveryOption[],
 };
+
+export function getSiteUrl(): string {
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return 'http://localhost:3000';
+}
 
 export const categories = ['Coran', 'Tafsir', 'Invocations & Dhikr', 'Croyance & Foi', 'Spiritualité', 'Mariage', 'Femme', 'Jeunesse', 'Récits', 'Éducation', 'Arabe', 'Packs'];
 
