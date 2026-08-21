@@ -1,13 +1,13 @@
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
-import { products as seedProducts } from '@/lib/al-furqan-data';
+import { seedProducts } from '@/lib/dev/seed-products';
 import { dbAvailabilityToUi } from '@/lib/types/mappers';
 import { ProductListTable } from '@/components/admin/product-list-table';
 
 async function getAdminProducts(status?: string) {
   if (!isSupabaseConfigured()) {
-    return seedProducts.map((p) => ({
+    return seedProducts.map((p: any) => ({
       id: p.id,
       slug: p.slug,
       title: p.title,

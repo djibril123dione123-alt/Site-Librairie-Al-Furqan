@@ -5,11 +5,11 @@
 import { isSupabaseConfigured, createServerClient, shouldUseSeedData } from '@/lib/supabase/server';
 import { dbCollectionToUi } from '@/lib/types/mappers';
 import type { Collection } from '@/lib/types/ui';
-import { collections as seedCollections } from '@/lib/al-furqan-data';
+import { seedCollections } from '@/lib/dev/seed-products';
 
 export async function getCollections(): Promise<Collection[]> {
   if (shouldUseSeedData()) {
-    return seedCollections.map((c) => ({
+    return seedCollections.map((c: any) => ({
       slug: c.slug,
       title: c.title,
       eyebrow: c.eyebrow,
@@ -38,7 +38,7 @@ export async function getCollections(): Promise<Collection[]> {
 
 export async function getCollectionBySlug(slug: string): Promise<Collection | null> {
   if (shouldUseSeedData()) {
-    const c = seedCollections.find((c) => c.slug === slug);
+    const c = seedCollections.find((c: any) => c.slug === slug);
     if (!c) return null;
     return {
       slug: c.slug,

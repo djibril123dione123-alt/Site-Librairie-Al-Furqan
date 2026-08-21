@@ -1,113 +1,145 @@
+BEGIN;
+
 -- ============================================================
 -- 007_delivery_senegal.sql
 -- Structure de données pour l'UX de livraison au Sénégal
+-- Version canonique & idempotente
 -- ============================================================
 
--- 1. Table senegal_locations (hiérarchie géographique)
-create table if not exists senegal_locations (
-  id uuid primary key default uuid_generate_v4(),
-  region text not null,
+-- ============================================================
+-- 1. Table senegal_locations
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.senegal_locations (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  region text NOT NULL,
   department text,
   commune text,
-  locality text not null,
+  locality text NOT NULL,
+  locality_type text,
+  display_name text,
+  normalized_name text,
   latitude numeric(10, 7),
   longitude numeric(10, 7),
-  aliases text[], -- ex: {"Ouakam", "Wakam"}
-  is_active boolean default true not null,
-  created_at timestamptz default now() not null,
-  updated_at timestamptz default now() not null
+  aliases text[],
+  coordinate_source text,
+  coordinate_verified boolean DEFAULT false NOT NULL,
+  source_name text,
+  source_id text,
+  source_url text,
+  is_active boolean DEFAULT true NOT NULL,
+  created_at timestamptz DEFAULT now() NOT NULL,
+  updated_at timestamptz DEFAULT now() NOT NULL
 );
 
-create index if not exists senegal_locations_region_idx on senegal_locations(region);
-create index if not exists senegal_locations_locality_idx on senegal_locations(locality);
+-- Colonnes additionnelles (idempotent)
+ALTER TABLE public.senegal_locations ADD COLUMN IF NOT EXISTS locality_type text;
+ALTER TABLE public.senegal_locations ADD COLUMN IF NOT EXISTS display_name text;
+ALTER TABLE public.senegal_locations ADD COLUMN IF NOT EXISTS normalized_name text;
+ALTER TABLE public.senegal_locations ADD COLUMN IF NOT EXISTS coordinate_source text;
+ALTER TABLE public.senegal_locations ADD COLUMN IF NOT EXISTS coordinate_verified boolean DEFAULT false;
+ALTER TABLE public.senegal_locations ADD COLUMN IF NOT EXISTS source_name text;
+ALTER TABLE public.senegal_locations ADD COLUMN IF NOT EXISTS source_id text;
+ALTER TABLE public.senegal_locations ADD COLUMN IF NOT EXISTS source_url text;
 
--- 2. Table delivery_points (points relais, bureaux de poste)
-create table if not exists delivery_points (
-  id uuid primary key default uuid_generate_v4(),
-  provider text not null default 'la_poste', -- 'la_poste', 'point_relais', etc.
-  name text not null,
-  region text not null,
+CREATE INDEX IF NOT EXISTS senegal_locations_region_idx ON public.senegal_locations(region);
+CREATE INDEX IF NOT EXISTS senegal_locations_department_idx ON public.senegal_locations(department);
+CREATE INDEX IF NOT EXISTS senegal_locations_commune_idx ON public.senegal_locations(commune);
+CREATE INDEX IF NOT EXISTS senegal_locations_locality_idx ON public.senegal_locations(locality);
+
+
+-- ============================================================
+-- 2. Table delivery_points
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.delivery_points (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  provider text NOT NULL DEFAULT 'la_poste',
+  name text NOT NULL,
+  postal_code text,
+  region text NOT NULL,
   department text,
-  locality text not null,
+  commune text,
+  locality text NOT NULL,
   address text,
   latitude numeric(10, 7),
   longitude numeric(10, 7),
   phone text,
-  is_active boolean default true not null,
+  opening_hours text,
+  coordinate_source text,
+  coordinate_verified boolean DEFAULT false NOT NULL,
+  source_name text,
+  source_id text,
+  source_url text,
+  is_active boolean DEFAULT true NOT NULL,
   verified_at timestamptz,
-  created_at timestamptz default now() not null,
-  updated_at timestamptz default now() not null
+  created_at timestamptz DEFAULT now() NOT NULL,
+  updated_at timestamptz DEFAULT now() NOT NULL
 );
 
-create index if not exists delivery_points_provider_idx on delivery_points(provider);
-create index if not exists delivery_points_region_idx on delivery_points(region);
+-- Colonnes additionnelles (idempotent)
+ALTER TABLE public.delivery_points ADD COLUMN IF NOT EXISTS postal_code text;
+ALTER TABLE public.delivery_points ADD COLUMN IF NOT EXISTS commune text;
+ALTER TABLE public.delivery_points ADD COLUMN IF NOT EXISTS opening_hours text;
+ALTER TABLE public.delivery_points ADD COLUMN IF NOT EXISTS coordinate_source text;
+ALTER TABLE public.delivery_points ADD COLUMN IF NOT EXISTS coordinate_verified boolean DEFAULT false;
+ALTER TABLE public.delivery_points ADD COLUMN IF NOT EXISTS source_name text;
+ALTER TABLE public.delivery_points ADD COLUMN IF NOT EXISTS source_id text;
+ALTER TABLE public.delivery_points ADD COLUMN IF NOT EXISTS source_url text;
 
--- Triggers pour updated_at
-drop trigger if exists senegal_locations_updated_at on senegal_locations;
-create trigger senegal_locations_updated_at
-  before update on senegal_locations
-  for each row execute function set_updated_at();
+CREATE INDEX IF NOT EXISTS delivery_points_provider_idx ON public.delivery_points(provider);
+CREATE INDEX IF NOT EXISTS delivery_points_region_idx ON public.delivery_points(region);
+CREATE INDEX IF NOT EXISTS delivery_points_locality_idx ON public.delivery_points(locality);
 
-drop trigger if exists delivery_points_updated_at on delivery_points;
-create trigger delivery_points_updated_at
-  before update on delivery_points
-  for each row execute function set_updated_at();
-
--- ============================================================
--- RLS (Sécurité)
--- ============================================================
-alter table senegal_locations enable row level security;
-alter table delivery_points enable row level security;
-
--- Tout le monde peut lire les données actives
-create policy "senegal_locations_public_read"
-  on senegal_locations for select
-  to public
-  using (is_active = true);
-
-create policy "delivery_points_public_read"
-  on delivery_points for select
-  to public
-  using (is_active = true);
-
--- Seuls les admins peuvent modifier
-create policy "senegal_locations_admin_all"
-  on senegal_locations for all
-  to authenticated
-  using (is_admin())
-  with check (is_admin());
-
-create policy "delivery_points_admin_all"
-  on delivery_points for all
-  to authenticated
-  using (is_admin())
-  with check (is_admin());
 
 -- ============================================================
--- Données de test / seed minimal pour le développement UX
--- (Ces données sont réelles mais non exhaustives)
+-- 3. Triggers updated_at
 -- ============================================================
 
--- Quelques localités majeures à Dakar
-insert into senegal_locations (region, department, commune, locality, latitude, longitude) values
-  ('Dakar', 'Dakar', 'Dakar Plateau', 'Dakar Plateau', 14.6677, -17.4339),
-  ('Dakar', 'Dakar', 'Ouakam', 'Ouakam', 14.7183, -17.4870),
-  ('Dakar', 'Dakar', 'Ngor', 'Ngor', 14.7471, -17.5146),
-  ('Dakar', 'Pikine', 'Pikine', 'Pikine', 14.7610, -17.3917),
-  ('Dakar', 'Rufisque', 'Rufisque', 'Rufisque', 14.7136, -17.2711),
-  ('Thiès', 'Thiès', 'Thiès', 'Thiès', 14.7928, -16.9287),
-  ('Thiès', 'Tivaouane', 'Tivaouane', 'Tivaouane', 14.9542, -16.8142),
-  ('Saint-Louis', 'Saint-Louis', 'Saint-Louis', 'Saint-Louis', 16.0326, -16.4818)
-on conflict do nothing;
+DROP TRIGGER IF EXISTS senegal_locations_updated_at ON public.senegal_locations;
+CREATE TRIGGER senegal_locations_updated_at
+  BEFORE UPDATE ON public.senegal_locations
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_updated_at();
 
--- Quelques bureaux de Poste avec coordonnées approximatives pour simuler l'UX Haversine
-insert into delivery_points (provider, name, region, locality, address, latitude, longitude) values
-  ('la_poste', 'Bureau de Poste Dakar Etoile', 'Dakar', 'Dakar Plateau', 'Place de l''Indépendance', 14.6677, -17.4339),
-  ('la_poste', 'Bureau de Poste Ouakam', 'Dakar', 'Ouakam', 'Route de Ouakam', 14.7183, -17.4870),
-  ('la_poste', 'Bureau de Poste Ngor', 'Dakar', 'Ngor', 'Route des Almadies', 14.7471, -17.5146),
-  ('la_poste', 'Bureau de Poste Pikine', 'Dakar', 'Pikine', 'Boustane', 14.7610, -17.3917),
-  ('la_poste', 'Bureau de Poste Rufisque', 'Dakar', 'Rufisque', 'Centre-ville', 14.7136, -17.2711),
-  ('la_poste', 'Bureau de Poste Thiès', 'Thiès', 'Thiès', 'Quartier Escale', 14.7928, -16.9287),
-  ('la_poste', 'Bureau de Poste Tivaouane', 'Thiès', 'Tivaouane', 'Près de la Mairie', 14.9542, -16.8142),
-  ('la_poste', 'Bureau de Poste Saint-Louis', 'Saint-Louis', 'Saint-Louis', 'Île Nord', 16.0326, -16.4818)
-on conflict do nothing;
+DROP TRIGGER IF EXISTS delivery_points_updated_at ON public.delivery_points;
+CREATE TRIGGER delivery_points_updated_at
+  BEFORE UPDATE ON public.delivery_points
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_updated_at();
+
+
+-- ============================================================
+-- 4. RLS & Policies
+-- ============================================================
+
+ALTER TABLE public.senegal_locations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.delivery_points ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "senegal_locations_public_read" ON public.senegal_locations;
+CREATE POLICY "senegal_locations_public_read"
+  ON public.senegal_locations FOR SELECT
+  TO public
+  USING (is_active = true);
+
+DROP POLICY IF EXISTS "delivery_points_public_read" ON public.delivery_points;
+CREATE POLICY "delivery_points_public_read"
+  ON public.delivery_points FOR SELECT
+  TO public
+  USING (is_active = true);
+
+DROP POLICY IF EXISTS "senegal_locations_admin_all" ON public.senegal_locations;
+CREATE POLICY "senegal_locations_admin_all"
+  ON public.senegal_locations FOR ALL
+  TO authenticated
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "delivery_points_admin_all" ON public.delivery_points;
+CREATE POLICY "delivery_points_admin_all"
+  ON public.delivery_points FOR ALL
+  TO authenticated
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+COMMIT;

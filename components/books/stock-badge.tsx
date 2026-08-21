@@ -1,4 +1,4 @@
-import { Product } from '@/lib/al-furqan-data';
+import type { Product } from '@/lib/types/ui';
 
 export function StockBadge({ availability }: { availability: Product['availability'] }) {
   const isUnavailable = availability === 'Indisponible temporairement';

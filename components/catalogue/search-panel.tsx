@@ -1,27 +1,59 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Search, X, ArrowRight } from 'lucide-react';
-import { getAutocompleteSuggestions, buildWhatsAppUrl } from '@/lib/al-furqan-data';
+import { getAutocompleteSuggestions } from '@/lib/data/products';
+import { buildWhatsAppUrl } from '@/lib/al-furqan-data';
 import { useStore } from '../providers';
 import { Cover } from '../books/cover';
+import type { Product } from '@/lib/types/ui';
+
+interface SuggestionState {
+  products: Product[];
+  authors: string[];
+  themes: string[];
+}
 
 export function SearchPanel() {
   const { searchOpen, setSearchOpen } = useStore();
   const [value, setValue] = useState('');
   const router = useRouter();
 
-  const suggestions = useMemo(() => getAutocompleteSuggestions(value), [value]);
+  const [suggestions, setSuggestions] = useState<SuggestionState>({ products: [], authors: [], themes: [] });
   const [activeIndex, setActiveIndex] = useState(-1);
-
-  const allItems = [...suggestions.products, ...suggestions.authors, ...suggestions.themes];
-  const totalItems = allItems.length + (value ? 1 : 0);
 
   useEffect(() => {
     setActiveIndex(-1);
+    
+    let isMounted = true;
+    const fetchSuggestions = async () => {
+      if (!value.trim()) {
+        setSuggestions({ products: [], authors: [], themes: [] });
+        return;
+      }
+      try {
+        const result = await getAutocompleteSuggestions(value);
+        if (isMounted) setSuggestions(result);
+      } catch (err) {
+        if (isMounted) setSuggestions({ products: [], authors: [], themes: [] });
+      }
+    };
+    
+    // Simple debounce
+    const timer = setTimeout(() => {
+      fetchSuggestions();
+    }, 150);
+    
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, [value]);
+
+  const allItems = [...suggestions.products, ...suggestions.authors, ...suggestions.themes];
+  const totalItems = allItems.length + (value ? 1 : 0);
 
   if (!searchOpen) return null;
 
@@ -86,7 +118,7 @@ export function SearchPanel() {
                     role="option"
                     aria-selected={activeIndex === i}
                   >
-                    <Cover product={product} small />
+                    <Cover product={product as any} small />
                     <span>
                       <strong>{product.title}</strong>
                       <small>

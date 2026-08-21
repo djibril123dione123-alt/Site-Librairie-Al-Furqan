@@ -3,7 +3,7 @@
  */
 
 import { isSupabaseConfigured, createServerClient, shouldUseSeedData } from '@/lib/supabase/server';
-import { normalizeQuery } from '@/lib/al-furqan-data';
+import { normalizeSeedQuery as normalizeQuery } from '@/lib/dev/seed-products';
 
 /**
  * Enregistre anonymement un événement de recherche.

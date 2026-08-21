@@ -1,7 +1,8 @@
 'use client';
 
 import { ShoppingBag, MessageCircle } from 'lucide-react';
-import { Product, Variant, buildWhatsAppUrl } from '@/lib/al-furqan-data';
+import type { Product, Variant } from '@/lib/types/ui';
+import { buildWhatsAppUrl } from '@/lib/al-furqan-data';
 import { useStore } from '../providers';
 
 export function MobileStickyCta({ product, selected }: { product: Product, selected?: Variant }) {

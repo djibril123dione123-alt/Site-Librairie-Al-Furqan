@@ -13,8 +13,7 @@ import { dbProductToUi } from '@/lib/types/mappers';
 import type { Product } from '@/lib/types/ui';
 
 // Fallback seed (TEMPORAIRE — développement uniquement)
-import { products as seedProducts, findProduct as findSeedProduct, searchProducts as searchSeedProducts, getRelatedProducts as getRelatedSeedProducts } from '@/lib/al-furqan-data';
-import { normalizeQuery as normalizeSeedQuery } from '@/lib/al-furqan-data';
+import { seedProducts, searchSeedProducts, getRelatedSeedProducts, seedCollections } from '@/lib/dev/seed-products';
 
 // Re-export des types seed vers types UI (bridge temporaire)
 function adaptSeedProduct(p: (typeof seedProducts)[number]): Product {
@@ -61,7 +60,9 @@ export interface ProductFilters {
   reading?: string;
   featured?: boolean;
   newArrival?: boolean;
+  restocked?: boolean;
   search?: string;
+  collection?: string;
   status?: 'published' | 'draft' | 'archived';
   limit?: number;
 }
@@ -78,11 +79,14 @@ export async function getProducts(filters: ProductFilters = {}): Promise<Product
     if (filters.category) list = list.filter((p) => p.category === filters.category);
     if (filters.language) list = list.filter((p) => p.language === filters.language);
     if (filters.reading) list = list.filter((p) => p.reading === filters.reading);
-    if (filters.availability) {
-      list = list.filter((p) => p.availability === filters.availability);
-    }
+    if (filters.availability) list = list.filter((p) => p.availability === filters.availability);
     if (filters.featured) list = list.filter((p) => p.featured);
     if (filters.newArrival) list = list.filter((p) => p.newArrival);
+    if (filters.restocked) list = list.filter((p) => p.restocked);
+    if (filters.collection) {
+      const col = seedCollections.find(c => c.slug === filters.collection);
+      if (col) list = list.filter(p => col.productIds.includes(p.id));
+    }
     if (filters.limit) list = list.slice(0, filters.limit);
     return list;
   }
@@ -105,6 +109,11 @@ export async function getProducts(filters: ProductFilters = {}): Promise<Product
   // Le public ne voit que les produits publiés
   const status = filters.status || 'published';
   query = query.eq('status', status);
+
+  if (filters.search) {
+    const term = `%${filters.search.toLowerCase()}%`;
+    query = query.or(`title.ilike.${term},description.ilike.${term},isbn.ilike.${term}`);
+  }
 
   if (filters.category) {
     // Jointure par slug de catégorie
@@ -131,6 +140,35 @@ export async function getProducts(filters: ProductFilters = {}): Promise<Product
   if (filters.newArrival) {
     query = query.eq('new_arrival', true);
   }
+  
+  if (filters.restocked) {
+    // Utiliser la colonne Supabase (si elle n'existe pas, on simule via availability pour l'instant)
+    query = query.or('availability.eq.De retour en stock');
+  }
+  
+  if (filters.collection) {
+    // Support collections via jointure si possible.
+    const { data: col } = await supabase
+      .from('collections')
+      .select('id')
+      .eq('slug', filters.collection)
+      .single();
+    
+    if (col) {
+      const { data: colProducts } = await supabase
+        .from('collection_products')
+        .select('product_id')
+        .eq('collection_id', col.id);
+      
+      if (colProducts && colProducts.length > 0) {
+        query = query.in('id', colProducts.map(cp => cp.product_id));
+      } else {
+        return []; // Collection vide
+      }
+    } else {
+      return []; // Collection inexistante
+    }
+  }
 
   if (filters.limit) {
     query = query.limit(filters.limit);
@@ -152,7 +190,7 @@ export async function getProducts(filters: ProductFilters = {}): Promise<Product
  */
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   if (shouldUseSeedData()) {
-    const p = findSeedProduct(slug);
+    const p = seedProducts.find(prod => prod.slug === slug);
     return p ? adaptSeedProduct(p) : null;
   }
 
@@ -186,37 +224,7 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
  * Utilise PostgreSQL FTS si Supabase, sinon fallback seed.
  */
 export async function searchProducts(query: string): Promise<Product[]> {
-  if (!query.trim()) return getProducts();
-
-  if (shouldUseSeedData()) {
-    return searchSeedProducts(query).map(adaptSeedProduct);
-  }
-
-  const supabase = createServerClient();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const normalized = normalizeSeedQuery(query); // Réutilise la normalisation existante
-
-  // Recherche sur titre, description, auteur (via jointure)
-  const { data, error } = await supabase
-    .from('products')
-    .select(`
-      *,
-      authors (id, name, slug),
-      publishers (id, name, slug),
-      categories (id, name, slug),
-      product_themes (themes (name)),
-      product_images (id, storage_path, alt_text, position, type)
-    `)
-    .eq('status', 'published')
-    .or(`title.ilike.%${normalized}%,description.ilike.%${normalized}%,isbn.ilike.%${normalized}%`)
-    .limit(20);
-
-  if (error) {
-    console.error('[searchProducts] Erreur Supabase:', error.message);
-    return [];
-  }
-
-  return (data || []).map((p: any) => dbProductToUi(p, supabaseUrl));
+  return getProducts({ search: query });
 }
 
 /**
@@ -260,24 +268,31 @@ export async function getAutocompleteSuggestions(query: string) {
   if (!query.trim()) return { products: [], authors: [], themes: [] };
 
   if (shouldUseSeedData()) {
-    const { getAutocompleteSuggestions: seedSuggestions } = await import('@/lib/al-furqan-data');
-    const result = seedSuggestions(query);
+    const { normalizeSeedQuery, searchSeedProducts } = await import('@/lib/dev/seed-products');
+    const normalized = normalizeSeedQuery(query);
+    const matched = searchSeedProducts(query).slice(0, 5);
+    const authorSet = new Set<string>();
+    const themeSet = new Set<string>();
+    matched.forEach((product) => {
+      if (normalizeSeedQuery(product.author).includes(normalized)) authorSet.add(product.author);
+      product.themes.forEach((theme) => { if (normalizeSeedQuery(theme).includes(normalized)) themeSet.add(theme); });
+    });
     return {
-      products: result.products.map(adaptSeedProduct),
-      authors: result.authors,
-      themes: result.themes,
+      products: matched.map(adaptSeedProduct),
+      authors: Array.from(authorSet).slice(0, 3),
+      themes: Array.from(themeSet).slice(0, 3),
     };
   }
 
   const products = await searchProducts(query);
   const authorSet = new Set<string>();
   const themeSet = new Set<string>();
-
-  const normalized = normalizeSeedQuery(query);
+  
+  const normalized = query.toLowerCase().trim();
   products.slice(0, 5).forEach((p) => {
-    if (normalizeSeedQuery(p.author).includes(normalized)) authorSet.add(p.author);
+    if (p.author.toLowerCase().includes(normalized)) authorSet.add(p.author);
     p.themes.forEach((t) => {
-      if (normalizeSeedQuery(t).includes(normalized)) themeSet.add(t);
+      if (t.toLowerCase().includes(normalized)) themeSet.add(t);
     });
   });
 

@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { Heart, Plus } from 'lucide-react';
-import { Product, formatPrice } from '@/lib/al-furqan-data';
+import type { Product } from '@/lib/types/ui';
+import { formatPrice } from '@/lib/al-furqan-data';
 import { Cover } from './cover';
 import { useStore } from '../providers';
 

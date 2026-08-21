@@ -1,10 +1,10 @@
 import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
-import { categories as seedCategories } from '@/lib/al-furqan-data';
+import { seedCategories } from '@/lib/dev/seed-products';
 import { CategoryManager } from '@/components/admin/category-manager';
 
 async function getAdminCategories() {
   if (!isSupabaseConfigured()) {
-    return seedCategories.map((name, index) => ({
+    return seedCategories.map((name: string, index: number) => ({
       id: `seed-${index}`,
       name,
       slug: name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-'),

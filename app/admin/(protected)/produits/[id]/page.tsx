@@ -2,13 +2,13 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Copy, Eye, Archive } from 'lucide-react';
 import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
-import { findProduct } from '@/lib/al-furqan-data';
+import { seedProducts } from '@/lib/dev/seed-products';
 import { ProductForm } from '@/components/admin/product-form';
 
 async function getProduct(id: string) {
   if (!isSupabaseConfigured()) {
     // En dev, essayer de trouver par id dans le seed
-    const seed = findProduct(id);
+    const seed = seedProducts.find(p => p.id === id || p.slug === id);
     if (!seed) return null;
     return {
       id: seed.id,

@@ -108,8 +108,8 @@ async function main() {
       passed++; // Ignoré proprement
     } else {
       const { data: adminData, error: adminError } = await supabase.auth.signInWithPassword({
-        email: adminEmail,
-        password: adminPassword
+        email: process.env.SECURITY_TEST_ADMIN_EMAIL || 'admin@alfurqan.sn',
+        password: process.env.SECURITY_TEST_ADMIN_PASSWORD || 'local_test_password'
       });
 
       if (adminError || !adminData.session) {

@@ -1,0 +1,647 @@
+[
+  {
+    "name": "Bargny",
+    "latitude": 14.6984847,
+    "longitude": -17.228222499999998
+  },
+  {
+    "name": "Dakar Building",
+    "latitude": 14.6635326,
+    "longitude": -17.4381481
+  },
+  {
+    "name": "Dakar Etoile",
+    "latitude": 14.662022700000001,
+    "longitude": -17.4371615
+  },
+  {
+    "name": "Dakar Colobane",
+    "latitude": 14.6734519,
+    "longitude": -17.463249599999997
+  },
+  {
+    "name": "Dakar Fann",
+    "latitude": 14.690367199999999,
+    "longitude": -17.464135499999998
+  },
+  {
+    "name": "Dakar Grand Yoff",
+    "latitude": 14.7328281,
+    "longitude": -17.456191399999998
+  },
+  {
+    "name": "Dakar Liberté",
+    "latitude": 14.7228367,
+    "longitude": -17.442546699999998
+  },
+  {
+    "name": "Dakar Ponty",
+    "latitude": 14.669591200000001,
+    "longitude": -17.433232099999998
+  },
+  {
+    "name": "Dakar Médina",
+    "latitude": 14.677690999999998,
+    "longitude": -17.4583609
+  },
+  {
+    "name": "Dakar kermel",
+    "latitude": 14.670183,
+    "longitude": -17.429202000000032
+  },
+  {
+    "name": "Dakar Yoff",
+    "latitude": 14.747126299999998,
+    "longitude": -17.490255599999998
+  },
+  {
+    "name": "Gorée",
+    "latitude": 14.667859600000002,
+    "longitude": -17.398928200000004
+  },
+  {
+    "name": "Guédiawaye",
+    "latitude": 14.771971899999999,
+    "longitude": -17.403935
+  },
+  {
+    "name": "Pikine",
+    "latitude": 14.758944599999998,
+    "longitude": -17.3937536
+  },
+  {
+    "name": "Rufisque",
+    "latitude": 14.715539999999999,
+    "longitude": -17.270929
+  },
+  {
+    "name": "Sébikhotane",
+    "latitude": 14.745074899999999,
+    "longitude": -17.133682699999998
+  },
+  {
+    "name": "Parcelles Assainies",
+    "latitude": 14.7609131,
+    "longitude": -17.441067999999998
+  },
+  {
+    "name": "Dakar Colis Postaux",
+    "latitude": 14.680938099999997,
+    "longitude": -17.441281
+  },
+  {
+    "name": "Dakar Peytavin",
+    "latitude": 14.670129599999997,
+    "longitude": -17.440020099999998
+  },
+  {
+    "name": "SANGALCAM",
+    "latitude": 14.778973,
+    "longitude": -17.2260129
+  },
+  {
+    "name": "Keur Massar",
+    "latitude": 14.786367999999998,
+    "longitude": -17.311941
+  },
+  {
+    "name": "DIAMALAYE",
+    "latitude": 14.760816799999999,
+    "longitude": -17.4540097
+  },
+  {
+    "name": "Diourbel",
+    "latitude": 14.6575866,
+    "longitude": -16.209681
+  },
+  {
+    "name": "Fatick",
+    "latitude": 14.339016700000002,
+    "longitude": -16.4111425
+  },
+  {
+    "name": "Foundiougne",
+    "latitude": 13.81425,
+    "longitude": -16.4405872
+  },
+  {
+    "name": "Gandiaye",
+    "latitude": 14.244536499999999,
+    "longitude": -16.2728091
+  },
+  {
+    "name": "Gossas",
+    "latitude": 14.495705699999997,
+    "longitude": -16.0669571
+  },
+  {
+    "name": "Guinguinéo",
+    "latitude": 14.270251,
+    "longitude": -15.940612799999998
+  },
+  {
+    "name": "Kaffrine",
+    "latitude": 14.105202,
+    "longitude": -15.541575499999999
+  },
+  {
+    "name": "Kaolack Ndorong",
+    "latitude": 14.165936199999999,
+    "longitude": -16.075972699999998
+  },
+  {
+    "name": "Koungheul",
+    "latitude": 13.980213899999999,
+    "longitude": -14.801688700000001
+  },
+  {
+    "name": "Ndoffane",
+    "latitude": 13.919217,
+    "longitude": -15.925927100000001
+  },
+  {
+    "name": "Nioro du Rip",
+    "latitude": 13.6545821,
+    "longitude": -15.6046064
+  },
+  {
+    "name": "Toubacouta",
+    "latitude": 13.782142299999999,
+    "longitude": -16.4692997
+  },
+  {
+    "name": "Sokone",
+    "latitude": 13.877801199999999,
+    "longitude": -16.3728707
+  },
+  {
+    "name": "Karang",
+    "latitude": 15.1907417,
+    "longitude": -13.9311654
+  },
+  {
+    "name": "Djilor",
+    "latitude": 14.056634899999999,
+    "longitude": -16.3353419
+  },
+  {
+    "name": "PALMARIN",
+    "latitude": 14.015725000000002,
+    "longitude": -16.7647799
+  },
+  {
+    "name": "NIAKHAR",
+    "latitude": 14.47593,
+    "longitude": -16.403219
+  },
+  {
+    "name": "DIOUROUP",
+    "latitude": 14.367465099999999,
+    "longitude": -16.5260001
+  },
+  {
+    "name": "Darou Mousty",
+    "latitude": 15.043041899999999,
+    "longitude": -16.0463837
+  },
+  {
+    "name": "Guéoul",
+    "latitude": 15.4777226,
+    "longitude": -16.343435799999998
+  },
+  {
+    "name": "Kébémer",
+    "latitude": 15.3763381,
+    "longitude": -16.4464766
+  },
+  {
+    "name": "Linguère",
+    "latitude": 15.3590304,
+    "longitude": -15.0673313
+  },
+  {
+    "name": "Mbacké",
+    "latitude": 14.8038531,
+    "longitude": -15.905368899999997
+  },
+  {
+    "name": "Ndande",
+    "latitude": 15.276819899999998,
+    "longitude": -16.5260001
+  },
+  {
+    "name": "Ndoulo",
+    "latitude": 14.7399018,
+    "longitude": -16.1095802
+  },
+  {
+    "name": "Sagatta",
+    "latitude": 15.282008899999997,
+    "longitude": -16.171326699999998
+  },
+  {
+    "name": "Touba",
+    "latitude": 14.8783818,
+    "longitude": -15.8947971
+  },
+  {
+    "name": "Agnam",
+    "latitude": 16.0062771,
+    "longitude": -13.691271799999999
+  },
+  {
+    "name": "Bokiladji",
+    "latitude": 15.0532116,
+    "longitude": -12.7451163
+  },
+  {
+    "name": "Dembankané",
+    "latitude": 15.0898955,
+    "longitude": -12.7048943
+  },
+  {
+    "name": "Dondou",
+    "latitude": 16.0200973,
+    "longitude": -13.384723
+  },
+  {
+    "name": "Ndouloumadji Dembé",
+    "latitude": 15.810193,
+    "longitude": -13.404663999999999
+  },
+  {
+    "name": "Oréfondé",
+    "latitude": 16.044266300000004,
+    "longitude": -13.726020499999999
+  },
+  {
+    "name": "Semmé",
+    "latitude": 15.2008428,
+    "longitude": -12.9449928
+  },
+  {
+    "name": "Sinthiou Bamambé",
+    "latitude": 15.368808299999998,
+    "longitude": -13.1365521
+  },
+  {
+    "name": "Thilogne",
+    "latitude": 15.9650839,
+    "longitude": -13.594313
+  },
+  {
+    "name": "Waoundé",
+    "latitude": 15.269976699999999,
+    "longitude": -12.8658649
+  },
+  {
+    "name": "Wodobéré",
+    "latitude": 15.560325800000001,
+    "longitude": -13.101962900000002
+  },
+  {
+    "name": "Nguidjilone",
+    "latitude": 15.9373269,
+    "longitude": -13.3515091
+  },
+  {
+    "name": "Matam",
+    "latitude": 15.660022499999998,
+    "longitude": -13.2576906
+  },
+  {
+    "name": "Ranerou",
+    "latitude": 15.295427799999997,
+    "longitude": -13.957908000000002
+  },
+  {
+    "name": "Orkadiéré",
+    "latitude": 15.281488399999997,
+    "longitude": -12.963703299999999
+  },
+  {
+    "name": "Saint Louis Sor",
+    "latitude": 16.029943,
+    "longitude": -16.471453
+  },
+  {
+    "name": "Aéré Lao",
+    "latitude": 16.4008376,
+    "longitude": -14.323917999999999
+  },
+  {
+    "name": "Golleré",
+    "latitude": 16.2488504,
+    "longitude": -14.108844999999999
+  },
+  {
+    "name": "Mboumba",
+    "latitude": 16.19148,
+    "longitude": -14.021745999999998
+  },
+  {
+    "name": "Ndioum",
+    "latitude": 16.5101114,
+    "longitude": -14.650037099999999
+  },
+  {
+    "name": "Podor",
+    "latitude": 16.5258829,
+    "longitude": -15.2224062
+  },
+  {
+    "name": "Thillé Boubacar",
+    "latitude": 16.5168558,
+    "longitude": -15.092276300000002
+  },
+  {
+    "name": "Richard –Toll",
+    "latitude": 16.4588779,
+    "longitude": -15.694045399999997
+  },
+  {
+    "name": "Ross Béthio",
+    "latitude": 16.2774313,
+    "longitude": -16.1389809
+  },
+  {
+    "name": "Rosso Sénégal",
+    "latitude": 16.5163413,
+    "longitude": -15.802612
+  },
+  {
+    "name": "Gamadji Sare",
+    "latitude": 16.51856,
+    "longitude": -14.712721100000001
+  },
+  {
+    "name": "Niandane",
+    "latitude": 16.593767,
+    "longitude": -14.990979999999997
+  },
+  {
+    "name": "Khombole",
+    "latitude": 14.767387200000002,
+    "longitude": -16.685136
+  },
+  {
+    "name": "Mbour",
+    "latitude": 14.4452338,
+    "longitude": -17.0183614
+  },
+  {
+    "name": "Mékhé",
+    "latitude": 15.115983000000002,
+    "longitude": -16.6320777
+  },
+  {
+    "name": "Ndiaganiao",
+    "latitude": 14.538845499999997,
+    "longitude": -16.7264125
+  },
+  {
+    "name": "Pékesse",
+    "latitude": 15.11376,
+    "longitude": -16.415559
+  },
+  {
+    "name": "Popenguine",
+    "latitude": 14.556799499999999,
+    "longitude": -17.1115302
+  },
+  {
+    "name": "Thiadiaye",
+    "latitude": 14.422314899999998,
+    "longitude": -16.702825
+  },
+  {
+    "name": "Thilmakha",
+    "latitude": 15.037911200000002,
+    "longitude": -16.2536853
+  },
+  {
+    "name": "Tivaouane",
+    "latitude": 14.9526715,
+    "longitude": -16.8119382
+  },
+  {
+    "name": "Bambey",
+    "latitude": 14.6965115,
+    "longitude": -16.458256
+  },
+  {
+    "name": "Saly",
+    "latitude": 14.443593000000002,
+    "longitude": -16.9889904
+  },
+  {
+    "name": "Goudiry",
+    "latitude": 14.185873299999999,
+    "longitude": -12.7163849
+  },
+  {
+    "name": "Kidira",
+    "latitude": 14.458111599999999,
+    "longitude": -12.211882399999999
+  },
+  {
+    "name": "Koumpentoum",
+    "latitude": 13.9779361,
+    "longitude": -14.562614
+  },
+  {
+    "name": "Koussanar",
+    "latitude": 13.8679162,
+    "longitude": -14.0827096
+  },
+  {
+    "name": "Tambacounda",
+    "latitude": 13.7725888,
+    "longitude": -13.671005899999999
+  },
+  {
+    "name": "Moudéry",
+    "latitude": 15.056726000000001,
+    "longitude": -12.591721
+  },
+  {
+    "name": "Yaféra",
+    "latitude": 14.774572,
+    "longitude": -12.2939589
+  },
+  {
+    "name": "Médina Gounass",
+    "latitude": 13.146616999999999,
+    "longitude": -13.752087999999999
+  },
+  {
+    "name": "Missirah",
+    "latitude": 13.68042,
+    "longitude": -16.501279999999998
+  },
+  {
+    "name": "Aroundou",
+    "latitude": 14.758861999999999,
+    "longitude": -12.2514559
+  },
+  {
+    "name": "Salemata",
+    "latitude": 12.634195799999999,
+    "longitude": -12.819851
+  },
+  {
+    "name": "Bignona",
+    "latitude": 12.8050911,
+    "longitude": -16.234563299999998
+  },
+  {
+    "name": "Bounkiling",
+    "latitude": 13.039623599999999,
+    "longitude": -15.694045399999997
+  },
+  {
+    "name": "Cabrousse",
+    "latitude": 12.3505299,
+    "longitude": -16.716631
+  },
+  {
+    "name": "Diouloulou",
+    "latitude": 13.0459566,
+    "longitude": -16.6026064
+  },
+  {
+    "name": "Dianah-Malary",
+    "latitude": 12.847277,
+    "longitude": -15.252158999999999
+  },
+  {
+    "name": "Kolda",
+    "latitude": 12.9107495,
+    "longitude": -14.950567099999999
+  },
+  {
+    "name": "Marsassoum",
+    "latitude": 12.836481,
+    "longitude": -15.977332200000001
+  },
+  {
+    "name": "Oussouye",
+    "latitude": 12.488448499999999,
+    "longitude": -16.543675999999998
+  },
+  {
+    "name": "Sédhiou",
+    "latitude": 12.704604000000002,
+    "longitude": -15.556230399999997
+  },
+  {
+    "name": "Tanaff",
+    "latitude": 12.653870399999999,
+    "longitude": -15.4243804
+  },
+  {
+    "name": "Vélingara",
+    "latitude": 13.1440754,
+    "longitude": -14.105940799999999
+  },
+  {
+    "name": "Ziguinchor Escale",
+    "latitude": 12.5873101,
+    "longitude": -16.270723699999998
+  },
+  {
+    "name": "Thionk-Essyl",
+    "latitude": 12.7879089,
+    "longitude": -16.50538
+  },
+  {
+    "name": "Diaobe",
+    "latitude": 12.9133385,
+    "longitude": -14.161130199999999
+  },
+  {
+    "name": "Sindia",
+    "latitude": 14.5889351,
+    "longitude": -17.039179800000056
+  },
+  {
+    "name": "Adéane",
+    "latitude": 12.6267874,
+    "longitude": -16.0140586
+  },
+  {
+    "name": "Elinkine",
+    "latitude": 12.5072598,
+    "longitude": -16.6630268
+  },
+  {
+    "name": "Medina yorofoula",
+    "latitude": 13.28891,
+    "longitude": -14.714350000000001
+  },
+  {
+    "name": "Médina Mary",
+    "latitude": 13.180764799999999,
+    "longitude": -14.2932665
+  },
+  {
+    "name": "Ouakam",
+    "latitude": 14.7237121,
+    "longitude": -17.49423330000002
+  },
+  {
+    "name": "Poste Thiaroye",
+    "latitude": 14.7461145,
+    "longitude": -17.376603299999942
+  },
+  {
+    "name": "HLM",
+    "latitude": 14.7001174,
+    "longitude": -17.44550419999996
+  },
+  {
+    "name": "Nafa VDN",
+    "latitude": 14.7248496,
+    "longitude": -17.471914800000036
+  },
+  {
+    "name": "Bureau de Poste de Yenne",
+    "latitude": 14.6926948,
+    "longitude": -17.2080647
+  },
+  {
+    "name": "Bureau de Poste Zac Mbao",
+    "latitude": 14.7427705,
+    "longitude": -17.34279360000005
+  },
+  {
+    "name": "Bureau Poste Mpal",
+    "latitude": 15.9212665,
+    "longitude": -16.266924700000004
+  },
+  {
+    "name": "Bureau Gabou Tambacouda",
+    "latitude": 14.71642,
+    "longitude": -12.412268199999971
+  },
+  {
+    "name": "Bureau Poste Birkelane",
+    "latitude": 14.128458,
+    "longitude": -15.743919399999982
+  },
+  {
+    "name": "Bureau Poste Diofior",
+    "latitude": 14.1864516,
+    "longitude": -16.65860520000001
+  },
+  {
+    "name": "Bureau de Diofior",
+    "latitude": 14.1864516,
+    "longitude": -16.65860520000001
+  },
+  {
+    "name": "Bureaux de Poste de Kaolack",
+    "latitude": 14.1923567,
+    "longitude": -16.0714051
+  }
+]

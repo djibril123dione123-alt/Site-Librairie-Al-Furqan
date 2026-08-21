@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import { ArrowRight, Check, MessageCircle } from 'lucide-react';
-import { products } from '@/lib/al-furqan-data';
+import { getProducts } from '@/lib/data/products';
 import { Cover } from '../books/cover';
 import { HomeSearchButton } from './search-buttons';
 
-export function Hero() {
-  const heroProducts = products.slice(0, 3);
+export async function Hero() {
+  const heroProducts = await getProducts({ limit: 3 });
   
   return (
     <section className="hero">

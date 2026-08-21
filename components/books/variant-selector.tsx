@@ -1,6 +1,6 @@
 'use client';
 
-import { Product, Variant } from '@/lib/al-furqan-data';
+import type { Product, Variant } from '@/lib/types/ui';
 
 interface VariantSelectorProps {
   product: Product;

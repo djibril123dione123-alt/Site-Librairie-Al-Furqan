@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
-import { collections as seedCollections } from '@/lib/al-furqan-data';
+import { seedCollections } from '@/lib/dev/seed-products';
 
 async function getAdminCollections() {
   if (!isSupabaseConfigured()) {
-    return seedCollections.map((c, i) => ({
+    return seedCollections.map((c: any, i: number) => ({
       id: `seed-${i}`,
       slug: c.slug,
       title: c.title,

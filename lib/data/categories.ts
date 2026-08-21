@@ -5,11 +5,11 @@
 import { isSupabaseConfigured, createServerClient, shouldUseSeedData } from '@/lib/supabase/server';
 import { dbCategoryToUi } from '@/lib/types/mappers';
 import type { Category } from '@/lib/types/ui';
-import { categories as seedCategories } from '@/lib/al-furqan-data';
+import { seedCategories } from '@/lib/dev/seed-products';
 
 export async function getCategories(): Promise<Category[]> {
   if (shouldUseSeedData()) {
-    return seedCategories.map((name, index) => ({
+    return seedCategories.map((name: string, index: number) => ({
       id: `seed-${index}`,
       name,
       slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),

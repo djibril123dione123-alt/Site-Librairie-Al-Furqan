@@ -1,12 +1,36 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { BookOpen, X, MessageCircle } from 'lucide-react';
-import { categories, buildWhatsAppUrl } from '@/lib/al-furqan-data';
+import { buildWhatsAppUrl } from '@/lib/al-furqan-data';
 import { useStore } from '../providers';
+import { createBrowserClient } from '@/lib/supabase/client';
+import { seedCategories } from '@/lib/dev/seed-products';
 
 export function MobileMenu() {
   const { menuOpen, setMenuOpen } = useStore();
+  const [categories, setCategories] = useState<string[]>([]);
+  
+  useEffect(() => {
+    async function fetchCats() {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) {
+        setCategories(seedCategories);
+        return;
+      }
+      
+      const supabase = createBrowserClient();
+      const { data, error } = await supabase.from('categories').select('name').eq('is_visible', true).order('position');
+      
+      if (!error && data) {
+        setCategories(data.map(c => c.name));
+      } else {
+        setCategories(seedCategories);
+      }
+    }
+    fetchCats();
+  }, []);
 
   if (!menuOpen) return null;
 

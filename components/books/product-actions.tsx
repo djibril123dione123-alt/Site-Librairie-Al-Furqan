@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { MessageCircle, ShoppingBag, Heart } from 'lucide-react';
-import { Product, Variant, buildWhatsAppUrl } from '@/lib/al-furqan-data';
+import type { Product, Variant } from '@/lib/types/ui';
+import { buildWhatsAppUrl } from '@/lib/al-furqan-data';
 import { useStore } from '../providers';
 import { VariantSelector } from './variant-selector';
 import { MobileStickyCta } from './mobile-sticky-cta';

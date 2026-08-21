@@ -1,5 +1,5 @@
 import React from 'react';
-import { Product } from '@/lib/al-furqan-data';
+import type { Product } from '@/lib/types/ui';
 
 const colorMap: Record<string, string> = {
   navy: '#0f3746',

@@ -2,7 +2,8 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronDown, Truck, MessageCircle } from 'lucide-react';
-import { findProduct, getRelatedProducts, formatPrice, buildWhatsAppUrl, getSiteUrl } from '@/lib/al-furqan-data';
+import { formatPrice, buildWhatsAppUrl, getSiteUrl } from '@/lib/al-furqan-data';
+import { getProductBySlug, getRelatedProducts } from '@/lib/data/products';
 import { Cover } from '@/components/books/cover';
 import { StockBadge } from '@/components/books/stock-badge';
 import { ProductActions } from '@/components/books/product-actions';
@@ -11,7 +12,7 @@ import { SectionTitle } from '@/components/ui/section-title';
 import { BookCard } from '@/components/books/book-card';
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const product = findProduct(params.slug);
+  const product = await getProductBySlug(params.slug);
   if (!product) return {};
 
   return {
@@ -28,14 +29,14 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default function ProductPage({ params }: { params: { slug: string } }) {
-  const product = findProduct(params.slug);
+export default async function ProductPage({ params }: { params: { slug: string } }) {
+  const product = await getProductBySlug(params.slug);
   
   if (!product) {
     notFound();
   }
 
-  const related = getRelatedProducts(product);
+  const related = await getRelatedProducts(product);
   const specs: { label: string; value?: string }[] = [
     { label: 'Auteur', value: product.author },
     { label: 'Éditeur', value: product.publisher },

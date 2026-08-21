@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Product, Variant } from '@/lib/al-furqan-data';
+import type { Product, Variant } from '@/lib/types/ui';
 
 export type CartLine = {
   productId: string;

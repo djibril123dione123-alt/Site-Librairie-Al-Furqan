@@ -1,8 +1,12 @@
 import { MetadataRoute } from 'next';
-import { getSiteUrl, products, collections } from '@/lib/al-furqan-data';
+import { getSiteUrl } from '@/lib/al-furqan-data';
+import { getProducts } from '@/lib/data/products';
+import { getCollections } from '@/lib/data/collections';
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = getSiteUrl();
+
+  const [products, collections] = await Promise.all([getProducts(), getCollections()]);
 
   const productUrls = products.map((product) => ({
     url: `${baseUrl}/livres/${product.slug}`,

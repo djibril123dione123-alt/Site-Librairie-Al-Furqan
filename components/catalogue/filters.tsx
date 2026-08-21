@@ -1,7 +1,9 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Sparkles, X } from 'lucide-react';
-import { categories } from '@/lib/al-furqan-data';
+import { createBrowserClient } from '@/lib/supabase/client';
+import { seedCategories } from '@/lib/dev/seed-products';
 
 export type FilterKey = 'category' | 'language' | 'availability' | 'reading';
 
@@ -14,6 +16,28 @@ export function Filters({
   setActive: (key: FilterKey, value: string) => void;
   onClear: () => void;
 }) {
+  const [categories, setCategories] = useState<string[]>([]);
+  
+  useEffect(() => {
+    async function fetchCats() {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) {
+        setCategories(seedCategories);
+        return;
+      }
+      
+      const supabase = createBrowserClient();
+      const { data, error } = await supabase.from('categories').select('name').eq('is_visible', true).order('position');
+      
+      if (!error && data) {
+        setCategories(data.map(c => c.name));
+      } else {
+        setCategories(seedCategories);
+      }
+    }
+    fetchCats();
+  }, []);
+
   const groups: { key: FilterKey; label: string; values: string[] }[] = [
     { key: 'category', label: 'Catégorie', values: categories },
     { key: 'language', label: 'Langue', values: ['Français', 'Arabe', 'Français / Arabe'] },

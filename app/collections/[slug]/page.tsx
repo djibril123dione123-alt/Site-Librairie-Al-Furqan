@@ -2,13 +2,15 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
-import { findCollection, findProduct, getSiteUrl, Product } from '@/lib/al-furqan-data';
+import { getSiteUrl } from '@/lib/al-furqan-data';
+import { getCollectionBySlug } from '@/lib/data/collections';
+import { getProducts } from '@/lib/data/products';
 import { Cover } from '@/components/books/cover';
 import { SectionTitle } from '@/components/ui/section-title';
 import { BookCard } from '@/components/books/book-card';
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const collection = findCollection(params.slug);
+  const collection = await getCollectionBySlug(params.slug);
   if (!collection) return {};
 
   return {
@@ -25,16 +27,14 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default function CollectionPage({ params }: { params: { slug: string } }) {
-  const collection = findCollection(params.slug);
+export default async function CollectionPage({ params }: { params: { slug: string } }) {
+  const collection = await getCollectionBySlug(params.slug);
   
   if (!collection) {
     notFound();
   }
 
-  const collectionProducts = collection.productIds
-    .map((id) => findProduct(id))
-    .filter((p): p is Product => Boolean(p));
+  const collectionProducts = await getProducts({ collection: collection.slug });
 
   return (
     <main className="collection-page">

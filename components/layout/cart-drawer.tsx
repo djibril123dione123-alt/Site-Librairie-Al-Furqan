@@ -1,13 +1,57 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { X, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useStore } from '../providers';
-import { findProduct, formatPrice } from '@/lib/al-furqan-data';
+import { formatPrice } from '@/lib/al-furqan-data';
 import { Cover } from '../books/cover';
+import { createBrowserClient } from '@/lib/supabase/client';
+import { dbProductToUi } from '@/lib/types/mappers';
+import type { Product } from '@/lib/types/ui';
+import { seedProducts } from '@/lib/dev/seed-products';
 
 export function CartDrawer() {
   const { cart, cartCount, cartOpen, setCartOpen } = useStore();
+  const [products, setProducts] = useState<Record<string, Product>>({});
+  
+  useEffect(() => {
+    async function loadProducts() {
+      if (cart.length === 0 || !cartOpen) return;
+      
+      const ids = cart.map(c => c.productId);
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      
+      if (!supabaseUrl) {
+        const map: Record<string, Product> = {};
+        ids.forEach(id => {
+          const p = seedProducts.find(s => s.id === id);
+          if (p) map[id] = p as unknown as Product;
+        });
+        setProducts(map);
+        return;
+      }
+
+      try {
+        const supabase = createBrowserClient();
+        const { data, error } = await supabase
+          .from('products')
+          .select(`*, product_variants(*)`)
+          .in('id', ids);
+          
+        if (!error && data) {
+          const map: Record<string, Product> = {};
+          data.forEach(d => {
+            map[d.id] = dbProductToUi(d, supabaseUrl);
+          });
+          setProducts(map);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    loadProducts();
+  }, [cart, cartOpen]);
 
   if (!cartOpen) return null;
 
@@ -26,7 +70,7 @@ export function CartDrawer() {
           <>
             <div className="drawer-lines">
               {cart.map((line) => {
-                const item = findProduct(line.productId);
+                const item = products[line.productId];
                 return item ? (
                   <div className="drawer-line" key={`${line.productId}-${line.variant?.id}`}>
                     <Cover product={item} small />
@@ -36,7 +80,7 @@ export function CartDrawer() {
                         {line.quantity} × {formatPrice(line.variant?.price || item.price)}
                       </span>
                       {line.variant && (
-                        <small>{line.variant.attributes.map((a) => `${a.value}`).join(' · ')}</small>
+                        <small>{line.variant.attributes.map((a: any) => `${a.value}`).join(' · ')}</small>
                       )}
                     </div>
                   </div>
