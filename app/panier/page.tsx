@@ -130,7 +130,7 @@ export default function CartPage() {
               <span>Sous-total</span>
               <strong>{formatPrice(subtotal)}</strong>
             </div>
-            <p>Frais de livraison calculés à l'étape suivante.</p>
+            <p>Frais de livraison calculés à l’étape suivante.</p>
             
             <Link href="/livraison" className="button button-dark whatsapp-button">
               Continuer vers la livraison <ArrowRight size={18} />

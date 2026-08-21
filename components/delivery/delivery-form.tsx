@@ -514,7 +514,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
                 />
                 <div className="flex-1">
                   <strong className="block text-sm text-[#b28a52]">+ Je ne trouve pas mon bureau (saisie manuelle)</strong>
-                  <p className="text-xs text-[#64736f] mt-0.5">Indiquez le nom de l'agence La Poste la plus proche de chez vous.</p>
+                  <p className="text-xs text-[#64736f] mt-0.5">Indiquez le nom de l’agence La Poste la plus proche de chez vous.</p>
                 </div>
               </div>
             </label>

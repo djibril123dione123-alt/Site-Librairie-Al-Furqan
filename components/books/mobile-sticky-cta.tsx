@@ -17,7 +17,7 @@ export function MobileStickyCta({ product, selected }: { product: Product, selec
           )}
           className="button button-dark w-full shadow-lg text-sm py-3"
         >
-          <MessageCircle size={18} /> M'alerter
+          <MessageCircle size={18} /> M’alerter
         </a>
       ) : (
         <button 
