@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import type { Product } from '@/lib/types/ui';
 
 const colorMap: Record<string, string> = {
@@ -16,24 +17,41 @@ const colorMap: Record<string, string> = {
   lavender: '#a9b7b1',
 };
 
-export function Cover({ product, small = false }: { product: Product; small?: boolean }) {
+export function Cover({ product, small = false, priority = false }: { product: Product; small?: boolean; priority?: boolean }) {
   const realUrl = product.coverUrl || product.images?.[0]?.url;
 
   if (realUrl) {
+    const isRemote = realUrl.startsWith('http') || realUrl.startsWith('/');
+
     return (
-      <div className={`cover-real-wrap ${small ? 'cover-small' : ''}`} style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={realUrl}
-          alt={`Couverture de ${product.title}`}
-          style={{
-            maxWidth: '100%',
-            maxHeight: small ? 60 : 210,
-            objectFit: 'contain',
-            borderRadius: 4,
-            filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.15))',
-          }}
-        />
+      <div className={`cover-real-wrap ${small ? 'cover-small' : ''}`} style={{ position: 'relative', width: '100%', height: small ? 60 : 210, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {isRemote ? (
+          <Image
+            src={realUrl}
+            alt={`Couverture de ${product.title}`}
+            fill
+            sizes={small ? "48px" : "(max-width: 768px) 160px, 220px"}
+            priority={priority}
+            style={{
+              objectFit: 'contain',
+              borderRadius: 4,
+              filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.15))',
+            }}
+          />
+        ) : (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={realUrl}
+            alt={`Couverture de ${product.title}`}
+            style={{
+              maxWidth: '100%',
+              maxHeight: small ? 60 : 210,
+              objectFit: 'contain',
+              borderRadius: 4,
+              filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.15))',
+            }}
+          />
+        )}
       </div>
     );
   }

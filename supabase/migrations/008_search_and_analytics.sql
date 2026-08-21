@@ -1,8 +1,8 @@
 -- ============================================================
--- Migration 008 : Recherche V1 & Analytics du Catalogue
+-- Migration 008 : Recherche V1 & Analytics du Catalogue (Sécurisé)
 -- ============================================================
 
--- Table catalog_events (analytics anonymes sans IP ni fingerprint)
+-- Table catalog_events (analytics anonymes sans IP, user-agent ni fingerprint)
 create table if not exists catalog_events (
   id uuid primary key default uuid_generate_v4(),
   event_type text not null check (event_type in ('product_view', 'add_to_cart', 'whatsapp_click', 'restock_interest')),
@@ -12,6 +12,25 @@ create table if not exists catalog_events (
 
 create index if not exists catalog_events_type_idx on catalog_events(event_type);
 create index if not exists catalog_events_date_idx on catalog_events(created_at);
+
+-- RLS sur catalog_events
+alter table catalog_events enable row level security;
+
+drop policy if exists "Anon can insert catalog events" on catalog_events;
+create policy "Anon can insert catalog events" on catalog_events
+  for insert to anon, authenticated
+  with check (true);
+
+drop policy if exists "Admins can select catalog events" on catalog_events;
+create policy "Admins can select catalog events" on catalog_events
+  for select to authenticated
+  using (
+    exists (
+      select 1 from profiles
+      where profiles.id = auth.uid()
+        and profiles.role = 'admin'
+    )
+  );
 
 -- Fonction RPC : recherche avancée relationnelle V1 avec unaccent et alias
 create or replace function search_published_products(
@@ -58,4 +77,4 @@ begin
     )
   limit max_limit;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;

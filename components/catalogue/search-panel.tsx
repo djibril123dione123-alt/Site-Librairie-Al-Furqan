@@ -63,7 +63,6 @@ export function SearchPanel() {
 
   const onSubmit = () => {
     if (value.trim()) {
-      trackSearchEvent(value.trim(), suggestions.products.length);
       setSearchOpen(false);
       router.push(`/catalogue?q=${encodeURIComponent(value.trim())}`);
     }

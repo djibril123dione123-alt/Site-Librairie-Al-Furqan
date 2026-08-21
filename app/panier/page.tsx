@@ -75,9 +75,15 @@ export default function CartPage() {
           .eq('status', 'published');
           
         const map: Record<string, Product> = {};
-        if (data) {
+        if (data && data.length > 0) {
           data.forEach((d) => {
             map[d.id] = dbProductToUi(d as any, supabaseUrl);
+          });
+        } else {
+          // Fallback to seed products for local testing items
+          ids.forEach((id) => {
+            const p = seedProducts.find((s) => s.id === id);
+            if (p) map[id] = p as unknown as Product;
           });
         }
 

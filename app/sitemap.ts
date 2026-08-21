@@ -8,14 +8,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = getSiteUrl();
 
   const [products, collections, categories] = await Promise.all([
-    getProducts({ status: 'published' }),
+    getProducts({ status: 'published', limit: 5000 }),
     getCollections(),
     getCategories(),
   ]);
 
   const productUrls = products.map((product) => ({
     url: `${baseUrl}/livres/${product.slug}`,
-    lastModified: new Date(),
+    lastModified: product.updatedAt ? new Date(product.updatedAt) : new Date(),
     changeFrequency: 'weekly' as const,
     priority: 0.8,
   }));
@@ -34,21 +34,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  // Unique authors and publishers with published products
+  // Unique authors and publishers using direct relation slugs
   const authorSlugs = Array.from(
-    new Set(
-      products
-        .map((p) => p.author?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''))
-        .filter(Boolean)
-    )
+    new Set(products.map((p) => p.authorSlug).filter(Boolean) as string[])
   );
 
   const publisherSlugs = Array.from(
-    new Set(
-      products
-        .map((p) => p.publisher ? p.publisher.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : '')
-        .filter(Boolean)
-    )
+    new Set(products.map((p) => p.publisherSlug).filter(Boolean) as string[])
   );
 
   const authorUrls = authorSlugs.map((slug) => ({

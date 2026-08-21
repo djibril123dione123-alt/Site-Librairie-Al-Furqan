@@ -51,7 +51,10 @@ export function BookCard({ product }: { product: Product }) {
           ) : (
             <button
               className="add-mini"
-              onClick={() => addToCart(product)}
+              onClick={() => {
+                addToCart(product);
+                import('@/lib/data/analytics').then((m) => m.trackCatalogEvent('add_to_cart', product.id));
+              }}
               aria-label={`Ajouter ${product.title} au panier`}
             >
               <span>Ajouter</span>

@@ -66,8 +66,9 @@ export default function LivraisonPage() {
         const supabase = createBrowserClient();
         const { data, error } = await supabase
           .from('products')
-          .select(`*, product_variants(*)`)
-          .in('id', ids);
+          .select(`*, authors(*), publishers(*), categories(*), product_images(*), product_variants(*)`)
+          .in('id', ids)
+          .eq('status', 'published');
           
         if (!error && data) {
           const map: Record<string, Product> = {};
@@ -86,13 +87,25 @@ export default function LivraisonPage() {
   }, [cart]);
   
   const detailed = cart
-    .map((line) => ({ line, product: products[line.productId] }))
-    .filter((item): item is { line: CartLine; product: Product } => Boolean(item.product));
-    
-  const subtotal = detailed.reduce(
-    (sum, { line, product }) => sum + (line.variant?.price || product.price) * line.quantity,
-    0
-  );
+    .map((line) => {
+      const product = products[line.productId];
+      if (!product) return null;
+      const matchedVar = line.variant ? product.variants?.find((v) => v.id === line.variant!.id) : undefined;
+      const isAvailable = product.availability !== 'Indisponible temporairement';
+      const maxStock = matchedVar ? matchedVar.stock : product.stockQuantity ?? null;
+      const isStockValid = maxStock === null || maxStock === undefined || (maxStock > 0 && line.quantity <= maxStock);
+      const isValid = isAvailable && (!line.variant || Boolean(matchedVar)) && isStockValid;
+
+      return { line, product, matchedVar, isValid, maxStock };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  const hasInvalidItem = detailed.length < cart.length || detailed.some((item) => !item.isValid);
+
+  const subtotal = detailed.reduce((sum, { line, product, matchedVar }) => {
+    const price = matchedVar?.price || line.variant?.price || product.price;
+    return sum + price * line.quantity;
+  }, 0);
 
   const handleDeliverySubmit = (data: { method: DeliveryMethod, location: LocationData, postOffice?: PostOffice }) => {
     setDeliveryData(data);
@@ -100,7 +113,9 @@ export default function LivraisonPage() {
   };
 
   const handleFinalSubmit = () => {
-    if (!deliveryData || !name || !phone) return;
+    if (!deliveryData || !name || !phone || hasInvalidItem) return;
+
+    import('@/lib/data/analytics').then((m) => m.trackCatalogEvent('whatsapp_click'));
 
     const baseUrl = getSiteUrl();
 
@@ -116,9 +131,11 @@ je souhaite finaliser ma commande Al Furqan.
 
 *DÉTAILS DE LA COMMANDE*
 ${detailed
-  .map(({ line, product }, index) => {
-    const lineTotal = (line.variant?.price || product.price) * line.quantity;
-    const skuStr = line.variant?.sku ? ` (SKU: ${line.variant.sku})` : '';
+  .map(({ line, product, matchedVar }, index) => {
+    const unitPrice = matchedVar?.price || product.price;
+    const lineTotal = unitPrice * line.quantity;
+    const skuVal = matchedVar?.sku || line.variant?.sku;
+    const skuStr = skuVal ? ` (SKU: ${skuVal})` : '';
     const variantStr = line.variant
       ? `\n  ↳ ${line.variant.attributes.map((a: any) => `${a.label || 'Option'} : ${a.value}`).join(' · ')}${skuStr}`
       : '';
@@ -263,9 +280,19 @@ Référence commande : ${ref.current}`;
               </div>
             </div>
 
+            {hasInvalidItem && (
+              <div className="p-4 mb-6 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex flex-col gap-2">
+                <strong>Certains articles de votre commande sont devenus indisponibles ou épuisés.</strong>
+                <p>Veuillez retourner dans votre panier pour réajuster votre sélection avant de poursuivre.</p>
+                <Link href="/panier" className="text-red-800 underline font-semibold mt-1">
+                  ← Retourner au panier
+                </Link>
+              </div>
+            )}
+
             <button 
               onClick={handleFinalSubmit}
-              disabled={!name || !phone}
+              disabled={!name || !phone || hasInvalidItem}
               className="button button-dark w-full py-4 text-base disabled:opacity-50"
             >
               <MessageCircle size={18} /> Commander sur WhatsApp

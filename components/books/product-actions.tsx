@@ -25,12 +25,21 @@ export function ProductActions({ product }: { product: Product }) {
             href={buildWhatsAppUrl(
               `Assalāmu ʿalaykum,\nje suis intéressé(e) par « ${product.title} ».\nPouvez-vous me prévenir lors du prochain arrivage ?`
             )}
+            onClick={() => {
+              import('@/lib/data/analytics').then((m) => m.trackCatalogEvent('restock_interest', product.id));
+            }}
             className="button button-dark"
           >
             <MessageCircle size={18} /> Je suis intéressé(e)
           </a>
         ) : (
-          <button className="button button-dark" onClick={() => addToCart(product, selected)}>
+          <button
+            className="button button-dark"
+            onClick={() => {
+              addToCart(product, selected);
+              import('@/lib/data/analytics').then((m) => m.trackCatalogEvent('add_to_cart', product.id));
+            }}
+          >
             <ShoppingBag size={17} /> Ajouter au panier
           </button>
         )}

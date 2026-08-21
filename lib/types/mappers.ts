@@ -49,7 +49,7 @@ export function dbVariantToUi(dbVariant: DbVariant): Variant {
     sku: dbVariant.sku ?? undefined,
     attributes,
     price: dbVariant.price ?? 0,
-    stock: dbVariant.stock_quantity ?? 0,
+    stock: dbVariant.stock_quantity !== null && dbVariant.stock_quantity !== undefined ? dbVariant.stock_quantity : null,
   };
 }
 
@@ -100,10 +100,14 @@ export function dbProductToUi(
     subtitle: dbProduct.subtitle ?? undefined,
     author: dbProduct.authors?.name ?? 'Auteur inconnu',
     authorId: dbProduct.author_id ?? undefined,
+    authorSlug: dbProduct.authors?.slug ?? undefined,
     publisher: dbProduct.publishers?.name ?? '',
     publisherId: dbProduct.publisher_id ?? undefined,
+    publisherSlug: dbProduct.publishers?.slug ?? undefined,
     category: dbProduct.categories?.name ?? '',
     categoryId: dbProduct.category_id ?? undefined,
+    categorySlug: dbProduct.categories?.slug ?? undefined,
+    updatedAt: dbProduct.updated_at,
     themes,
     language: dbProduct.language ?? '',
     price: dbProduct.price ?? 0,

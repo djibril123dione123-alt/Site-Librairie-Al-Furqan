@@ -16,7 +16,7 @@ export type Variant = {
   sku?: string;
   attributes: VariantAttribute[];
   price: number;
-  stock: number;
+  stock: number | null;
 };
 
 export type ProductImage = {
@@ -34,10 +34,14 @@ export type Product = {
   subtitle?: string;
   author: string;
   authorId?: string;
+  authorSlug?: string;
   publisher: string;
   publisherId?: string;
+  publisherSlug?: string;
   category: string;
   categoryId?: string;
+  categorySlug?: string;
+  updatedAt?: string;
   themes: string[];
   language: string;
   price: number;

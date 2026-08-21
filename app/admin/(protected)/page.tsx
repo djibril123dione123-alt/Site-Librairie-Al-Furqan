@@ -28,10 +28,13 @@ async function getDashboardStats() {
       recentProducts: [],
       recentRequests: [],
       attentionItems: [],
+      analytics: { productViews: 0, cartAdds: 0, whatsappClicks: 0, restockInterests: 0 },
     };
   }
 
   const supabase = createServerClient();
+
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const [
     { count: published },
@@ -43,7 +46,8 @@ async function getDashboardStats() {
     { count: publishers },
     { data: recentProducts },
     { data: recentRequests },
-    { data: attentionProducts }
+    { data: attentionProducts },
+    { data: analyticsEvents }
   ] = await Promise.all([
     supabase.from('products').select('*', { count: 'exact', head: true }).eq('status', 'published'),
     supabase.from('products').select('*', { count: 'exact', head: true }).eq('status', 'draft'),
@@ -54,8 +58,23 @@ async function getDashboardStats() {
     supabase.from('publishers').select('*', { count: 'exact', head: true }),
     supabase.from('products').select('id, slug, title, status, availability, stock_quantity, updated_at, authors(name)').order('updated_at', { ascending: false }).limit(5),
     supabase.from('book_requests').select('id, query, created_at, source').order('created_at', { ascending: false }).limit(5),
-    supabase.from('products').select('id, slug, title, status, availability, stock_quantity').or('stock_quantity.lte.3,availability.eq.temporarily_unavailable,status.eq.draft').limit(5)
+    supabase.from('products').select('id, slug, title, status, availability, stock_quantity').or('stock_quantity.lte.3,availability.eq.temporarily_unavailable,status.eq.draft').limit(5),
+    supabase.from('catalog_events').select('event_type').gte('created_at', sevenDaysAgo)
   ]);
+
+  const eventCounts = {
+    productViews: 0,
+    cartAdds: 0,
+    whatsappClicks: 0,
+    restockInterests: 0,
+  };
+
+  (analyticsEvents || []).forEach((e: any) => {
+    if (e.event_type === 'product_view') eventCounts.productViews++;
+    if (e.event_type === 'add_to_cart') eventCounts.cartAdds++;
+    if (e.event_type === 'whatsapp_click') eventCounts.whatsappClicks++;
+    if (e.event_type === 'restock_interest') eventCounts.restockInterests++;
+  });
 
   return {
     published: published ?? 0,
@@ -65,6 +84,7 @@ async function getDashboardStats() {
     collections: collections ?? 0,
     authors: authors ?? 0,
     publishers: publishers ?? 0,
+    analytics: eventCounts,
     recentProducts: (recentProducts || []).map((p: any) => ({
       id: p.id,
       slug: p.slug,
@@ -163,6 +183,32 @@ export default async function AdminDashboardPage() {
           <div className="admin-stat-footer">
             <span>{stats.categories} cat. / {stats.collections} coll.</span>
             <Link href="/admin/categories">Explorer <ArrowRight size={12} style={{ display: 'inline' }} /></Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Analytics 7 derniers jours */}
+      <div className="admin-card" style={{ marginBottom: 24 }}>
+        <div className="admin-card-header" style={{ marginBottom: 12 }}>
+          <h2 className="admin-card-title">Activité 7 derniers jours (Catalogue)</h2>
+          <span style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>Métriques anonymes</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+          <div style={{ background: 'var(--admin-bg)', padding: '12px 16px', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-muted)' }}>Vues produits</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--admin-petrol)', marginTop: 4 }}>{stats.analytics?.productViews ?? 0}</div>
+          </div>
+          <div style={{ background: 'var(--admin-bg)', padding: '12px 16px', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-muted)' }}>Ajouts au panier</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--admin-petrol)', marginTop: 4 }}>{stats.analytics?.cartAdds ?? 0}</div>
+          </div>
+          <div style={{ background: 'var(--admin-bg)', padding: '12px 16px', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-muted)' }}>Clics WhatsApp</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#059669', marginTop: 4 }}>{stats.analytics?.whatsappClicks ?? 0}</div>
+          </div>
+          <div style={{ background: 'var(--admin-bg)', padding: '12px 16px', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-muted)' }}>Intérêts réappro.</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#D97706', marginTop: 4 }}>{stats.analytics?.restockInterests ?? 0}</div>
           </div>
         </div>
       </div>

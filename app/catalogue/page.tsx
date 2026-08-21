@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { getProductsPaginated } from '@/lib/data/products';
+import { getCatalogueFacets } from '@/lib/data/facets';
 import { CatalogueClient } from '@/components/catalogue/catalogue-client';
 
 export default async function CataloguePage({
@@ -16,25 +17,36 @@ export default async function CataloguePage({
   const languageParam = typeof searchParams['language'] === 'string' ? searchParams['language'] : undefined;
   const availabilityParam = typeof searchParams['availability'] === 'string' ? searchParams['availability'] : undefined;
   const readingParam = typeof searchParams['reading'] === 'string' ? searchParams['reading'] : undefined;
+  const sortParam = typeof searchParams['sort'] === 'string' ? searchParams['sort'] : undefined;
   const pageParam = typeof searchParams['page'] === 'string' ? parseInt(searchParams['page'], 10) : 1;
 
-  const { products, totalCount, page, totalPages } = await getProductsPaginated({
-    category: categoryParam,
-    author: authorParam,
-    publisher: publisherParam,
-    search: searchParam,
-    newArrival: newer ? true : undefined,
-    language: languageParam,
-    availability: availabilityParam,
-    reading: readingParam,
-    page: pageParam,
-    pageSize: 12,
-  });
+  const [{ products, totalCount, page, totalPages }, facets] = await Promise.all([
+    getProductsPaginated({
+      category: categoryParam,
+      author: authorParam,
+      publisher: publisherParam,
+      search: searchParam,
+      newArrival: newer ? true : undefined,
+      language: languageParam,
+      availability: availabilityParam,
+      reading: readingParam,
+      sort: sortParam,
+      page: pageParam,
+      pageSize: 12,
+    }),
+    getCatalogueFacets(),
+  ]);
+
+  if (searchParam) {
+    const { trackSearchEvent } = await import('@/lib/data/search');
+    trackSearchEvent(searchParam, totalCount);
+  }
 
   return (
     <Suspense fallback={<div style={{ padding: '100px 32px', textAlign: 'center', color: 'var(--muted)' }}>Chargement du catalogue...</div>}>
       <CatalogueClient 
         initialProducts={products}
+        facets={facets}
         totalCount={totalCount}
         currentPage={page}
         totalPages={totalPages}

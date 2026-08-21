@@ -70,6 +70,7 @@ export interface ProductFilters {
   search?: string;
   collection?: string;
   status?: 'published' | 'draft' | 'archived';
+  sort?: string;
   limit?: number;
   page?: number;
   pageSize?: number;
@@ -98,9 +99,18 @@ export async function getProductsPaginated(filters: ProductFilters = {}): Promis
     if (filters.availability) list = list.filter((p) => p.availability === filters.availability);
     if (filters.minPrice !== undefined) list = list.filter((p) => p.price >= filters.minPrice!);
     if (filters.maxPrice !== undefined) list = list.filter((p) => p.price <= filters.maxPrice!);
-    if (filters.featured) list = list.filter((p) => p.featured);
-    if (filters.newArrival) list = list.filter((p) => p.newArrival);
-    if (filters.restocked) list = list.filter((p) => p.restocked);
+    if (filters.featured !== undefined) list = list.filter((p) => Boolean(p.featured) === filters.featured);
+    if (filters.newArrival !== undefined) list = list.filter((p) => Boolean(p.newArrival) === filters.newArrival);
+    if (filters.restocked !== undefined) list = list.filter((p) => Boolean(p.restocked) === filters.restocked);
+    if (filters.collection) {
+      const col = seedCollections.find(c => c.slug === filters.collection);
+      if (col) list = list.filter(p => col.productIds.includes(p.id));
+      else list = [];
+    }
+
+    if (filters.sort === 'Prix croissant') list.sort((a, b) => a.price - b.price);
+    else if (filters.sort === 'Prix décroissant') list.sort((a, b) => b.price - a.price);
+    else if (filters.sort === 'Nouveautés') list.sort((a, b) => (b.newArrival ? 1 : 0) - (a.newArrival ? 1 : 0));
     
     const totalCount = list.length;
     const totalPages = Math.ceil(totalCount / pageSize) || 1;
@@ -121,8 +131,7 @@ export async function getProductsPaginated(filters: ProductFilters = {}): Promis
       categories (id, name, slug),
       product_themes (themes (name)),
       product_images (id, storage_path, alt_text, position, type)
-    `, { count: 'exact' })
-    .order('created_at', { ascending: false });
+    `, { count: 'exact' });
 
   const status = filters.status || 'published';
   query = query.eq('status', status);
@@ -163,11 +172,45 @@ export async function getProductsPaginated(filters: ProductFilters = {}): Promis
     if (pub) query = query.eq('publisher_id', pub.id);
   }
 
+  if (filters.collection) {
+    const { data: col } = await supabase.from('collections').select('id').eq('slug', filters.collection).single();
+    if (col) {
+      const { data: colProducts } = await supabase.from('collection_products').select('product_id, position').eq('collection_id', col.id).order('position', { ascending: true });
+      if (colProducts && colProducts.length > 0) {
+        query = query.in('id', colProducts.map(cp => cp.product_id));
+      } else {
+        return { products: [], totalCount: 0, page: 1, totalPages: 1 };
+      }
+    } else {
+      return { products: [], totalCount: 0, page: 1, totalPages: 1 };
+    }
+  }
+
   if (filters.language) query = query.eq('language', filters.language);
   if (filters.reading) query = query.eq('reading', filters.reading);
   if (filters.tajwid !== undefined) query = query.eq('tajwid', filters.tajwid);
   if (filters.minPrice !== undefined) query = query.gte('price', filters.minPrice);
   if (filters.maxPrice !== undefined) query = query.lte('price', filters.maxPrice);
+  if (filters.featured !== undefined) query = query.eq('featured', filters.featured);
+  if (filters.newArrival !== undefined) query = query.eq('new_arrival', filters.newArrival);
+  if (filters.restocked !== undefined) query = query.eq('restocked', filters.restocked);
+
+  if (filters.availability) {
+    const { uiAvailabilityToDb } = await import('@/lib/types/mappers');
+    const dbAvail = uiAvailabilityToDb(filters.availability as any);
+    query = query.eq('availability', dbAvail);
+  }
+
+  // Server-side sort BEFORE range pagination
+  if (filters.sort === 'Prix croissant') {
+    query = query.order('price', { ascending: true });
+  } else if (filters.sort === 'Prix décroissant') {
+    query = query.order('price', { ascending: false });
+  } else if (filters.sort === 'Nouveautés') {
+    query = query.order('new_arrival', { ascending: false }).order('created_at', { ascending: false });
+  } else {
+    query = query.order('created_at', { ascending: false });
+  }
 
   const start = (page - 1) * pageSize;
   const end = start + pageSize - 1;

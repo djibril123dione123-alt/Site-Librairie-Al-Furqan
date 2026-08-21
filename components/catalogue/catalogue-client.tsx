@@ -7,17 +7,20 @@ import { ChevronDown, X, MessageCircle, ChevronLeft, ChevronRight } from 'lucide
 import { buildWhatsAppUrl } from '@/lib/al-furqan-data';
 import { trackBookRequest } from '@/lib/data/search';
 import type { Product } from '@/lib/types/ui';
+import type { CatalogueFacets } from '@/lib/data/facets';
 import { BookCard } from '@/components/books/book-card';
 import { Filters, FilterKey } from '@/components/catalogue/filters';
 
 export function CatalogueClient({
   initialProducts,
+  facets,
   totalCount = 0,
   currentPage = 1,
   totalPages = 1,
   searchParams,
 }: {
   initialProducts: Product[];
+  facets?: CatalogueFacets;
   totalCount?: number;
   currentPage?: number;
   totalPages?: number;
@@ -35,7 +38,7 @@ export function CatalogueClient({
   const languageParam = searchParams['language'] || '';
   const availabilityParam = searchParams['availability'] || '';
   const readingParam = searchParams['reading'] || '';
-  const sortParam = searchParams['sort'] || 'Pertinence';
+  const sortParam = searchParams['sort'] || 'Sélection Al Furqan';
 
   const active: Record<FilterKey, string> = {
     category: categoryParam,
@@ -67,19 +70,11 @@ export function CatalogueClient({
     [updateUrl]
   );
 
-  const setSort = (val: string) => updateUrl({ sort: val });
+  const setSort = (val: string) => updateUrl({ sort: val, page: '1' });
 
   const setPage = (pageNumber: number) => {
     updateUrl({ page: pageNumber.toString() });
   };
-
-  const sorted = useMemo(() => {
-    let list = [...initialProducts];
-    if (sortParam === 'Prix croissant') list.sort((a, b) => a.price - b.price);
-    if (sortParam === 'Prix décroissant') list.sort((a, b) => b.price - a.price);
-    if (sortParam === 'Nouveautés') list.sort((a, b) => (b.newArrival ? 1 : 0) - (a.newArrival ? 1 : 0));
-    return list;
-  }, [initialProducts, sortParam]);
 
   const clearAll = () => {
     router.push('/catalogue', { scroll: false });
@@ -97,7 +92,7 @@ export function CatalogueClient({
     ? 'Nouveautés chez Al Furqan'
     : 'Le catalogue Al Furqan';
 
-  const countDisplay = totalCount > 0 ? totalCount : sorted.length;
+  const countDisplay = totalCount > 0 ? totalCount : initialProducts.length;
 
   return (
     <main className="catalogue-page">
@@ -124,7 +119,7 @@ export function CatalogueClient({
           <label className="sort-select">
             Trier par{' '}
             <select value={sortParam} onChange={(e) => setSort(e.target.value)} aria-label="Trier">
-              <option>Pertinence</option>
+              <option>Sélection Al Furqan</option>
               <option>Nouveautés</option>
               <option>Prix croissant</option>
               <option>Prix décroissant</option>
@@ -150,12 +145,12 @@ export function CatalogueClient({
       </div>
 
       <div className="catalogue-layout">
-        <Filters active={active} setActive={setActive} onClear={clearAll} />
+        <Filters active={active} facets={facets} setActive={setActive} onClear={clearAll} />
         <div className="catalogue-results">
-          {sorted.length ? (
+          {initialProducts.length ? (
             <>
               <div className="book-grid">
-                {sorted.map((product) => (
+                {initialProducts.map((product) => (
                   <BookCard key={product.id} product={product} />
                 ))}
               </div>
@@ -216,7 +211,7 @@ export function CatalogueClient({
                 <X />
               </button>
             </div>
-            <Filters active={active} setActive={setActive} onClear={clearAll} />
+            <Filters active={active} facets={facets} setActive={setActive} onClear={clearAll} />
             <button className="button button-dark sheet-submit" onClick={() => setMobileFilters(false)}>
               Afficher les résultats
             </button>

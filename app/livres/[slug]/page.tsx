@@ -1,9 +1,10 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronDown, Truck, MessageCircle } from 'lucide-react';
+import { ChevronDown, Truck, MessageCircle, Video } from 'lucide-react';
 import { formatPrice, buildWhatsAppUrl, getSiteUrl } from '@/lib/al-furqan-data';
 import { getProductBySlug, getRelatedProducts } from '@/lib/data/products';
+import { getEmbeddableVideoUrl } from '@/lib/utils/video-utils';
 import { StockBadge } from '@/components/books/stock-badge';
 import { ProductActions } from '@/components/books/product-actions';
 import { RecentlyViewed } from '@/components/books/recently-viewed';
@@ -11,6 +12,8 @@ import { SectionTitle } from '@/components/ui/section-title';
 import { BookCard } from '@/components/books/book-card';
 import { ProductGallery } from '@/components/books/product-gallery';
 import { MobileStickyCta } from '@/components/books/mobile-sticky-cta';
+
+import { ProductViewTracker } from '@/components/books/product-view-tracker';
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const product = await getProductBySlug(params.slug);
@@ -87,6 +90,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
 
   return (
     <main className="product-page">
+      <ProductViewTracker productId={product.id} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       
@@ -125,6 +129,9 @@ export default async function ProductPage({ params }: { params: { slug: string }
               Vous préférez discuter d’abord ?{' '}
               <a
                 href={buildWhatsAppUrl(`Assalāmu ʿalaykum,\nje souhaite des informations sur « ${product.title} ».`)}
+                onClick={() => {
+                  import('@/lib/data/analytics').then((m) => m.trackCatalogEvent('whatsapp_click', product.id));
+                }}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -141,19 +148,40 @@ export default async function ProductPage({ params }: { params: { slug: string }
           <h2>Une lecture à garder près de soi.</h2>
           <p>{product.description}</p>
 
-          {product.videoUrl && (
-            <div style={{ marginTop: 24, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--line)' }}>
-              <span className="eyebrow" style={{ display: 'block', padding: '12px 16px', background: '#FBF9F4' }}>PRÉSENTATION VIDÉO</span>
-              <iframe
-                src={product.videoUrl}
-                title={`Présentation vidéo de ${product.title}`}
-                loading="lazy"
-                style={{ width: '100%', height: 315, border: 'none' }}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-          )}
+          {(() => {
+            const videoInfo = getEmbeddableVideoUrl(product.videoUrl);
+            if (!videoInfo) return null;
+
+            return (
+              <div style={{ marginTop: 24, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--line)' }}>
+                <span className="eyebrow" style={{ display: 'block', padding: '12px 16px', background: '#FBF9F4' }}>PRÉSENTATION VIDÉO</span>
+                {videoInfo.type === 'iframe' ? (
+                  <iframe
+                    src={videoInfo.embedUrl}
+                    title={`Présentation vidéo de ${product.title}`}
+                    loading="lazy"
+                    style={{ width: '100%', height: 315, border: 'none' }}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <div style={{ padding: 24, textAlign: 'center', background: '#FFF' }}>
+                    <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 12 }}>
+                      Une présentation vidéo est disponible sur TikTok / média externe.
+                    </p>
+                    <a
+                      href={videoInfo.externalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="button button-dark"
+                    >
+                      <Video size={16} /> Voir la vidéo de présentation ↗
+                    </a>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
         {specs.length > 0 && (
           <div className="specs">
