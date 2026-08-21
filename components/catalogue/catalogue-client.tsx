@@ -38,6 +38,7 @@ export function CatalogueClient({
   const languageParam = searchParams['language'] || '';
   const availabilityParam = searchParams['availability'] || '';
   const readingParam = searchParams['reading'] || '';
+  const tajwidParam = searchParams['tajwid'] || '';
   const sortParam = searchParams['sort'] || 'Sélection Al Furqan';
 
   const active: Record<FilterKey, string> = {
@@ -47,6 +48,7 @@ export function CatalogueClient({
     language: languageParam,
     availability: availabilityParam,
     reading: readingParam,
+    tajwid: tajwidParam,
   };
 
   const updateUrl = useCallback(

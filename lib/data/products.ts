@@ -172,12 +172,15 @@ export async function getProductsPaginated(filters: ProductFilters = {}): Promis
     if (pub) query = query.eq('publisher_id', pub.id);
   }
 
+  let orderedIds: string[] | undefined;
+
   if (filters.collection) {
     const { data: col } = await supabase.from('collections').select('id').eq('slug', filters.collection).single();
     if (col) {
       const { data: colProducts } = await supabase.from('collection_products').select('product_id, position').eq('collection_id', col.id).order('position', { ascending: true });
       if (colProducts && colProducts.length > 0) {
-        query = query.in('id', colProducts.map(cp => cp.product_id));
+        orderedIds = colProducts.map((cp) => cp.product_id);
+        query = query.in('id', orderedIds);
       } else {
         return { products: [], totalCount: 0, page: 1, totalPages: 1 };
       }
@@ -208,7 +211,7 @@ export async function getProductsPaginated(filters: ProductFilters = {}): Promis
     query = query.order('price', { ascending: false });
   } else if (filters.sort === 'Nouveautés') {
     query = query.order('new_arrival', { ascending: false }).order('created_at', { ascending: false });
-  } else {
+  } else if (!orderedIds) {
     query = query.order('created_at', { ascending: false });
   }
 
@@ -223,7 +226,12 @@ export async function getProductsPaginated(filters: ProductFilters = {}): Promis
     return { products: [], totalCount: 0, page: 1, totalPages: 1 };
   }
 
-  const products = (data || []).map((p: any) => dbProductToUi(p, supabaseUrl));
+  let products = (data || []).map((p: any) => dbProductToUi(p, supabaseUrl));
+
+  if (orderedIds && !filters.sort) {
+    const orderMap = new Map(orderedIds.map((id, idx) => [id, idx]));
+    products.sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999));
+  }
   const totalCount = count || 0;
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
 

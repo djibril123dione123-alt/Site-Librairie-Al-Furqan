@@ -14,6 +14,7 @@ export interface CatalogueFacets {
   languages: FacetOption[];
   availabilities: FacetOption[];
   readings: FacetOption[];
+  tajwid?: FacetOption[];
   minPrice: number;
   maxPrice: number;
 }
@@ -26,6 +27,9 @@ export async function getCatalogueFacets(): Promise<CatalogueFacets> {
     const langMap = new Map<string, number>();
     const availMap = new Map<string, number>();
     const readingMap = new Map<string, number>();
+    let avecTajwid = 0;
+    let sansTajwid = 0;
+    let hasTajwid = false;
     let minP = Infinity;
     let maxP = 0;
 
@@ -36,12 +40,23 @@ export async function getCatalogueFacets(): Promise<CatalogueFacets> {
       if (p.language) langMap.set(p.language, (langMap.get(p.language) || 0) + 1);
       if (p.availability) availMap.set(p.availability, (availMap.get(p.availability) || 0) + 1);
       if (p.reading) readingMap.set(p.reading, (readingMap.get(p.reading) || 0) + 1);
+      if (p.tajwid !== null && p.tajwid !== undefined) {
+        hasTajwid = true;
+        if (p.tajwid) avecTajwid++;
+        else sansTajwid++;
+      }
       if (p.price < minP) minP = p.price;
       if (p.price > maxP) maxP = p.price;
     });
 
     const toOptions = (map: Map<string, number>) =>
       Array.from(map.entries()).map(([val, count]) => ({ value: val, label: `${val} (${count})`, count }));
+
+    const tajwidOptions: FacetOption[] = [];
+    if (hasTajwid) {
+      if (avecTajwid > 0) tajwidOptions.push({ value: 'true', label: `Avec Tajwid (${avecTajwid})`, count: avecTajwid });
+      if (sansTajwid > 0) tajwidOptions.push({ value: 'false', label: `Sans Tajwid (${sansTajwid})`, count: sansTajwid });
+    }
 
     return {
       categories: toOptions(catMap),
@@ -50,6 +65,7 @@ export async function getCatalogueFacets(): Promise<CatalogueFacets> {
       languages: toOptions(langMap),
       availabilities: toOptions(availMap),
       readings: toOptions(readingMap),
+      tajwid: tajwidOptions.length > 0 ? tajwidOptions : undefined,
       minPrice: minP === Infinity ? 0 : minP,
       maxPrice: maxP,
     };
@@ -63,6 +79,7 @@ export async function getCatalogueFacets(): Promise<CatalogueFacets> {
       availability,
       language,
       reading,
+      tajwid,
       authors (name),
       publishers (name),
       categories (name)
@@ -88,6 +105,9 @@ export async function getCatalogueFacets(): Promise<CatalogueFacets> {
   const langMap = new Map<string, number>();
   const availMap = new Map<string, number>();
   const readingMap = new Map<string, number>();
+  let avecTajwid = 0;
+  let sansTajwid = 0;
+  let hasTajwid = false;
   let minP = Infinity;
   let maxP = 0;
 
@@ -104,10 +124,16 @@ export async function getCatalogueFacets(): Promise<CatalogueFacets> {
 
     if (catName) catMap.set(catName, (catMap.get(catName) || 0) + 1);
     if (autName) autMap.set(autName, (autMap.get(autName) || 0) + 1);
-    if (pubName) pubMap.set(pubName, (pubName.get(pubName) || 0) + 1);
+    if (pubName) pubMap.set(pubName, (pubMap.get(pubName) || 0) + 1);
     if (lang) langMap.set(lang, (langMap.get(lang) || 0) + 1);
     if (avail) availMap.set(avail, (availMap.get(avail) || 0) + 1);
     if (reading) readingMap.set(reading, (readingMap.get(reading) || 0) + 1);
+
+    if (p.tajwid !== null && p.tajwid !== undefined) {
+      hasTajwid = true;
+      if (p.tajwid) avecTajwid++;
+      else sansTajwid++;
+    }
 
     if (price < minP) minP = price;
     if (price > maxP) maxP = price;
@@ -116,6 +142,12 @@ export async function getCatalogueFacets(): Promise<CatalogueFacets> {
   const toOptions = (map: Map<string, number>) =>
     Array.from(map.entries()).map(([val, count]) => ({ value: val, label: `${val} (${count})`, count }));
 
+  const tajwidOptions: FacetOption[] = [];
+  if (hasTajwid) {
+    if (avecTajwid > 0) tajwidOptions.push({ value: 'true', label: `Avec Tajwid (${avecTajwid})`, count: avecTajwid });
+    if (sansTajwid > 0) tajwidOptions.push({ value: 'false', label: `Sans Tajwid (${sansTajwid})`, count: sansTajwid });
+  }
+
   return {
     categories: toOptions(catMap),
     authors: toOptions(autMap),
@@ -123,6 +155,7 @@ export async function getCatalogueFacets(): Promise<CatalogueFacets> {
     languages: toOptions(langMap),
     availabilities: toOptions(availMap),
     readings: toOptions(readingMap),
+    tajwid: tajwidOptions.length > 0 ? tajwidOptions : undefined,
     minPrice: minP === Infinity ? 0 : minP,
     maxPrice: maxP,
   };

@@ -17,6 +17,7 @@ export default async function CataloguePage({
   const languageParam = typeof searchParams['language'] === 'string' ? searchParams['language'] : undefined;
   const availabilityParam = typeof searchParams['availability'] === 'string' ? searchParams['availability'] : undefined;
   const readingParam = typeof searchParams['reading'] === 'string' ? searchParams['reading'] : undefined;
+  const tajwidParam = searchParams['tajwid'] === 'true' ? true : searchParams['tajwid'] === 'false' ? false : undefined;
   const sortParam = typeof searchParams['sort'] === 'string' ? searchParams['sort'] : undefined;
   const pageParam = typeof searchParams['page'] === 'string' ? parseInt(searchParams['page'], 10) : 1;
 
@@ -30,6 +31,7 @@ export default async function CataloguePage({
       language: languageParam,
       availability: availabilityParam,
       reading: readingParam,
+      tajwid: tajwidParam,
       sort: sortParam,
       page: pageParam,
       pageSize: 12,

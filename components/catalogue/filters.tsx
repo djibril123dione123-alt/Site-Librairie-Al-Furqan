@@ -3,7 +3,7 @@
 import { Sparkles } from 'lucide-react';
 import type { CatalogueFacets, FacetOption } from '@/lib/data/facets';
 
-export type FilterKey = 'category' | 'author' | 'publisher' | 'language' | 'availability' | 'reading';
+export type FilterKey = 'category' | 'author' | 'publisher' | 'language' | 'availability' | 'reading' | 'tajwid';
 
 export function Filters({
   active,
@@ -23,6 +23,7 @@ export function Filters({
     { key: 'language' as FilterKey, label: 'Langue', options: facets?.languages || [] },
     { key: 'availability' as FilterKey, label: 'Disponibilité', options: facets?.availabilities || [] },
     { key: 'reading' as FilterKey, label: 'Lecture du Coran', options: facets?.readings || [] },
+    { key: 'tajwid' as FilterKey, label: 'Tajwid', options: facets?.tajwid || [] },
   ].filter((g) => g.options.length > 0);
 
   return (

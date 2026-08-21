@@ -42,9 +42,9 @@ export default async function ProductPage({ params }: { params: { slug: string }
 
   const related = await getRelatedProducts(product);
 
-  const authorSlug = product.author.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const publisherSlug = product.publisher ? product.publisher.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : '';
-  const categorySlug = product.category.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const authorSlug = product.authorSlug || product.author.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const publisherSlug = product.publisherSlug || (product.publisher ? product.publisher.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : '');
+  const categorySlug = product.categorySlug || product.category.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
   const specs: { label: string; value?: string; href?: string }[] = [
     { label: 'Auteur', value: product.author, href: `/auteurs/${authorSlug}` },

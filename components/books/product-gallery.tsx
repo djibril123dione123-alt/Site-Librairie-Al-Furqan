@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { Cover } from './cover';
 import type { Product } from '@/lib/types/ui';
 import { BookOpen, X, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -66,17 +67,32 @@ export function ProductGallery({ product }: { product: Product }) {
     setLightboxOpen(true);
   };
 
+  const isRemoteActive = Boolean(activeImg.url && (activeImg.url.startsWith('http') || activeImg.url.startsWith('/')));
+
   return (
     <div className="product-gallery">
-      <div className="gallery-main" style={{ position: 'relative' }}>
+      <div className="gallery-main" style={{ position: 'relative', width: '100%', minHeight: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {activeImg.url ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={activeImg.url}
-            alt={activeImg.alt || `Photo de ${product.title}`}
-            style={{ maxWidth: '100%', maxHeight: 360, objectFit: 'contain', cursor: 'pointer', borderRadius: 8 }}
-            onClick={() => openLightbox(activeIdx)}
-          />
+          isRemoteActive ? (
+            <div style={{ position: 'relative', width: '100%', height: 360, cursor: 'pointer' }} onClick={() => openLightbox(activeIdx)}>
+              <Image
+                src={activeImg.url}
+                alt={activeImg.alt || `Photo de ${product.title}`}
+                fill
+                sizes="(max-width: 768px) 100vw, 450px"
+                style={{ objectFit: 'contain', borderRadius: 8 }}
+                priority
+              />
+            </div>
+          ) : (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={activeImg.url}
+              alt={activeImg.alt || `Photo de ${product.title}`}
+              style={{ maxWidth: '100%', maxHeight: 360, objectFit: 'contain', cursor: 'pointer', borderRadius: 8 }}
+              onClick={() => openLightbox(activeIdx)}
+            />
+          )
         ) : (
           <Cover product={product} />
         )}
@@ -85,7 +101,7 @@ export function ProductGallery({ product }: { product: Product }) {
           <button
             type="button"
             className="button button-cream btn-sm"
-            style={{ position: 'absolute', bottom: 12, right: 12, padding: '6px 12px', fontSize: 11 }}
+            style={{ position: 'absolute', bottom: 12, right: 12, padding: '6px 12px', fontSize: 11, zIndex: 10 }}
             onClick={openFeuilleter}
           >
             <BookOpen size={14} /> Feuilleter ({leafableImages.length} p.)
@@ -105,15 +121,29 @@ export function ProductGallery({ product }: { product: Product }) {
                 padding: 2,
                 background: '#FFF',
                 cursor: 'pointer',
+                width: 52,
+                height: 64,
+                position: 'relative',
+                flexShrink: 0,
               }}
               onClick={() => setActiveIdx(i)}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={img.url}
-                alt={`Miniature ${i + 1}`}
-                style={{ width: 48, height: 60, objectFit: 'contain' }}
-              />
+              {img.url.startsWith('http') || img.url.startsWith('/') ? (
+                <Image
+                  src={img.url}
+                  alt={`Miniature ${i + 1}`}
+                  fill
+                  sizes="48px"
+                  style={{ objectFit: 'contain' }}
+                />
+              ) : (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={img.url}
+                  alt={`Miniature ${i + 1}`}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
+              )}
             </button>
           ))}
         </div>
