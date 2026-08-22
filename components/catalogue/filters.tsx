@@ -5,6 +5,12 @@ import type { CatalogueFacets, FacetOption } from '@/lib/data/facets';
 
 export type FilterKey = 'category' | 'author' | 'publisher' | 'language' | 'availability' | 'reading' | 'tajwid';
 
+/** Tajwid options carry raw "true"/"false" values — never surface those directly. */
+function displayLabel(key: FilterKey, opt: FacetOption): string {
+  if (key === 'tajwid') return opt.value === 'true' ? 'Avec Tajwid' : 'Sans Tajwid';
+  return opt.value;
+}
+
 export function Filters({
   active,
   facets,
@@ -26,31 +32,37 @@ export function Filters({
     { key: 'tajwid' as FilterKey, label: 'Tajwid', options: facets?.tajwid || [] },
   ].filter((g) => g.options.length > 0);
 
+  const hasActive = Object.values(active).some(Boolean);
+
   return (
     <aside className="filters">
       <div className="filter-top">
         <span>Filtrer par</span>
-        <button onClick={onClear}>Tout effacer</button>
+        {hasActive && <button onClick={onClear}>Tout effacer</button>}
       </div>
 
       {groups.length === 0 ? (
-        <div style={{ padding: '16px 0', fontSize: 13, color: 'var(--muted)' }}>
-          Aucun filtre disponible.
-        </div>
+        <div className="filter-empty">Aucun filtre disponible.</div>
       ) : (
         groups.map((group) => (
-          <div className="filter-group" key={group.key}>
+          <div className="filter-group" key={group.key} role="radiogroup" aria-label={group.label}>
             <strong>{group.label}</strong>
-            {group.options.map((opt) => (
-              <label key={opt.value}>
-                <input
-                  type="checkbox"
-                  checked={active[group.key] === opt.value}
-                  onChange={() => setActive(group.key, active[group.key] === opt.value ? '' : opt.value)}
-                />
-                <span>{opt.label}</span>
-              </label>
-            ))}
+            {group.options.map((opt) => {
+              const isActive = active[group.key] === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={isActive}
+                  className={`filter-option ${isActive ? 'is-active' : ''}`}
+                  onClick={() => setActive(group.key, isActive ? '' : opt.value)}
+                >
+                  <span className="filter-option-label">{displayLabel(group.key, opt)}</span>
+                  <span className="filter-option-count">{opt.count}</span>
+                </button>
+              );
+            })}
           </div>
         ))
       )}

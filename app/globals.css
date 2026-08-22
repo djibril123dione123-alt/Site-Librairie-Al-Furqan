@@ -345,12 +345,16 @@ main { overflow: hidden; }
 .footer-bottom { border-top: 1px solid rgba(255,255,255,.15); padding-top: 18px; display: flex; justify-content: space-between; color: #7d9289; font-size: 10px; }
 
 /* Search panel */
-.search-panel { position: fixed; inset: 0; z-index: 50; background: rgba(12,45,56,.35); backdrop-filter: blur(5px); padding-top: 80px; }
-.search-panel-inner { max-width: 760px; margin: auto; background: var(--paper); box-shadow: 0 20px 70px rgba(16,47,56,.2); border-radius: var(--radius); overflow: hidden; }
+.search-panel { position: fixed; inset: 0; z-index: 50; background: rgba(12,45,56,.35); backdrop-filter: blur(5px); padding-top: 80px; animation: search-panel-in var(--motion-base) var(--ease-premium); }
+.search-panel-inner { max-width: 680px; margin: auto; background: var(--paper); box-shadow: 0 20px 70px rgba(16,47,56,.2); border-radius: var(--radius); overflow: hidden; }
+@keyframes search-panel-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .search-panel { animation: none; } }
 .search-line { display: flex; align-items: center; gap: 14px; padding: 20px; border-bottom: 1px solid var(--line); color: var(--gold); }
 .search-line input { border: 0; outline: 0; flex: 1; color: var(--ink); font-size: 17px; background: transparent; }
-.search-line button, .sheet-heading button, .drawer-heading button { border: 0; background: none; color: var(--muted); }
+.search-line button, .sheet-heading button, .drawer-heading button { border: 0; background: none; color: var(--muted); min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.search-clear { color: var(--muted); }
 .search-suggestions { padding: 8px 20px 20px; max-height: 60vh; overflow-y: auto; }
+.search-quiet-empty { padding: 32px 20px 40px; text-align: center; color: var(--muted); font-size: 13px; }
 .suggestion-group { padding: 6px 0; }
 .suggestion-label { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: .15em; color: var(--gold); margin-bottom: 6px; }
 .suggestion-item { display: flex; align-items: center; gap: 14px; padding: 8px; border-radius: 6px; border: 0; background: none; width: 100%; text-align: left; transition: background .15s; }
@@ -370,7 +374,8 @@ main { overflow: hidden; }
 .empty-search { padding: 24px 8px; }
 .empty-search strong { font-family: var(--font-serif); font-size: 20px; font-weight: 500; }
 .empty-search p { color: var(--muted); font-size: 13px; margin: 8px 0 16px; }
-.empty-search a { color: var(--gold); font-size: 12px; font-weight: 600; display: inline-flex; gap: 6px; align-items: center; }
+.empty-search-actions { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.empty-search-actions .text-link { font-size: 12px; font-weight: 600; }
 
 /* Breadcrumb */
 .breadcrumb { max-width: 1280px; margin: auto; padding: 28px 32px 0; display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 11px; }
@@ -384,31 +389,67 @@ main { overflow: hidden; }
 
 /* Catalogue */
 .catalogue-page, .product-page, .collection-page, .cart-page { min-height: 600px; }
-.catalogue-heading { max-width: 1280px; margin: auto; padding: 60px 32px 30px; display: flex; align-items: flex-end; justify-content: space-between; gap: 25px; }
-.catalogue-heading h1, .cart-heading h1 { font-size: clamp(38px, 5vw, 58px); margin: 14px 0 10px; }
+/* Same sticky-breaking trap Phase C found on <main> — scoped fix, not global. */
+.catalogue-page { overflow: visible; }
+
+.catalogue-heading { max-width: 1280px; margin: auto; padding: 40px 32px 24px; display: flex; align-items: flex-end; justify-content: space-between; gap: 25px; }
+.catalogue-heading h1 { font-size: clamp(32px, 4vw, 46px); margin: 10px 0 8px; }
+.cart-heading h1 { font-size: clamp(38px, 5vw, 58px); margin: 14px 0 10px; }
 .catalogue-heading p { color: var(--muted); font-size: 13px; margin: 0; }
 .catalogue-actions { display: flex; align-items: center; gap: 12px; }
 .sort-select { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; white-space: nowrap; }
-.sort-select select, .cart-summary select { border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 9px 28px 9px 11px; border-radius: var(--radius); appearance: none; font-size: 12px; }
+.sort-select select, .cart-summary select { border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 9px 28px 9px 11px; border-radius: var(--radius); appearance: none; font-size: 12px; min-height: 38px; }
+@media (max-width: 900px) {
+  .sort-select select { min-height: 44px; padding: 12px 28px 12px 11px; }
+}
 .mobile-filter-button { display: none; }
-.active-chips { max-width: 1280px; margin: auto; padding: 0 32px 25px; display: flex; gap: 8px; flex-wrap: wrap; }
-.active-chips button { border: 1px solid #d3b47e; color: var(--ink); background: #f8f0e3; border-radius: 99px; padding: 6px 10px; font-size: 11px; display: flex; align-items: center; gap: 5px; }
-.active-chips .clear-chips { border: 0; background: none; color: var(--muted); font-size: 11px; }
-.catalogue-layout { max-width: 1280px; margin: auto; padding: 0 32px 90px; display: grid; grid-template-columns: 200px 1fr; gap: 45px; }
-.filters { border-top: 1px solid var(--line); }
-.filter-top { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; font-size: 12px; font-weight: 600; }
-.filter-top button { border: 0; background: none; color: var(--gold); font-size: 10px; }
-.filter-group { padding: 18px 0; border-top: 1px solid var(--line); display: grid; gap: 10px; }
-.filter-group strong { font-size: 11px; margin-bottom: 2px; }
-.filter-group label { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); cursor: pointer; }
-.filter-group input { accent-color: var(--gold); }
+
+/* Active filters — quiet text actions, never pills. */
+.active-filters { max-width: 1280px; margin: auto; padding: 0 32px 25px; display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+.active-filter-chip { border: 0; background: none; padding: 0; color: var(--ink); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; transition: color 0.2s; }
+.active-filter-chip:hover { color: var(--gold); }
+.active-filters-clear { border: 0; background: none; color: var(--muted); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; transition: color 0.2s; }
+.active-filters-clear:hover { color: var(--gold); }
+
+.catalogue-layout { max-width: 1280px; margin: auto; padding: 0 32px 90px; display: grid; grid-template-columns: 240px 1fr; gap: 48px; align-items: start; }
+
+/* Sticky filter rail — editorial rhythm: whitespace and a small selection
+   dot instead of boxed accordions, heavy checkboxes or dashboard filters. */
+.filters { position: sticky; top: 96px; }
+.filter-top { display: flex; justify-content: space-between; align-items: center; padding: 0 0 16px; font-size: 12px; font-weight: 600; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.filter-top button { border: 0; background: none; color: var(--gold); font-size: 11px; font-weight: 600; }
+.filter-empty { padding: 16px 0; font-size: 13px; color: var(--muted); }
+.filter-group { padding: 16px 0; border-top: 1px solid var(--line); }
+.filter-group:first-of-type { border-top: 0; }
+.filter-group strong { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+.filter-option { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; border: 0; background: none; padding: 7px 0 7px 14px; font-size: 13px; color: var(--ink); text-align: left; cursor: pointer; position: relative; transition: color 0.2s; }
+.filter-option:before { content: ''; position: absolute; left: 0; top: 50%; width: 4px; height: 4px; border-radius: 50%; background: var(--line); transform: translateY(-50%); transition: background 0.2s, width 0.2s, height 0.2s; }
+.filter-option:hover { color: var(--gold); }
+.filter-option.is-active { font-weight: 600; }
+.filter-option.is-active:before { background: var(--gold); width: 6px; height: 6px; }
+.filter-option-count { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .filter-note { background: var(--sage); padding: 12px; display: flex; gap: 8px; margin-top: 18px; border-radius: var(--radius); }
 .filter-note p { margin: 0; font-size: 11px; line-height: 1.4; }
-.catalogue-results .book-grid { grid-template-columns: repeat(3, 1fr); }
+
+.catalogue-results .book-grid { grid-template-columns: repeat(4, 1fr); gap: 28px 28px; }
+
+/* One real editorial pause — quiet, no ad-banner language. */
+.catalogue-break { padding: 40px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 8px 0; }
+.catalogue-break-inner { max-width: 60ch; }
+.catalogue-break-inner h3 { font-size: 26px; margin: 8px 0 10px; }
+.catalogue-break-inner p { color: var(--muted); font-size: 14px; line-height: 1.7; margin: 0 0 14px; }
+
+.pagination { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 48px; }
+.pagination-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink); transition: border-color 0.2s, color 0.2s; }
+.pagination-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.pagination-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.pagination-status { font-size: 13px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+
 .no-results { text-align: center; background: var(--cream); padding: 70px 20px; border-radius: var(--radius); }
 .no-results-mark { font-size: 44px; color: var(--gold); }
 .no-results h2 { font-size: 28px; margin: 12px 0 8px; }
 .no-results p { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+.no-results-actions { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
 
 /* ====== Product page — object overture + sticky gallery + editorial column ====== */
 /* `main { overflow: hidden }` (global, used elsewhere to clip decorative
@@ -650,7 +691,7 @@ main { overflow: hidden; }
 /* Responsive — tablet */
 @media (max-width: 1024px) {
   .book-grid { grid-template-columns: repeat(3, 1fr); }
-  .catalogue-results .book-grid { grid-template-columns: repeat(2, 1fr); }
+  .catalogue-results .book-grid { grid-template-columns: repeat(3, 1fr); gap: 24px; }
   .hero h1 { font-size: clamp(40px, 5vw, 60px); }
   /* Sticky gallery is a wide-viewport composition; below tablet it would
      cramp the column instead of helping it, so we deliberately stack. */
@@ -694,18 +735,21 @@ main { overflow: hidden; }
   .breadcrumb { padding: 22px 20px 0; }
   .catalogue-heading, .cart-heading { padding: 45px 20px 24px; display: block; }
   .catalogue-actions { margin-top: 20px; justify-content: space-between; }
-  .mobile-filter-button { display: inline-flex; background: var(--deep); color: var(--paper); border: 0; padding: 10px 16px; border-radius: 99px; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; }
+  .mobile-filter-button { display: inline-flex; min-height: 44px; background: var(--deep); color: var(--paper); border: 0; padding: 0 18px; border-radius: 99px; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; }
   .mobile-filter-button span { background: var(--gold); border-radius: 50%; min-width: 18px; height: 18px; display: grid; place-items: center; font-size: 10px; }
   .catalogue-layout { display: block; padding: 0 20px 70px; }
   .catalogue-layout > .filters { display: none; }
-  .catalogue-results .book-grid { grid-template-columns: repeat(2, 1fr); }
-  .active-chips { padding: 0 20px 22px; }
+  .catalogue-results .book-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .active-filters { padding: 0 20px 22px; }
+  /* Near-full-screen drawer, not a cramped bottom sheet holding 7 groups. */
   .filter-overlay { display: block; position: fixed; inset: 0; z-index: 55; background: rgba(12,45,56,.35); }
-  .filter-sheet { position: absolute; inset: auto 0 0; max-height: 88vh; overflow: auto; background: var(--paper); padding: 20px 20px 18px; border-radius: 20px 20px 0 0; }
-  .sheet-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
-  .sheet-heading h2 { margin: 0; font-size: 24px; }
-  .filter-sheet .filters { display: block; border-top: 0; }
-  .sheet-submit { width: 100%; margin-top: 18px; }
+  .filter-sheet { position: absolute; inset: 5vh 0 0; display: flex; flex-direction: column; background: var(--paper); border-radius: 20px 20px 0 0; overflow: hidden; }
+  .sheet-heading { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  .sheet-heading h2 { margin: 0; font-size: 19px; }
+  .sheet-heading button { min-width: 44px; min-height: 44px; }
+  .sheet-body { flex: 1; overflow-y: auto; padding: 0 20px; }
+  .filter-sheet .filters { display: block; position: static; padding: 8px 0; }
+  .sheet-submit { width: 100%; min-height: 48px; flex-shrink: 0; margin: 0; border-radius: 0; }
   .pdp-overture { padding: 20px 20px 0; gap: 32px; }
   .product-gallery { flex-direction: column-reverse; }
   .gallery-thumbnails { flex-direction: row; width: auto; max-height: none; overflow-x: auto; overflow-y: visible; }
@@ -754,9 +798,12 @@ main { overflow: hidden; }
   .gallery-image-button { height: 300px; }
   .inside-preview-images { flex-direction: column; }
   .inside-preview-companion { margin-bottom: 0; margin-top: 0; }
-  .search-panel { padding-top: 60px; }
-  .search-panel-inner { margin: 0 10px; }
+  /* Genuine full-screen search on mobile — not the desktop panel squeezed. */
+  .search-panel { padding-top: 0; animation: none; }
+  .search-panel-inner { margin: 0; max-width: none; height: 100vh; border-radius: 0; display: flex; flex-direction: column; }
+  .search-line { padding: 16px 16px calc(12px + env(safe-area-inset-top, 0px)); flex-shrink: 0; }
   .search-line input { font-size: 16px; }
+  .search-suggestions { flex: 1; max-height: none; }
   .collection-hero h1 { font-size: 38px; }
   .collection-stack { transform: scale(.78); margin: 10px auto -10px; }
   .cart-heading h1 { font-size: 38px; }

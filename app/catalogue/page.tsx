@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { getProductsPaginated } from '@/lib/data/products';
 import { getCatalogueFacets } from '@/lib/data/facets';
+import { getCollections } from '@/lib/data/collections';
 import { CatalogueClient } from '@/components/catalogue/catalogue-client';
 
 export default async function CataloguePage({
@@ -21,7 +22,13 @@ export default async function CataloguePage({
   const sortParam = typeof searchParams['sort'] === 'string' ? searchParams['sort'] : undefined;
   const pageParam = typeof searchParams['page'] === 'string' ? parseInt(searchParams['page'], 10) : 1;
 
-  const [{ products, totalCount, page, totalPages }, facets] = await Promise.all([
+  // Editorial pause only makes sense on a fully broad, unfiltered browse —
+  // never on search results or a narrowed view. Only fetched when it could
+  // actually be used (avoids an unnecessary query otherwise).
+  const isBroadBrowse = !categoryParam && !authorParam && !publisherParam && !searchParam && !newer &&
+    !languageParam && !availabilityParam && !readingParam && tajwidParam === undefined && pageParam <= 1;
+
+  const [{ products, totalCount, page, totalPages }, facets, collections] = await Promise.all([
     getProductsPaginated({
       category: categoryParam,
       author: authorParam,
@@ -37,6 +44,7 @@ export default async function CataloguePage({
       pageSize: 12,
     }),
     getCatalogueFacets(),
+    isBroadBrowse ? getCollections() : Promise.resolve([]),
   ]);
 
   if (searchParam) {
@@ -46,13 +54,14 @@ export default async function CataloguePage({
 
   return (
     <Suspense fallback={<div style={{ padding: '100px 32px', textAlign: 'center', color: 'var(--muted)' }}>Chargement du catalogue...</div>}>
-      <CatalogueClient 
+      <CatalogueClient
         initialProducts={products}
         facets={facets}
         totalCount={totalCount}
         currentPage={page}
         totalPages={totalPages}
-        searchParams={searchParams as { [key: string]: string | undefined }} 
+        searchParams={searchParams as { [key: string]: string | undefined }}
+        collections={isBroadBrowse ? collections : []}
       />
     </Suspense>
   );

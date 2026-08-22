@@ -1,15 +1,19 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronDown, X, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { buildWhatsAppUrl } from '@/lib/al-furqan-data';
 import { trackBookRequest } from '@/lib/data/search';
-import type { Product } from '@/lib/types/ui';
+import type { Product, Collection } from '@/lib/types/ui';
 import type { CatalogueFacets } from '@/lib/data/facets';
 import { BookCard } from '@/components/books/book-card';
 import { Filters, FilterKey } from '@/components/catalogue/filters';
+import { CatalogueEditorialBreak } from '@/components/catalogue/catalogue-editorial-break';
+
+/** Minimum breadth before an editorial pause is worth the vertical space it costs. */
+const EDITORIAL_BREAK_MIN_PRODUCTS = 8;
 
 export function CatalogueClient({
   initialProducts,
@@ -18,6 +22,7 @@ export function CatalogueClient({
   currentPage = 1,
   totalPages = 1,
   searchParams,
+  collections = [],
 }: {
   initialProducts: Product[];
   facets?: CatalogueFacets;
@@ -25,16 +30,20 @@ export function CatalogueClient({
   currentPage?: number;
   totalPages?: number;
   searchParams: { [key: string]: string | undefined };
+  collections?: Collection[];
 }) {
   const router = useRouter();
   const [mobileFilters, setMobileFilters] = useState(false);
+  const filterTriggerRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
 
   const categoryParam = searchParams['categorie'] || '';
   const authorParam = searchParams['auteur'] || '';
   const publisherParam = searchParams['editeur'] || '';
   const searchParam = searchParams['q'] || '';
   const newer = searchParams['nouveautes'] === '1';
-  
+
   const languageParam = searchParams['language'] || '';
   const availabilityParam = searchParams['availability'] || '';
   const readingParam = searchParams['reading'] || '';
@@ -50,6 +59,8 @@ export function CatalogueClient({
     reading: readingParam,
     tajwid: tajwidParam,
   };
+  const activeCount = Object.values(active).filter(Boolean).length;
+  const hasActive = activeCount > 0;
 
   const updateUrl = useCallback(
     (updates: Record<string, string | null>) => {
@@ -73,50 +84,106 @@ export function CatalogueClient({
   );
 
   const setSort = (val: string) => updateUrl({ sort: val, page: '1' });
+  const setPage = (pageNumber: number) => updateUrl({ page: pageNumber.toString() });
+  const clearAll = () => router.push('/catalogue', { scroll: false });
+  const handleNoResultsWhatsApp = (queryStr: string) => trackBookRequest(queryStr, 'catalogue');
 
-  const setPage = (pageNumber: number) => {
-    updateUrl({ page: pageNumber.toString() });
-  };
+  // Mobile filter drawer — proper dialog semantics: focus in on open, trap
+  // Tab within the drawer, Escape closes, focus restores to the trigger,
+  // background scroll locked without a layout jump.
+  useEffect(() => {
+    if (!mobileFilters) return;
+    previouslyFocused.current = document.activeElement as HTMLElement;
+    const scrollBarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    if (scrollBarWidth > 0) document.body.style.paddingRight = `${scrollBarWidth}px`;
+    drawerRef.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
 
-  const clearAll = () => {
-    router.push('/catalogue', { scroll: false });
-  };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMobileFilters(false);
+      } else if (e.key === 'Tab' && drawerRef.current) {
+        const focusables = drawerRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+      previouslyFocused.current?.focus();
+    };
+  }, [mobileFilters]);
 
-  const handleNoResultsWhatsApp = (queryStr: string) => {
-    trackBookRequest(queryStr, 'catalogue');
-  };
+  const eyebrow = searchParam
+    ? 'RECHERCHE'
+    : active.category
+    ? 'RAYON ÉDITORIAL'
+    : active.author
+    ? 'AUTEUR'
+    : active.publisher
+    ? 'ÉDITEUR'
+    : newer
+    ? 'À DÉCOUVRIR'
+    : 'LE CATALOGUE';
 
   const title = searchParam
     ? `Résultats pour « ${searchParam} »`
     : active.category
     ? active.category
+    : active.author
+    ? `Livres de ${active.author}`
+    : active.publisher
+    ? `Éditions ${active.publisher}`
     : newer
     ? 'Nouveautés chez Al Furqan'
     : 'Le catalogue Al Furqan';
 
   const countDisplay = totalCount > 0 ? totalCount : initialProducts.length;
 
+  // At most one real editorial pause, and never on search/narrow/small results.
+  const showEditorialBreak =
+    !searchParam && !hasActive && collections.length > 0 && countDisplay >= EDITORIAL_BREAK_MIN_PRODUCTS;
+  const editorialCollection = showEditorialBreak ? collections[0] : null;
+  const breakInsertAt = 8; // after the second row at 4 columns
+
   return (
     <main className="catalogue-page">
-      <div className="breadcrumb">
+      <div className="pdp-breadcrumb">
         <Link href="/">Accueil</Link>
-        <ChevronDown size={14} />
+        <ChevronDown size={12} />
         <span>Catalogue</span>
       </div>
       <div className="catalogue-heading">
         <div>
-          <span className="eyebrow">LE CATALOGUE</span>
+          <span className="eyebrow">{eyebrow}</span>
           <h1>{title}</h1>
-          <p>
-            {countDisplay} ouvrage{countDisplay > 1 ? 's' : ''} répertorié{countDisplay > 1 ? 's' : ''}.
-          </p>
+          {countDisplay > 0 && (
+            <p>
+              {countDisplay} ouvrage{countDisplay > 1 ? 's' : ''} répertorié{countDisplay > 1 ? 's' : ''}.
+            </p>
+          )}
         </div>
         <div className="catalogue-actions">
-          <button className="mobile-filter-button" onClick={() => setMobileFilters(true)}>
-            Filtrer{' '}
-            {Object.values(active).filter(Boolean).length > 0 && (
-              <span>{Object.values(active).filter(Boolean).length}</span>
-            )}
+          <button
+            ref={filterTriggerRef}
+            className="mobile-filter-button"
+            onClick={() => setMobileFilters(true)}
+            aria-haspopup="dialog"
+          >
+            Filtrer {activeCount > 0 && <span>{activeCount}</span>}
           </button>
           <label className="sort-select">
             Trier par{' '}
@@ -131,20 +198,20 @@ export function CatalogueClient({
         </div>
       </div>
 
-      <div className="active-chips">
-        {Object.entries(active)
-          .filter(([, value]) => value)
-          .map(([key, value]) => (
-            <button key={key} onClick={() => setActive(key as FilterKey, '')}>
-              {value} <X size={13} />
-            </button>
-          ))}
-        {Object.values(active).some(Boolean) && (
-          <button onClick={clearAll} className="clear-chips">
+      {hasActive && (
+        <div className="active-filters">
+          {Object.entries(active)
+            .filter(([, value]) => value)
+            .map(([key, value]) => (
+              <button key={key} className="active-filter-chip" onClick={() => setActive(key as FilterKey, '')}>
+                {key === 'tajwid' ? (value === 'true' ? 'Avec Tajwid' : 'Sans Tajwid') : value} <X size={12} />
+              </button>
+            ))}
+          <button onClick={clearAll} className="active-filters-clear">
             Tout effacer
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="catalogue-layout">
         <Filters active={active} facets={facets} setActive={setActive} onClear={clearAll} />
@@ -152,70 +219,91 @@ export function CatalogueClient({
           {initialProducts.length ? (
             <>
               <div className="book-grid">
-                {initialProducts.map((product) => (
-                  <BookCard key={product.id} product={product} />
+                {initialProducts.map((product, i) => (
+                  <div key={product.id} style={editorialCollection && i === breakInsertAt ? { gridColumn: '1 / -1' } : undefined}>
+                    {editorialCollection && i === breakInsertAt && <CatalogueEditorialBreak collection={editorialCollection} />}
+                    <BookCard product={product} />
+                  </div>
                 ))}
               </div>
 
               {totalPages > 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 40 }}>
+                <nav className="pagination" aria-label="Pagination du catalogue">
                   <button
-                    className="button button-cream btn-sm"
+                    className="pagination-btn"
                     disabled={currentPage <= 1}
                     onClick={() => setPage(currentPage - 1)}
-                    style={{ opacity: currentPage <= 1 ? 0.4 : 1, padding: '8px 14px' }}
                   >
                     <ChevronLeft size={16} /> Précédent
                   </button>
-                  <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>
+                  <span className="pagination-status">
                     Page {currentPage} sur {totalPages}
                   </span>
                   <button
-                    className="button button-cream btn-sm"
+                    className="pagination-btn"
                     disabled={currentPage >= totalPages}
                     onClick={() => setPage(currentPage + 1)}
-                    style={{ opacity: currentPage >= totalPages ? 0.4 : 1, padding: '8px 14px' }}
                   >
                     Suivant <ChevronRight size={16} />
                   </button>
-                </div>
+                </nav>
               )}
             </>
           ) : (
             <div className="no-results">
               <span className="no-results-mark">⌕</span>
-              <h2>Aucun résultat pour « {searchParam || active.category || 'cette recherche'} »</h2>
-              <p>Essayez une recherche plus générale ou demandez cet ouvrage directement à Al Furqan.</p>
-              <a
-                className="button button-dark"
-                onClick={() => handleNoResultsWhatsApp(searchParam || active.category || 'catalogue-no-results')}
-                href={buildWhatsAppUrl(
-                  `Assalāmu ʿalaykum,\nje recherche l’ouvrage « ${
-                    searchParam || active.category || 'particulier'
-                  } ».\nL’avez-vous actuellement ou pouvez-vous l’obtenir ?`
+              <h2>Aucun résultat</h2>
+              <p>
+                {searchParam
+                  ? <>Aucun ouvrage ne correspond à « {searchParam} ».</>
+                  : 'Aucun ouvrage ne correspond à cette combinaison de filtres.'}
+              </p>
+              <div className="no-results-actions">
+                {hasActive && (
+                  <button className="button button-cream" onClick={clearAll}>
+                    Réinitialiser les filtres
+                  </button>
                 )}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <MessageCircle size={17} /> Demander cet ouvrage sur WhatsApp
-              </a>
+                <a
+                  className="button button-dark"
+                  onClick={() => handleNoResultsWhatsApp(searchParam || active.category || 'catalogue-no-results')}
+                  href={buildWhatsAppUrl(
+                    `Assalāmu ʿalaykum,\nje recherche l’ouvrage « ${
+                      searchParam || active.category || 'particulier'
+                    } ».\nL’avez-vous actuellement ou pouvez-vous l’obtenir ?`
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <MessageCircle size={17} /> Demander cet ouvrage sur WhatsApp
+                </a>
+              </div>
             </div>
           )}
         </div>
       </div>
 
       {mobileFilters && (
-        <div className="filter-overlay">
-          <div className="filter-sheet">
+        <div className="filter-overlay" onClick={() => setMobileFilters(false)}>
+          <div
+            className="filter-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Filtrer le catalogue"
+            ref={drawerRef}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="sheet-heading">
               <h2>Filtrer le catalogue</h2>
-              <button onClick={() => setMobileFilters(false)} aria-label="Fermer">
+              <button onClick={() => setMobileFilters(false)} aria-label="Fermer" data-autofocus>
                 <X />
               </button>
             </div>
-            <Filters active={active} facets={facets} setActive={setActive} onClear={clearAll} />
+            <div className="sheet-body">
+              <Filters active={active} facets={facets} setActive={setActive} onClear={clearAll} />
+            </div>
             <button className="button button-dark sheet-submit" onClick={() => setMobileFilters(false)}>
-              Afficher les résultats
+              Afficher {countDisplay} ouvrage{countDisplay > 1 ? 's' : ''}
             </button>
           </div>
         </div>

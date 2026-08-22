@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Search, X, ArrowRight } from 'lucide-react';
@@ -17,17 +17,74 @@ interface SuggestionState {
   themes: string[];
 }
 
+const RECENT_SEARCHES_KEY = 'af-recent-searches';
+const MAX_RECENT = 5;
+
+function readRecentSearches(): string[] {
+  try {
+    const raw = window.localStorage.getItem(RECENT_SEARCHES_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function pushRecentSearch(query: string) {
+  try {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    const existing = readRecentSearches().filter((q) => q.toLowerCase() !== trimmed.toLowerCase());
+    const next = [trimmed, ...existing].slice(0, MAX_RECENT);
+    window.localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
+  } catch {
+    // localStorage unavailable — silently skip, never blocks search
+  }
+}
+
 export function SearchPanel() {
   const { searchOpen, setSearchOpen } = useStore();
   const [value, setValue] = useState('');
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const router = useRouter();
 
   const [suggestions, setSuggestions] = useState<SuggestionState>({ products: [], authors: [], themes: [] });
   const [activeIndex, setActiveIndex] = useState(-1);
 
+  const inputRef = useRef<HTMLInputElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
+
+  // Global "/" shortcut — never fires while the visitor is already typing anywhere.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== '/' || searchOpen) return;
+      const el = document.activeElement;
+      const tag = el?.tagName;
+      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || (el as HTMLElement)?.isContentEditable;
+      if (isTyping) return;
+      e.preventDefault();
+      setSearchOpen(true);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [searchOpen, setSearchOpen]);
+
+  // Focus management: move focus in on open, restore it to whatever
+  // triggered the panel (header icon, hero search box, mobile menu...) on close.
+  useEffect(() => {
+    if (searchOpen) {
+      previouslyFocused.current = document.activeElement as HTMLElement;
+      setValue('');
+      setRecentSearches(readRecentSearches());
+      const timer = setTimeout(() => inputRef.current?.focus(), 0);
+      return () => clearTimeout(timer);
+    }
+    previouslyFocused.current?.focus();
+  }, [searchOpen]);
+
   useEffect(() => {
     setActiveIndex(-1);
-    
+
     let isMounted = true;
     const fetchSuggestions = async () => {
       if (!value.trim()) {
@@ -43,11 +100,11 @@ export function SearchPanel() {
         if (isMounted) setSuggestions({ products: [], authors: [], themes: [] });
       }
     };
-    
+
     const timer = setTimeout(() => {
       fetchSuggestions();
     }, 180);
-    
+
     return () => {
       isMounted = false;
       clearTimeout(timer);
@@ -62,9 +119,11 @@ export function SearchPanel() {
   const onClose = () => setSearchOpen(false);
 
   const onSubmit = () => {
-    if (value.trim()) {
+    const trimmed = value.trim();
+    if (trimmed) {
+      pushRecentSearch(trimmed);
       setSearchOpen(false);
-      router.push(`/catalogue?q=${encodeURIComponent(value.trim())}`);
+      router.push(`/catalogue?q=${encodeURIComponent(trimmed)}`);
     }
   };
 
@@ -83,6 +142,7 @@ export function SearchPanel() {
       e.preventDefault();
       if (activeIndex >= 0 && activeIndex < suggestions.products.length) {
         const p = suggestions.products[activeIndex];
+        pushRecentSearch(value);
         setSearchOpen(false);
         router.push(`/livres/${p.slug}`);
       } else {
@@ -94,12 +154,12 @@ export function SearchPanel() {
   };
 
   return (
-    <div className="search-panel" role="dialog" aria-label="Recherche d'ouvrages" onClick={onClose}>
+    <div className="search-panel" role="dialog" aria-modal="true" aria-label="Recherche d'ouvrages" onClick={onClose}>
       <div className="search-panel-inner" onClick={(e) => e.stopPropagation()}>
         <div className="search-line">
           <Search size={21} />
           <input
-            autoFocus
+            ref={inputRef}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -107,6 +167,11 @@ export function SearchPanel() {
             aria-label="Champ de recherche d'ouvrages"
             aria-controls="search-suggestions"
           />
+          {value && (
+            <button onClick={() => setValue('')} aria-label="Effacer la recherche" className="search-clear">
+              <X size={16} />
+            </button>
+          )}
           <button onClick={onClose} aria-label="Fermer la recherche">
             <X size={21} />
           </button>
@@ -120,7 +185,7 @@ export function SearchPanel() {
                   <Link
                     href={`/livres/${product.slug}`}
                     key={product.id}
-                    onClick={onClose}
+                    onClick={() => { pushRecentSearch(value); onClose(); }}
                     className={`suggestion-item ${activeIndex === i ? 'is-active' : ''}`}
                     role="option"
                     aria-selected={activeIndex === i}
@@ -129,7 +194,9 @@ export function SearchPanel() {
                     <span>
                       <strong>{product.title}</strong>
                       <small>
-                        {product.author} · {product.category}
+                        {product.author && product.author !== 'Auteur inconnu'
+                          ? `${product.author} · ${product.category}`
+                          : product.category}
                       </small>
                     </span>
                     <ArrowRight size={16} />
@@ -147,9 +214,7 @@ export function SearchPanel() {
                     className={`suggestion-item suggestion-text ${
                       activeIndex === suggestions.products.length + i ? 'is-active' : ''
                     }`}
-                    onClick={() => {
-                      setValue(author);
-                    }}
+                    onClick={() => setValue(author)}
                   >
                     <strong>{author}</strong>
                   </button>
@@ -166,9 +231,7 @@ export function SearchPanel() {
                     className={`suggestion-item suggestion-text ${
                       activeIndex === suggestions.products.length + suggestions.authors.length + i ? 'is-active' : ''
                     }`}
-                    onClick={() => {
-                      setValue(theme);
-                    }}
+                    onClick={() => setValue(theme)}
                   >
                     <strong>{theme}</strong>
                   </button>
@@ -177,22 +240,27 @@ export function SearchPanel() {
             )}
 
             {allItems.length === 0 ? (
-              <div className="empty-search" style={{ padding: '24px 16px', textAlign: 'center' }}>
-                <strong style={{ display: 'block', fontSize: 16, marginBottom: 6 }}>Aucun ouvrage trouvé pour « {value} »</strong>
-                <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>
+              <div className="empty-search">
+                <strong>Nous n&apos;avons pas trouvé cet ouvrage.</strong>
+                <p>
                   Cet ouvrage n&apos;est pas encore disponible en ligne. Vous pouvez transmettre votre demande directement à la librairie.
                 </p>
-                <a
-                  className="button button-dark"
-                  onClick={() => handleBookRequest(value)}
-                  href={buildWhatsAppUrl(
-                    `Assalāmu ʿalaykum,\nje recherche l’ouvrage « ${value} ».\nL’avez-vous actuellement en stock ou pouvez-vous l’obtenir ?`
-                  )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Demander cet ouvrage sur WhatsApp <ArrowRight size={16} />
-                </a>
+                <div className="empty-search-actions">
+                  <Link href="/catalogue" className="text-link" onClick={onClose}>
+                    Voir le catalogue
+                  </Link>
+                  <a
+                    className="button button-dark"
+                    onClick={() => handleBookRequest(value)}
+                    href={buildWhatsAppUrl(
+                      `Assalāmu ʿalaykum,\nje recherche l’ouvrage « ${value} ».\nL’avez-vous actuellement en stock ou pouvez-vous l’obtenir ?`
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Demander sur WhatsApp <ArrowRight size={16} />
+                  </a>
+                </div>
               </div>
             ) : (
               <button
@@ -203,16 +271,20 @@ export function SearchPanel() {
               </button>
             )}
           </div>
-        ) : (
+        ) : recentSearches.length > 0 ? (
           <div className="popular-search">
-            <span>Recherches populaires</span>
+            <span>Recherches récentes</span>
             <div>
-              {['Coran', 'Tafsir', 'Warsh', 'Arabe', 'Jeunesse', 'Hisn al-Muslim'].map((term) => (
+              {recentSearches.map((term) => (
                 <button key={term} onClick={() => setValue(term)}>
                   {term}
                 </button>
               ))}
             </div>
+          </div>
+        ) : (
+          <div className="search-quiet-empty">
+            <p>Recherchez un titre, un auteur, un thème ou un ISBN.</p>
           </div>
         )}
       </div>
