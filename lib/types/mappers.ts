@@ -101,6 +101,7 @@ export function dbProductToUi(
     author: dbProduct.authors?.name ?? 'Auteur inconnu',
     authorId: dbProduct.author_id ?? undefined,
     authorSlug: dbProduct.authors?.slug ?? undefined,
+    authorBio: dbProduct.authors?.bio ?? undefined,
     publisher: dbProduct.publishers?.name ?? '',
     publisherId: dbProduct.publisher_id ?? undefined,
     publisherSlug: dbProduct.publishers?.slug ?? undefined,

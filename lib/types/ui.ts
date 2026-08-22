@@ -35,6 +35,7 @@ export type Product = {
   author: string;
   authorId?: string;
   authorSlug?: string;
+  authorBio?: string;
   publisher: string;
   publisherId?: string;
   publisherSlug?: string;

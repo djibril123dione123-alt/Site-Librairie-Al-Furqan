@@ -3,18 +3,26 @@
 import { useState, useEffect } from 'react';
 import { MessageCircle, ShoppingBag, Heart, Check } from 'lucide-react';
 import type { Product, Variant } from '@/lib/types/ui';
-import { buildWhatsAppUrl } from '@/lib/al-furqan-data';
+import { buildWhatsAppUrl, formatPrice } from '@/lib/al-furqan-data';
 import { useStore } from '../providers';
 import { VariantSelector } from './variant-selector';
+import { StockBadge } from './stock-badge';
+import { ProductTrustStrip } from './product-trust-strip';
 import { MobileStickyCta } from './mobile-sticky-cta';
 import { WhatsAppLink } from './whatsapp-link';
 
+/**
+ * The full purchase panel: price, availability, variant choice, primary CTA,
+ * wishlist, delivery trust and the WhatsApp secondary action. Built with
+ * spacing/alignment only — no wrapping "card" surface.
+ */
 export function ProductActions({ product }: { product: Product }) {
   const [selected, setSelected] = useState<Variant | undefined>(product.variants?.[0]);
   const [added, setAdded] = useState(false);
   const { addToCart, toggleWish, isWished } = useStore();
   const wished = isWished(product.id);
   const price = selected?.price || product.price;
+  const isUnavailable = product.availability === 'Indisponible temporairement';
 
   useEffect(() => {
     if (added) {
@@ -24,12 +32,14 @@ export function ProductActions({ product }: { product: Product }) {
   }, [added]);
 
   return (
-    <>
+    <div className="pdp-purchase">
+      <div className="pdp-price">{formatPrice(price)}</div>
+      <StockBadge availability={product.availability} />
+
       <VariantSelector product={product} selected={selected} onChange={setSelected} />
-      
-      {/* Desktop/Tablet Actions */}
-      <div className="product-actions hidden md:flex">
-        {product.availability === 'Indisponible temporairement' ? (
+
+      <div className="pdp-purchase-actions hidden md:flex">
+        {isUnavailable ? (
           <WhatsAppLink
             href={buildWhatsAppUrl(
               `Assalāmu ʿalaykum,\nje suis intéressé(e) par « ${product.title} ».\nPouvez-vous me prévenir lors du prochain arrivage ?`
@@ -60,15 +70,30 @@ export function ProductActions({ product }: { product: Product }) {
           className={`wish-large ${wished ? 'is-wished' : ''}`}
           onClick={() => toggleWish(product.id)}
           aria-pressed={wished}
+          aria-label={wished ? `Retirer ${product.title} de ma sélection` : `Ajouter ${product.title} à ma sélection`}
         >
-          <Heart size={18} fill={wished ? 'currentColor' : 'none'} className="wish-icon" style={{ transition: 'transform 0.2s cubic-bezier(0.22, 1, 0.36, 1)' }} />{' '}
+          <Heart size={18} fill={wished ? 'currentColor' : 'none'} className="wish-icon" />
           {wished ? 'Dans ma sélection' : 'Ma sélection'}
         </button>
       </div>
 
-      {/* Mobile Sticky CTA */}
+      <ProductTrustStrip />
+
+      <div className="whatsapp-product">
+        <MessageCircle size={17} />
+        <span>
+          Une question sur cette édition ?{' '}
+          <WhatsAppLink
+            href={buildWhatsAppUrl(`Assalāmu ʿalaykum,\nje souhaite des informations sur « ${product.title} ».`)}
+            productId={product.id}
+          >
+            Écrire sur WhatsApp
+          </WhatsAppLink>
+        </span>
+      </div>
+
+      {/* Mobile sticky CTA */}
       <MobileStickyCta product={product} selected={selected} />
-    </>
+    </div>
   );
 }
-

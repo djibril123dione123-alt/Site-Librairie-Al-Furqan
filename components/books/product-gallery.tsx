@@ -1,37 +1,102 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { ProductCoverImage } from './product-cover-image';
 import { Cover } from './cover';
 import type { Product } from '@/lib/types/ui';
 import { BookOpen, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export function ProductGallery({ product }: { product: Product }) {
+export interface ProductGalleryHandle {
+  /** Opens the same lightbox, filtered to inside/toc pages — the one canonical Feuilleter entry point. */
+  openFeuilleter: () => void;
+}
+
+function typeLabel(type?: string) {
+  if (type === 'cover') return 'Couverture';
+  if (type === 'back') return 'Dos';
+  if (type === 'spine') return 'Tranche';
+  if (type === 'inside') return 'Intérieur';
+  if (type === 'toc') return 'Sommaire';
+  return 'Image';
+}
+
+export const ProductGallery = forwardRef<ProductGalleryHandle, { product: Product }>(function ProductGallery(
+  { product },
+  ref
+) {
+  const images = product.images || [];
+  const leafableImages = images.filter((img) => img.type === 'inside' || img.type === 'toc');
+  const hasLeafablePages = leafableImages.length > 0;
+
   const [activeIdx, setActiveIdx] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [feuilleterMode, setFeuilleterMode] = useState(false);
 
-  const images = product.images || [];
-  const leafableImages = images.filter((img) => img.type === 'inside' || img.type === 'toc');
+  // Two-layer ping-pong crossfade for the main stage image — avoids both a
+  // blank flash (remount) and an abrupt cut (plain src swap on one <img>).
+  const [layerAIdx, setLayerAIdx] = useState(0);
+  const [layerBIdx, setLayerBIdx] = useState(0);
+  const [showA, setShowA] = useState(true);
+  useEffect(() => {
+    if (showA) setLayerBIdx(activeIdx);
+    else setLayerAIdx(activeIdx);
+    setShowA((prev) => !prev);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIdx]);
+
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
+  const touchStartX = useRef<number | null>(null);
+
   const activeImages = feuilleterMode ? leafableImages : images;
+
+  const closeLightbox = useCallback(() => {
+    setLightboxOpen(false);
+    setFeuilleterMode(false);
+  }, []);
+
+  const openFeuilleter = useCallback(() => {
+    if (!hasLeafablePages) return;
+    setFeuilleterMode(true);
+    setActiveIdx(0);
+    setLightboxOpen(true);
+  }, [hasLeafablePages]);
+
+  const openLightbox = useCallback((index: number) => {
+    setFeuilleterMode(false);
+    setActiveIdx(index);
+    setLightboxOpen(true);
+  }, []);
+
+  useImperativeHandle(ref, () => ({ openFeuilleter }), [openFeuilleter]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (!lightboxOpen) return;
       if (e.key === 'Escape') {
-        setLightboxOpen(false);
-        setFeuilleterMode(false);
+        closeLightbox();
       } else if (e.key === 'ArrowRight') {
-        if (activeImages.length > 1) {
-          setActiveIdx((i) => (i + 1) % activeImages.length);
-        }
+        if (activeImages.length > 1) setActiveIdx((i) => (i + 1) % activeImages.length);
       } else if (e.key === 'ArrowLeft') {
-        if (activeImages.length > 1) {
-          setActiveIdx((i) => (i - 1 + activeImages.length) % activeImages.length);
+        if (activeImages.length > 1) setActiveIdx((i) => (i - 1 + activeImages.length) % activeImages.length);
+      } else if (e.key === 'Tab' && dialogRef.current) {
+        const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
         }
       }
     },
-    [lightboxOpen, activeImages.length]
+    [lightboxOpen, activeImages.length, closeLightbox]
   );
 
   useEffect(() => {
@@ -39,10 +104,33 @@ export function ProductGallery({ product }: { product: Product }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  // Focus management: move focus into the dialog on open, restore it on close.
+  useEffect(() => {
+    if (lightboxOpen) {
+      previouslyFocused.current = document.activeElement as HTMLElement;
+      closeButtonRef.current?.focus();
+    } else if (previouslyFocused.current) {
+      previouslyFocused.current.focus();
+      previouslyFocused.current = null;
+    }
+  }, [lightboxOpen]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || images.length <= 1) return;
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(delta) < 40) return;
+    if (delta < 0) setActiveIdx((i) => (i + 1) % images.length);
+    else setActiveIdx((i) => (i - 1 + images.length) % images.length);
+  };
+
   if (images.length <= 1 && !product.coverUrl) {
     return (
       <div className="product-gallery">
-        <div className="gallery-main">
+        <div className="gallery-stage gallery-main">
           <Cover product={product} />
         </div>
         <div className="gallery-caption">
@@ -52,127 +140,89 @@ export function ProductGallery({ product }: { product: Product }) {
     );
   }
 
-  const activeImg = images[activeIdx] || { url: product.coverUrl, type: 'cover' };
-  const hasLeafablePages = leafableImages.length > 0;
-
-  const openFeuilleter = () => {
-    setFeuilleterMode(true);
-    setActiveIdx(0);
-    setLightboxOpen(true);
-  };
-
-  const openLightbox = (index: number) => {
-    setFeuilleterMode(false);
-    setActiveIdx(index);
-    setLightboxOpen(true);
-  };
-
-  const isRemoteActive = Boolean(activeImg.url && (activeImg.url.startsWith('http') || activeImg.url.startsWith('/')));
+  const activeImg = images[activeIdx] || { url: product.coverUrl, type: 'cover' as const };
 
   return (
     <div className="product-gallery">
+      {images.length > 1 && (
+        <div className="gallery-thumbnails" role="tablist" aria-label="Images du produit">
+          {images.map((img, i) => (
+            <button
+              key={img.id || i}
+              type="button"
+              role="tab"
+              aria-selected={activeIdx === i}
+              className={`gallery-thumb ${activeIdx === i ? 'active' : ''}`}
+              onClick={() => setActiveIdx(i)}
+              title={typeLabel(img.type)}
+              aria-label={typeLabel(img.type)}
+            >
+              <ProductCoverImage src={img.url} alt={typeLabel(img.type)} fill sizes="48px" style={{ objectFit: 'contain' }} />
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="gallery-stage gallery-main">
-        {activeImg.url ? (
-          <button 
-            type="button" 
-            className="gallery-image-button" 
-            onClick={() => openLightbox(activeIdx)}
-            aria-label="Agrandir l'image"
-          >
+        <button
+          type="button"
+          className="gallery-image-button"
+          onClick={() => openLightbox(activeIdx)}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          aria-label={`Agrandir l'image — ${typeLabel(activeImg.type)}`}
+        >
+          <span className={`gallery-crossfade-layer ${showA ? 'is-visible' : ''}`}>
             <ProductCoverImage
-              src={activeImg.url}
-              alt={activeImg.alt || `Photo de ${product.title}`}
+              src={images[layerAIdx]?.url || product.coverUrl}
+              alt={`Photo de ${product.title}`}
               fill
-              sizes="(max-width: 768px) 100vw, 450px"
+              sizes="(max-width: 768px) 90vw, 480px"
               className="gallery-product-image"
-              style={{ objectFit: 'contain', padding: '10%' }}
+              style={{ objectFit: 'contain' }}
               priority
             />
-          </button>
-        ) : (
-          <div className="gallery-image-button" onClick={() => openLightbox(activeIdx)}>
-            <div className="gallery-product-image" style={{ width: '230px', height: '370px' }}>
-              <Cover product={product} />
-            </div>
+          </span>
+          <span className={`gallery-crossfade-layer ${!showA ? 'is-visible' : ''}`}>
+            <ProductCoverImage
+              src={images[layerBIdx]?.url || product.coverUrl}
+              alt={`Photo de ${product.title}`}
+              fill
+              sizes="(max-width: 768px) 90vw, 480px"
+              className="gallery-product-image"
+              style={{ objectFit: 'contain' }}
+            />
+          </span>
+        </button>
+
+        {images.length > 1 && (
+          <div className="gallery-dots" aria-hidden="true">
+            {images.map((_, i) => (
+              <span key={i} className={`gallery-dot ${activeIdx === i ? 'active' : ''}`} />
+            ))}
           </div>
         )}
 
         {hasLeafablePages && (
-          <button
-            type="button"
-            className="button button-cream btn-sm floating-feuilleter"
-            style={{ position: 'absolute', bottom: 20, right: 20, padding: '10px 18px', fontSize: 13, zIndex: 10, boxShadow: 'var(--shadow-premium)', fontWeight: 600 }}
-            onClick={openFeuilleter}
-          >
+          <button type="button" className="button button-cream btn-sm floating-feuilleter" onClick={openFeuilleter}>
             <BookOpen size={16} className="icon-feuilleter" /> Feuilleter l&apos;édition
           </button>
         )}
       </div>
 
-      {images.length > 1 && (
-        <div className="gallery-thumbnails" style={{ display: 'flex', gap: 16, marginTop: 24, justifyContent: 'center' }}>
-          {images.slice(0, 5).map((img, i) => {
-            const isLastVisible = i === 4;
-            const remainingCount = images.length - 5;
-            
-            let typeLabel = "Image";
-            if (img.type === 'cover') typeLabel = "Couverture";
-            if (img.type === 'back') typeLabel = "Dos";
-            if (img.type === 'spine') typeLabel = "Tranche";
-            if (img.type === 'inside') typeLabel = "Intérieur";
-            if (img.type === 'toc') typeLabel = "Sommaire";
-
-            return (
-              <button
-                key={i}
-                type="button"
-                className={`gallery-thumb ${activeIdx === i ? 'active' : ''}`}
-                onClick={() => isLastVisible && remainingCount > 0 ? openLightbox(i) : setActiveIdx(i)}
-                title={typeLabel}
-                aria-label={typeLabel}
-                style={{
-                  width: 72,
-                  height: 96,
-                  position: 'relative',
-                  flexShrink: 0,
-                  background: 'var(--paper)',
-                  borderRadius: 6
-                }}
-              >
-                <ProductCoverImage
-                  src={img.url}
-                  alt={`Miniature ${i + 1}`}
-                  fill
-                  sizes="64px"
-                  style={{ objectFit: 'contain', padding: '10%' }}
-                />
-                
-                {isLastVisible && remainingCount > 0 && (
-                  <div style={{
-                    position: 'absolute', inset: 0, background: 'rgba(9, 30, 36, 0.65)', 
-                    color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: 'var(--font-serif)', fontSize: 18, borderRadius: 6
-                  }}>
-                    +{remainingCount}
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Lightbox / Feuilleter modal */}
       {lightboxOpen && (
-        <div className="lightbox-overlay" onClick={() => { setLightboxOpen(false); setFeuilleterMode(false); }}>
-          <button
-            className="lightbox-close"
-            onClick={() => { setLightboxOpen(false); setFeuilleterMode(false); }}
-            aria-label="Fermer l'aperçu"
-          >
-            <X size={32} />
+        <div
+          className="lightbox-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label={feuilleterMode ? `Feuilleter ${product.title}` : `Galerie — ${product.title}`}
+          ref={dialogRef}
+          onClick={closeLightbox}
+        >
+          <button ref={closeButtonRef} className="lightbox-close" onClick={closeLightbox} aria-label="Fermer l'aperçu">
+            <X size={28} />
           </button>
-          
+
           <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
             <div className="lightbox-image-wrap">
               {activeImages.length > 1 && (
@@ -198,6 +248,7 @@ export function ProductGallery({ product }: { product: Product }) {
 
               {activeImages[activeIdx]?.url ? (
                 <ProductCoverImage
+                  key={activeIdx}
                   src={activeImages[activeIdx].url}
                   alt="Aperçu grand format"
                   fill
@@ -205,36 +256,29 @@ export function ProductGallery({ product }: { product: Product }) {
                   style={{ objectFit: 'contain' }}
                 />
               ) : (
-                <div style={{ transform: 'scale(1.5)' }} className="animate-fade" key="cover">
+                <div style={{ transform: 'scale(1.5)' }} className="animate-fade">
                   <Cover product={product} />
                 </div>
               )}
             </div>
 
             {feuilleterMode && (
-              <div style={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginTop: 24, fontSize: 13, letterSpacing: '0.05em' }}>
+              <div className="lightbox-caption">
                 Extrait / Sommaire — Page {activeIdx + 1} sur {activeImages.length}
               </div>
             )}
-            
+
             {activeImages.length > 1 && (
               <div className="lightbox-thumbs">
                 {activeImages.map((img, i) => (
                   <button
-                    key={i}
+                    key={img.id || i}
                     type="button"
                     className={`lightbox-thumb ${activeIdx === i ? 'active' : ''}`}
-                    style={{ width: 48, height: 64, background: 'var(--surface)' }}
                     onClick={() => setActiveIdx(i)}
                     aria-label={`Voir la miniature ${i + 1}`}
                   >
-                    <ProductCoverImage
-                      src={img.url}
-                      alt={`Miniature ${i + 1}`}
-                      fill
-                      sizes="48px"
-                      style={{ objectFit: 'contain' }}
-                    />
+                    <ProductCoverImage src={img.url} alt={`Miniature ${i + 1}`} fill sizes="48px" style={{ objectFit: 'contain' }} />
                   </button>
                 ))}
               </div>
@@ -244,4 +288,4 @@ export function ProductGallery({ product }: { product: Product }) {
       )}
     </div>
   );
-}
+});
