@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { BookOpen, X, MessageCircle } from 'lucide-react';
+import { BookOpen, X, MessageCircle, Search, Heart, ShoppingBag } from 'lucide-react';
 import { buildWhatsAppUrl } from '@/lib/al-furqan-data';
 import { useStore } from '../providers';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { seedCategories } from '@/lib/dev/seed-products';
 
 export function MobileMenu() {
-  const { menuOpen, setMenuOpen } = useStore();
+  const { menuOpen, setMenuOpen, setSearchOpen, setCartOpen, cartCount, wishlistCount } = useStore();
   const [categories, setCategories] = useState<string[]>([]);
   
   useEffect(() => {
@@ -54,25 +54,37 @@ export function MobileMenu() {
           <Link href="/catalogue" onClick={() => setMenuOpen(false)}>
             Catalogue
           </Link>
-          <Link href="/catalogue?nouveautes=1" onClick={() => setMenuOpen(false)}>
-            Nouveautés
-          </Link>
           <Link href="/collections" onClick={() => setMenuOpen(false)}>
-            Sélections
+            Collections
           </Link>
-          <Link href="/selection" onClick={() => setMenuOpen(false)}>
-            Ma sélection
-          </Link>
-          <Link href="/livraison" onClick={() => setMenuOpen(false)}>
-            Livraison
+          <Link href="/catalogue?categorie=Coran" onClick={() => setMenuOpen(false)}>
+            Corans
           </Link>
           <Link href="/a-propos" onClick={() => setMenuOpen(false)}>
             À propos
           </Link>
-          <Link href="/contact" onClick={() => setMenuOpen(false)}>
-            Contact
-          </Link>
         </nav>
+        <div className="mobile-menu-actions">
+          <button
+            onClick={() => {
+              setMenuOpen(false);
+              setSearchOpen(true);
+            }}
+          >
+            <Search size={18} /> Rechercher
+          </button>
+          <Link href="/selection" onClick={() => setMenuOpen(false)}>
+            <Heart size={18} /> Ma sélection {wishlistCount > 0 && <i>{wishlistCount}</i>}
+          </Link>
+          <button
+            onClick={() => {
+              setMenuOpen(false);
+              setCartOpen(true);
+            }}
+          >
+            <ShoppingBag size={18} /> Panier {cartCount > 0 && <i>{cartCount}</i>}
+          </button>
+        </div>
         <div className="mobile-menu-categories">
           <strong>Catégories</strong>
           {categories.slice(0, 6).map((cat) => (

@@ -79,6 +79,13 @@
   --motion-editorial: 560ms;
   --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
   --easing: var(--ease-premium); /* Legacy fallback */
+
+  /* Header + sticky offset — one canonical value shared by the header's
+     scrolled height and every sticky element that pins beneath it (PDP
+     gallery column, catalogue filter rail), so they can never diverge. */
+  --header-top-height: 88px;
+  --header-scrolled-height: 64px;
+  --sticky-offset: 96px;
 }
 
 /* Border language: separation is preferred in this order —
@@ -107,11 +114,15 @@ input, select, textarea { border: 1px solid var(--line); border-radius: var(--ra
 input:hover, select:hover, textarea:hover { border-color: #c0b8ac; }
 input::placeholder, textarea::placeholder { color: #a19a8d; }
 
-/* Header */
-.site-header { position: sticky; top: 0; z-index: 30; background: var(--paper); border-bottom: 1px solid transparent; transition: background var(--motion-base) var(--ease-premium), border-color var(--motion-base) var(--ease-premium), box-shadow var(--motion-base) var(--ease-premium); }
-.site-header.is-scrolled { background: rgba(251, 249, 244, 0.7); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(222,215,202,0.4); box-shadow: 0 4px 20px rgba(17, 42, 50, 0.04); }
-.header-inner { max-width: 1280px; margin: auto; padding: 24px 32px; display: flex; align-items: center; gap: 46px; transition: padding var(--motion-base) var(--ease-premium); }
-.site-header.is-scrolled .header-inner { padding: 12px 32px; }
+/* Header — top state is transparent/page-like and generous (~88px);
+   past 20px scroll it becomes denser (~64px) with a warm translucent
+   surface and a quiet separator. No glassmorphism: it simply gets
+   denser, using --header-scrolled-height/--sticky-offset (see :root)
+   so PDP/catalogue sticky panels never drift out of sync with it. */
+.site-header { position: sticky; top: 0; z-index: 30; background: transparent; border-bottom: 1px solid transparent; transition: background var(--motion-base) var(--ease-premium), border-color var(--motion-base) var(--ease-premium), box-shadow var(--motion-base) var(--ease-premium); }
+.site-header.is-scrolled { background: rgba(251, 249, 244, 0.82); backdrop-filter: blur(14px); border-bottom: 1px solid rgba(222,215,202,0.5); box-shadow: var(--shadow-floating-header); }
+.header-inner { max-width: 1280px; margin: auto; padding: 0 32px; height: var(--header-top-height); display: flex; align-items: center; gap: 46px; transition: height var(--motion-base) var(--ease-premium); }
+.site-header.is-scrolled .header-inner { height: var(--header-scrolled-height); }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 180px; }
 .brand strong { display: block; font-family: var(--font-serif), Georgia, serif; font-size: 22px; font-weight: 500; letter-spacing: -0.02em; }
 .brand small { display: block; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .15em; margin-top: 2px; }
@@ -126,7 +137,7 @@ input::placeholder, textarea::placeholder { color: #a19a8d; }
 .header-actions { display: flex; align-items: center; gap: 18px; }
 .header-action { border: 0; background: none; color: var(--ink); display: flex; gap: 8px; align-items: center; font-size: 12px; position: relative; padding: 7px 0; }
 .header-action i { font-style: normal; background: var(--gold); color: white; border-radius: 20px; min-width: 17px; height: 17px; display: grid; place-items: center; font-size: 10px; position: absolute; top: -4px; right: -12px; }
-.mobile-menu { display: none; border: 0; background: none; }
+.mobile-menu { display: none; border: 0; background: none; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; }
 
 /* Typography — editorial serif (Fraunces) for identity/titles only,
    Inter carries every transactional/functional role. Never mix the two
@@ -167,51 +178,116 @@ h1, h2 { font-weight: 500; }
 .text-link:hover::after { background: var(--gold); }
 .text-link:hover { color: var(--gold); }
 
-/* Hero */
-.hero { max-width: 1280px; min-height: 640px; margin: auto; padding: 80px 32px 80px; display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 50px; }
+/* Hero — "nature morte asymétrique": one real book, generously scaled,
+   never a three-book decorative composition. Copy ~42%, book stage ~58%. */
+.hero { max-width: 1280px; min-height: 600px; margin: auto; padding: 72px 32px; display: grid; grid-template-columns: 0.75fr 1fr; align-items: center; gap: 56px; }
 .hero h1 { font-size: clamp(44px, 5.5vw, 72px); margin: 22px 0; max-width: 580px; }
 .hero h1 em, h2 em, .collection-hero h1 em { color: var(--gold); font-style: italic; }
-.hero-copy > p { color: var(--muted); max-width: 460px; font-size: 16px; line-height: 1.7; }
+.hero-copy > p { color: var(--muted); max-width: 440px; font-size: 16px; line-height: 1.7; }
 .hero-actions { display: flex; gap: 12px; margin: 30px 0 22px; flex-wrap: wrap; }
-.hero-notes { display: flex; gap: 20px; color: #718078; font-size: 12px; flex-wrap: wrap; }
-.hero-notes span { display: flex; align-items: center; gap: 6px; }
-.hero-notes svg { color: var(--gold); }
-.hero-search { margin-top: 40px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); display: flex; align-items: center; gap: 12px; padding: 14px 16px; width: min(100%, 500px); color: #8a918c; text-align: left; font-size: 13px; transition: border-color .2s, box-shadow .2s; }
+.hero-search { margin-top: 8px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); display: flex; align-items: center; gap: 12px; padding: 14px 16px; width: min(100%, 460px); color: #8a918c; text-align: left; font-size: 13px; transition: border-color .2s, box-shadow .2s; }
 .hero-search:hover { border-color: var(--gold); box-shadow: var(--shadow-md); }
 .hero-search svg { color: var(--gold); }
 .hero-search .search-key { margin-left: auto; border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; font-size: 10px; color: #99a09a; }
-.hero-books { min-height: 500px; position: relative; display: flex; justify-content: center; align-items: center; }
-.hero-circle { width: 380px; height: 380px; border-radius: 50%; background: var(--cream); position: absolute; }
-.hero-book { position: absolute; transition: transform .3s ease; }
-.hero-book:hover { transform: translateY(-6px) rotate(-1deg); }
-.hero-book .cover { width: 170px; height: 270px; }
-.hero-book-0 { transform: translate(-100px, 60px) rotate(-12deg); z-index: 2; }
-.hero-book-1 { transform: translate(100px, 50px) rotate(12deg); z-index: 1; }
-.hero-book-2 { transform: translate(0, -80px) rotate(2deg); z-index: 3; }
-.hero-caption { position: absolute; bottom: 18px; right: 30px; font-family: var(--font-serif); font-style: italic; font-size: 13px; color: #66756f; line-height: 1.5; }
+
+.hero-copy { animation: hero-copy-in var(--motion-editorial) var(--ease-premium) both; }
+.hero-stage { animation: hero-stage-in var(--motion-editorial) var(--ease-premium) 80ms both; min-height: 460px; display: flex; align-items: center; justify-content: center; }
+@keyframes hero-copy-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes hero-stage-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+.hero-book-link { display: block; }
+.hero-book-stage { min-height: 460px; padding: 0; }
+.hero-book-stage .cover, .hero-book-stage .cover-real { width: 270px; height: 400px; }
+
+.hero-brand-mark { display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; color: var(--ink); }
+.hero-brand-arabic { font-family: var(--font-serif), 'Traditional Arabic', serif; font-size: 64px; color: var(--gold); line-height: 1; }
+.hero-brand-caption { font-family: var(--font-serif); font-style: italic; font-size: 14px; color: var(--muted); line-height: 1.6; }
 
 /* Main sections */
 main { overflow: hidden; }
-.quick-search { max-width: 1280px; margin: auto; padding: 64px 32px; display: flex; align-items: center; justify-content: space-between; gap: 40px; border-top: 1px solid var(--line); }
-.quick-search h2 { font-size: 34px; margin: 12px 0 6px; }
-.quick-search p { margin: 0; color: var(--muted); font-size: 13px; }
 .search-box { width: min(100%, 500px); display: flex; align-items: center; gap: 12px; background: #f6f2ea; border: 0; border-radius: var(--radius); padding: 18px; color: #7f8983; text-align: left; font-size: 13px; transition: background .2s; }
 .search-box:hover { background: #f0ebe0; }
 .search-box svg:first-child { color: var(--gold); }
 .search-box svg:last-child { margin-left: auto; color: var(--ink); }
 
-.category-section, .products-section, .social-section, .delivery-section, .about-section { max-width: 1280px; margin: auto; padding: 80px 32px; }
+.products-section, .social-section { max-width: 1280px; margin: auto; padding: 80px 32px; }
 .section-title { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px; gap: 20px; }
 .section-title h2 { margin: 10px 0 0; font-size: 38px; }
 
-/* Categories */
-.category-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); }
-.category-pill { padding: 22px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 14px; transition: background .2s; }
-.category-pill:hover { background: var(--cream); }
-.category-pill span { color: var(--gold); font-size: 10px; }
-.category-pill strong { font-family: var(--font-serif); font-size: 17px; flex: 1; font-weight: 500; }
-.category-pill svg { opacity: 0; transition: opacity .2s; }
-.category-pill:hover svg { opacity: 1; }
+/* Homepage rhythm — full-bleed background bands with centred content,
+   same technique as .editorial-band/.footer: padding carries both the
+   edge-to-edge colour and the ~1216px content measure, no extra wrapper. */
+.home-band { padding: 88px max(32px, calc((100vw - 1216px) / 2)); }
+.home-band-alt { background: var(--surface-alt); }
+.home-band .section-title { max-width: 1216px; margin: 0 auto 32px; }
+.home-band .discovery-rail, .home-band .category-tile-grid { max-width: 1216px; margin: 0 auto; }
+
+/* Discovery rail — desktop grid, mobile horizontal scroll-snap. Cards stay
+   full BookCard size (Phase B); nothing is shrunk into a thumbnail. */
+.discovery-rail { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; }
+/* Real catalogue is still small — a sparse grid (< 4 items) would leave an
+   obvious empty gap on the right instead of feeling like a deliberate
+   editorial selection, so it switches to left-aligned fixed-width items. */
+.discovery-rail.is-compact { display: flex; flex-wrap: wrap; }
+.discovery-rail.is-compact .discovery-item { width: 260px; flex: 0 0 auto; }
+
+/* Quran discovery — editorial, typography-led. No Hafs/Warsh/Tajwid
+   comparison cards: the live data has null reading/tajwid on every real
+   product today, so a facet-style comparison would show unbacked options. */
+.home-band-quran { background: var(--paper); display: flex; align-items: center; justify-content: center; gap: 64px; text-align: left; }
+.quran-arabic { font-family: var(--font-serif), 'Traditional Arabic', serif; font-size: 96px; color: var(--gold); line-height: 1; opacity: .9; flex-shrink: 0; }
+.quran-copy { max-width: 480px; }
+.quran-copy h2 { font-size: clamp(34px, 4.4vw, 50px); margin: 16px 0; }
+.quran-copy p { color: var(--muted); font-size: 15px; line-height: 1.7; margin-bottom: 26px; max-width: 420px; }
+
+/* Category tiles — dense editorial beat replacing the old pill row.
+   Typography-led: no fabricated category photography (none exists yet). */
+.category-tile-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.category-tile { background: var(--bg); padding: 28px 22px; display: flex; flex-direction: column; gap: 18px; min-height: 128px; transition: background .2s; }
+.category-tile:hover { background: var(--surface-alt); }
+.category-tile-index { color: var(--gold); font-size: 11px; letter-spacing: .1em; }
+.category-tile strong { font-family: var(--font-serif); font-size: 19px; font-weight: 500; flex: 1; }
+.category-tile-meta { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
+.category-tile-count { font-variant-numeric: tabular-nums; }
+.category-tile-meta svg { color: var(--gold); opacity: 0; transition: opacity .2s, transform .2s; }
+.category-tile:hover .category-tile-meta svg { opacity: 1; transform: translateX(3px); }
+
+/* Trust / confidence beat — one combined section, one dark background
+   moment on the homepage (see spec: never make every second section dark). */
+.home-band-deep { background: var(--deep); color: var(--paper); }
+.trust-band { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px 64px; max-width: 1216px; margin: 0 auto; }
+.trust-copy h2 { font-size: clamp(32px, 4vw, 44px); margin: 16px 0; color: var(--paper); }
+.trust-copy p { color: #c5cbc2; font-size: 14px; line-height: 1.7; max-width: 420px; margin-bottom: 18px; }
+.trust-copy .text-link { color: var(--paper); }
+.trust-copy .text-link::after { background: rgba(244,239,229,.3); }
+.trust-copy .text-link:hover { color: var(--gold); }
+.trust-facts { display: flex; flex-direction: column; gap: 14px; justify-content: center; border-left: 1px solid rgba(244,239,229,.16); padding-left: 32px; }
+.trust-facts span { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #d7dcd3; }
+.trust-facts svg { color: var(--gold); flex-shrink: 0; }
+.trust-whatsapp { grid-column: 1 / -1; border-top: 1px solid rgba(244,239,229,.16); margin-top: 12px; padding-top: 32px; display: flex; align-items: center; justify-content: space-between; gap: 30px; flex-wrap: wrap; }
+.trust-whatsapp p { color: #c5cbc2; font-size: 13px; max-width: 460px; margin: 6px 0 0; }
+.trust-whatsapp .button-light { border-color: rgba(244,239,229,.35); color: var(--paper); }
+.trust-whatsapp .button-light:hover { border-color: var(--gold); color: var(--gold); }
+.trust-about-link { grid-column: 1 / -1; color: #9fb0a8; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; margin-top: 22px; width: fit-content; }
+.trust-about-link:hover { color: var(--gold); }
+
+/* Immersive collection feature — real book covers only, never a
+   fabricated background image. Omitted entirely (see app/page.tsx) when
+   no published collection with real products exists. */
+.home-collection { padding: 96px max(32px, calc((100vw - 1216px) / 2)); background: var(--surface-alt); display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 60px; }
+.home-collection-copy h2 { font-size: clamp(36px, 4.6vw, 52px); margin: 16px 0; }
+.home-collection-copy p { color: var(--muted); font-size: 15px; line-height: 1.7; max-width: 420px; margin-bottom: 26px; }
+.home-collection-stack { position: relative; height: 320px; display: flex; align-items: center; justify-content: center; }
+.home-collection-stack .cover { position: absolute; width: 150px; height: 240px; }
+.home-collection-stack .cover:nth-child(1) { left: 30%; transform: translateX(-100%) rotate(-9deg); }
+.home-collection-stack .cover:nth-child(2) { z-index: 2; }
+.home-collection-stack .cover:nth-child(3) { left: 70%; transform: rotate(9deg); }
+
+/* Scroll-reveal — one shared behaviour for every homepage section
+   (components/home/reveal.tsx). Reduced motion is handled by the global
+   catch-all rule further down, not duplicated here. */
+.reveal { opacity: 0; transform: translateY(16px); transition: opacity var(--motion-editorial) var(--ease-premium), transform var(--motion-editorial) var(--ease-premium); }
+.reveal.is-visible { opacity: 1; transform: translateY(0); }
 
 /* Book grid & cards — the book is the only object with visual presence
    here; the stage that holds it is a positioning area, never a card. */
@@ -288,22 +364,6 @@ main { overflow: hidden; }
 .editorial-books > div:nth-child(2) { z-index: 2; transform: translateY(-20px); }
 .editorial-books > div:nth-child(3) { transform: rotate(10deg) translateX(-30px); }
 
-/* Coran callout */
-.coran-callout { max-width: 1216px; margin: 90px auto; background: #e7eee7; min-height: 400px; padding: 65px; display: grid; grid-template-columns: 1fr 1fr; align-items: center; position: relative; overflow: hidden; border-radius: var(--radius); }
-.callout-orbit { position: absolute; width: 520px; height: 520px; border: 1px solid rgba(16,47,56,.14); border-radius: 50%; right: -80px; top: -50px; }
-.callout-orbit:before, .callout-orbit:after { content: ''; position: absolute; border: 1px solid rgba(16,47,56,.12); border-radius: 50%; inset: 35px; }
-.callout-orbit:after { inset: 80px; }
-.callout-copy { position: relative; z-index: 1; }
-.callout-copy h2 { color: var(--ink); }
-.callout-copy p { color: #60706a; }
-.callout-facts { position: relative; z-index: 1; margin-left: auto; width: 230px; }
-.callout-facts div { display: flex; flex-direction: column; border-bottom: 1px solid rgba(16,47,56,.2); padding: 16px 0; }
-.callout-facts strong { font-family: var(--font-serif); font-size: 24px; font-weight: 500; }
-.callout-facts span { font-size: 11px; color: #6b7c73; margin-top: 4px; }
-
-/* Restocked section */
-.restocked { border-top: 1px solid var(--line); }
-
 /* Social section */
 .social-section { display: grid; grid-template-columns: .8fr 1.2fr; gap: 70px; }
 .social-heading h2 { font-family: var(--font-serif); font-size: 44px; line-height: 1.05; font-weight: 500; margin: 18px 0; }
@@ -316,22 +376,6 @@ main { overflow: hidden; }
 .video-three { background: linear-gradient(150deg, #947069, #263f47 70%); }
 .video-card span:last-child { font-family: var(--font-serif); font-size: 19px; line-height: 1.15; font-weight: 500; }
 .play { width: 36px; height: 36px; border: 1px solid rgba(255,255,255,.6); border-radius: 50%; display: grid; place-items: center; font-size: 11px; }
-
-/* Delivery section */
-.delivery-section { border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: 50px; }
-.delivery-section h2, .request-section h2, .about-section h2 { font-size: 40px; margin: 16px 0; }
-.delivery-content { padding-top: 28px; }
-.delivery-content p, .request-section p, .about-section p { color: var(--muted); line-height: 1.7; font-size: 14px; max-width: 440px; }
-.delivery-list { display: flex; gap: 10px; flex-wrap: wrap; margin: 22px 0; }
-.delivery-list span { border: 1px solid var(--line); padding: 10px 12px; display: inline-flex; gap: 8px; align-items: center; font-size: 11px; border-radius: var(--radius); }
-.delivery-list svg { color: var(--gold); }
-
-/* Request section */
-.request-section { background: var(--cream); padding: 72px max(32px, calc((100vw - 1216px) / 2)); display: flex; align-items: center; justify-content: space-between; gap: 40px; }
-
-/* About section */
-.about-section { display: grid; grid-template-columns: 180px 1fr; align-items: center; gap: 55px; }
-.about-mark { width: 140px; height: 140px; border: 1px solid var(--gold); color: var(--gold); display: grid; place-items: center; border-radius: 50%; font-family: var(--font-serif); font-size: 34px; font-weight: 500; }
 
 /* Footer */
 .footer { background: var(--deep); color: var(--paper); padding: 65px max(32px, calc((100vw - 1216px) / 2)) 25px; }
@@ -415,7 +459,7 @@ main { overflow: hidden; }
 
 /* Sticky filter rail — editorial rhythm: whitespace and a small selection
    dot instead of boxed accordions, heavy checkboxes or dashboard filters. */
-.filters { position: sticky; top: 96px; }
+.filters { position: sticky; top: var(--sticky-offset); }
 .filter-top { display: flex; justify-content: space-between; align-items: center; padding: 0 0 16px; font-size: 12px; font-weight: 600; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
 .filter-top button { border: 0; background: none; color: var(--gold); font-size: 11px; font-weight: 600; }
 .filter-empty { padding: 16px 0; font-size: 13px; color: var(--muted); }
@@ -459,7 +503,7 @@ main { overflow: hidden; }
 .pdp { padding-bottom: 96px; overflow: visible; }
 
 .pdp-overture { max-width: 1280px; margin: 0 auto; padding: 24px 32px 0; display: grid; grid-template-columns: 0.92fr 1fr; gap: 88px; align-items: start; }
-.pdp-gallery-col { position: sticky; top: 96px; }
+.pdp-gallery-col { position: sticky; top: var(--sticky-offset); }
 .pdp-info-col { min-width: 0; }
 
 .pdp-eyebrow { text-decoration: none; display: inline-block; }
@@ -617,9 +661,14 @@ main { overflow: hidden; }
 .mobile-menu-panel { width: min(320px, 100%); height: 100%; background: var(--paper); padding: 22px 20px; overflow-y: auto; animation: menu-in .25s ease-out; }
 .mobile-menu-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
 .mobile-menu-header button { border: 0; background: none; color: var(--muted); }
-.mobile-menu-nav { display: flex; flex-direction: column; gap: 14px; margin-bottom: 28px; }
+.mobile-menu-nav { display: flex; flex-direction: column; gap: 14px; margin-bottom: 8px; }
 .mobile-menu-nav a { font-family: var(--font-serif); font-size: 18px; font-weight: 500; }
 .mobile-menu-nav a:hover { color: var(--gold); }
+.mobile-menu-actions { display: flex; flex-direction: column; gap: 4px; padding: 18px 0; border-top: 1px solid var(--line); margin-bottom: 8px; }
+.mobile-menu-actions a, .mobile-menu-actions button { display: flex; align-items: center; gap: 10px; min-height: 44px; border: 0; background: none; color: var(--ink); font-size: 14px; font-weight: 500; text-align: left; }
+.mobile-menu-actions a:hover, .mobile-menu-actions button:hover { color: var(--gold); }
+.mobile-menu-actions svg { color: var(--gold); }
+.mobile-menu-actions i { font-style: normal; background: var(--gold); color: white; border-radius: 20px; min-width: 17px; height: 17px; display: grid; place-items: center; font-size: 10px; }
 .mobile-menu-categories { display: flex; flex-direction: column; gap: 10px; padding-top: 18px; border-top: 1px solid var(--line); }
 .mobile-menu-categories strong { font-size: 10px; text-transform: uppercase; letter-spacing: .15em; color: var(--gold); margin-bottom: 4px; }
 .mobile-menu-categories a { font-size: 13px; color: var(--muted); }
@@ -706,29 +755,39 @@ main { overflow: hidden; }
   .header-actions { margin-left: auto; gap: 14px; }
   .mobile-menu { display: block; }
   .header-action { padding: 4px; }
-  .hero { grid-template-columns: 1fr; padding: 50px 20px 60px; min-height: auto; gap: 30px; }
+  /* Hero recomposed for mobile: the book leads (order:-1), not a scaled
+     copy of the desktop two-column layout. H1 stays first in the DOM for
+     reading order/SEO; only the visual order changes. */
+  .hero { display: flex; flex-direction: column; padding: 40px 20px 56px; min-height: auto; gap: 28px; }
   .hero h1 { font-size: clamp(40px, 10vw, 60px); }
-  .hero-books { min-height: 380px; margin-top: 10px; }
-  .quick-search { display: block; padding: 50px 20px; }
+  .hero-stage { order: -1; min-height: auto; }
+  .hero-book-stage { min-height: auto; }
   .search-box { margin-top: 22px; }
-  .category-section, .products-section, .social-section, .delivery-section, .about-section { padding: 55px 20px; }
-  .category-grid { grid-template-columns: repeat(2, 1fr); }
+  .products-section, .social-section { padding: 55px 20px; }
+  .home-band { padding: 56px 20px; }
   .book-grid { grid-template-columns: repeat(2, 1fr); gap: 22px 14px; }
+  .discovery-rail { grid-template-columns: repeat(2, 1fr); gap: 18px 14px; }
+  .category-tile-grid { grid-template-columns: repeat(2, 1fr); }
   .book-stage { min-height: 260px; padding: 18px 14px; }
   .book-stage .cover { width: 120px; height: 195px; }
+  /* Placed after the generic .book-stage .cover rule above — equal
+     specificity, so source order decides, and the hero must win here. */
+  .hero-book-stage .cover, .hero-book-stage .cover-real { width: 280px; height: 415px; }
   .section-title h2 { font-size: 30px; }
   .editorial-band { grid-template-columns: 1fr; padding: 55px 20px; gap: 45px; }
   .editorial-books .cover { width: 115px; height: 185px; }
-  .coran-callout { margin: 50px 20px; padding: 45px 22px; grid-template-columns: 1fr; gap: 28px; }
-  .callout-facts { margin: 0; width: 100%; display: flex; gap: 14px; }
-  .callout-facts div { flex: 1; }
+  .home-band-quran { flex-direction: column; text-align: center; gap: 28px; }
+  .quran-arabic { font-size: 60px; }
+  .quran-copy p { margin-left: auto; margin-right: auto; }
   .social-section { grid-template-columns: 1fr; gap: 28px; }
   .video-card { min-height: 240px; }
-  .delivery-section { grid-template-columns: 1fr; gap: 0; }
-  .delivery-content { padding-top: 0; }
-  .request-section { padding: 50px 20px; display: block; }
-  .request-section .button { margin-top: 18px; }
-  .about-section { grid-template-columns: 1fr; gap: 22px; }
+  .trust-band { grid-template-columns: 1fr; gap: 30px; }
+  .trust-facts { border-left: 0; padding-left: 0; border-top: 1px solid rgba(244,239,229,.16); padding-top: 24px; }
+  .trust-whatsapp { display: block; }
+  .trust-whatsapp .button-light { margin-top: 18px; width: 100%; justify-content: center; }
+  .home-collection { grid-template-columns: 1fr; padding: 56px 20px; gap: 36px; }
+  .home-collection-stack { height: 260px; }
+  .home-collection-stack .cover { width: 120px; height: 195px; }
   .footer { padding: 50px 20px 20px; }
   .footer-main { grid-template-columns: 1fr 1fr; gap: 30px; }
   .footer-brand { grid-column: 1 / -1; }
@@ -777,9 +836,8 @@ main { overflow: hidden; }
 @media (max-width: 520px) {
   .brand strong { font-size: 19px; }
   .brand small { display: none; }
-  .hero-books { transform: scale(.82); margin: -15px -30px; }
-  .hero-caption { right: 20px; bottom: 0; }
   .hero-search { margin-top: 30px; }
+  .quran-arabic { font-size: 46px; }
   .section-title { align-items: flex-start; flex-direction: column; }
   .section-title h2 { font-size: 28px; }
   .book-title { font-size: 15px; }
@@ -788,6 +846,9 @@ main { overflow: hidden; }
   .add-mini { font-size: 11px; }
   .book-stage { min-height: 270px; padding: 12px 10px; }
   .book-stage .cover { width: 148px; height: 238px; }
+  /* Placed after the generic .book-stage .cover rule above — equal
+     specificity, so source order decides, and the hero must win here. */
+  .hero-book-stage .cover, .hero-book-stage .cover-real { width: 285px; height: 422px; }
   .footer-main { grid-template-columns: 1fr 1fr; }
   .footer-bottom { display: block; line-height: 1.8; }
   .video-grid { grid-template-columns: 1fr 1fr; }
