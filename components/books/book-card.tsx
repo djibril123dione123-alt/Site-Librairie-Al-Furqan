@@ -2,19 +2,24 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Heart, Plus, ChevronRight, Check } from 'lucide-react';
+import { Plus, ChevronRight, Check } from 'lucide-react';
 import type { Product } from '@/lib/types/ui';
 import { formatPrice } from '@/lib/al-furqan-data';
-import { Cover } from './cover';
+import { BookStage } from './book-stage';
+import { WishlistButton } from './wishlist-button';
 import { useStore } from '../providers';
 
 export function BookCard({ product }: { product: Product }) {
   const [added, setAdded] = useState(false);
-  const { addToCart, toggleWish, isWished } = useStore();
-  
+  const { addToCart } = useStore();
+
   const unavailable = product.availability === 'Indisponible temporairement';
-  const wished = isWished(product.id);
+  const lowStock = product.availability === 'Derniers exemplaires';
+  const restocked = product.availability === 'De retour en stock';
   const hasVariants = Boolean(product.variants && product.variants.length > 0);
+  // "Auteur inconnu" is a data-layer placeholder (see lib/types/mappers.ts), not a
+  // real credit — never present it to the reader as if it were verified information.
+  const hasKnownAuthor = Boolean(product.author && product.author !== 'Auteur inconnu');
 
   useEffect(() => {
     if (added) {
@@ -25,25 +30,20 @@ export function BookCard({ product }: { product: Product }) {
 
   return (
     <article className="book-card">
-      <div className="book-image-wrap">
+      <div className="book-stage">
         <Link href={`/livres/${product.slug}`} aria-label={`Voir la fiche de ${product.title}`}>
-          <Cover product={product} />
+          <BookStage product={product} interactive />
         </Link>
-        <button
-          className={`wish-button ${wished ? 'is-wished' : ''}`}
-          onClick={() => toggleWish(product.id)}
-          aria-label={wished ? 'Retirer de ma sélection' : 'Ajouter à ma sélection'}
-          aria-pressed={wished}
-        >
-          <Heart size={17} fill={wished ? 'currentColor' : 'none'} className="wish-icon" style={{ transition: 'transform 0.2s cubic-bezier(0.22, 1, 0.36, 1)' }} />
-        </button>
+        <WishlistButton productId={product.id} title={product.title} />
       </div>
       <div className="book-copy">
         <span className="book-category">{product.category}</span>
         <Link href={`/livres/${product.slug}`} className="book-title">
           {product.title}
         </Link>
-        <span className="book-author">{product.author}</span>
+        {hasKnownAuthor && <span className="book-author">{product.author}</span>}
+        {lowStock && <span className="stock-low-text">Derniers exemplaires</span>}
+        {restocked && <span className="stock-restocked-text">De retour en stock</span>}
         <div className="book-bottom">
           <strong>{formatPrice(product.price)}</strong>
           {unavailable ? (

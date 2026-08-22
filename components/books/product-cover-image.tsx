@@ -48,9 +48,9 @@ export function ProductCoverImage({
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'center', 
-          backgroundColor: 'var(--cream)', 
+          backgroundColor: 'var(--cream)',
           color: 'var(--muted)',
-          border: '1px solid var(--border-soft)'
+          border: '1px solid var(--line)'
         }}
       >
         <ImageIcon size={32} opacity={0.3} />
