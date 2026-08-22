@@ -583,7 +583,12 @@ main { overflow: hidden; }
 .gallery-image-button { position: relative; width: 100%; height: 400px; display: flex; justify-content: center; align-items: center; cursor: zoom-in; outline: none; background: transparent; border: none; padding: 0; }
 .gallery-crossfade-layer { position: absolute; inset: 0; opacity: 0; transition: opacity 240ms var(--ease-premium), transform 280ms var(--ease-premium); }
 .gallery-crossfade-layer.is-visible { opacity: 1; }
-.gallery-product-image { filter: drop-shadow(0 15px 25px rgba(9, 30, 36, 0.1)) drop-shadow(0 5px 10px rgba(9, 30, 36, 0.06)); }
+/* Matches --shadow-book-lg's direction/character (upper-left light, tight
+   contact shadow) instead of the previous soft, symmetric, top-down
+   drop-shadow — which read as a floating photo card rather than a book
+   resting on the stage, especially since the source photo's own opaque
+   near-white background is close in tone to --surface-alt. */
+.gallery-product-image { filter: drop-shadow(-4px 14px 28px rgba(9, 30, 36, 0.18)) drop-shadow(-1px 3px 6px rgba(9, 30, 36, 0.1)); }
 
 @media (hover: hover) and (pointer: fine) {
   .gallery-image-button:hover .gallery-crossfade-layer.is-visible { transform: translateY(-4px); }
@@ -920,7 +925,11 @@ main { overflow: hidden; }
   .filter-sheet .filters { display: block; position: static; padding: 8px 0; }
   .sheet-submit { width: 100%; min-height: 48px; flex-shrink: 0; margin: 0; border-radius: 0; }
   .pdp-overture { padding: 20px 20px 0; gap: 32px; }
-  .product-gallery { flex-direction: column-reverse; }
+  /* align-items:flex-start (base rule, correct for the desktop row layout)
+     does not stretch width on the cross-axis of a column-reverse container,
+     so the stage — which has no explicit width and only absolutely
+     positioned children — was collapsing to 0px. Restore stretch here. */
+  .product-gallery { flex-direction: column-reverse; align-items: stretch; }
   .gallery-thumbnails { flex-direction: row; width: auto; max-height: none; overflow-x: auto; overflow-y: visible; }
   .gallery-image-button { height: 340px; }
   .gallery-main .cover { width: 200px; height: 320px; }
