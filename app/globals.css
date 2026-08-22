@@ -601,16 +601,126 @@ main { overflow: hidden; }
 .gallery-dot.active { background: var(--gold); width: 14px; border-radius: 3px; }
 @media (min-width: 769px) { .gallery-dots { display: none; } }
 
-/* Collection page */
-.collection-hero { max-width: 1280px; margin: 60px auto 80px; min-height: 400px; background: var(--deep); color: var(--paper); padding: 70px 80px; display: flex; justify-content: space-between; align-items: center; overflow: hidden; border-radius: var(--radius); }
-.collection-hero h1 { font-size: clamp(44px, 5.5vw, 72px); max-width: 600px; margin: 18px 0; }
-.collection-hero p { max-width: 380px; color: #c7cec8; line-height: 1.65; }
-.collection-stack { width: 280px; height: 280px; position: relative; margin-right: 40px; flex-shrink: 0; }
-.collection-stack .cover { position: absolute; width: 120px; height: 195px; }
-.collection-stack .cover:nth-child(1) { left: 0; bottom: 0; transform: rotate(-12deg); }
-.collection-stack .cover:nth-child(2) { left: 80px; top: 0; z-index: 2; transform: rotate(1deg); }
-.collection-stack .cover:nth-child(3) { right: 0; bottom: 10px; transform: rotate(11deg); }
-.collection-products { max-width: 1216px; margin: auto; padding: 0 0 90px; }
+/* ====================================================================
+   Editorial ecosystem — E2 (collections / categories / auteurs /
+   éditeurs / à propos). Shared shell first, then per-entity treatments.
+   ==================================================================== */
+
+/* Shared breadcrumb — quieter language than the legacy inline-styled
+   breadcrumbs it replaces across every entity page. */
+.editorial-breadcrumb { max-width: 1216px; margin: auto; padding: 28px 32px 0; display: flex; flex-wrap: wrap; gap: 6px; color: var(--muted); font-size: 11px; }
+.editorial-breadcrumb-item { display: inline-flex; align-items: center; gap: 6px; }
+.editorial-breadcrumb a:hover { color: var(--gold); }
+.editorial-breadcrumb-current { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 600; }
+
+/* Shared quiet empty state — replaces the bordered white "SaaS card"
+   pattern repeated across every legacy entity page. */
+.editorial-empty { max-width: 460px; margin: 40px auto; padding: 40px 20px; text-align: center; }
+.editorial-empty-mark { display: block; font-size: 22px; color: var(--gold); margin-bottom: 14px; }
+.editorial-empty h2 { font-size: 22px; margin: 0 0 10px; }
+.editorial-empty p { color: var(--muted); font-size: 14px; line-height: 1.7; margin: 0 0 24px; }
+
+/* Entity detail pages (category / author / publisher) — dense, compact,
+   books start soon. Not another Catalogue clone. */
+.entity-page { max-width: 1216px; margin: auto; padding: 28px 32px 96px; }
+.entity-header { padding: 24px 0 8px; max-width: 720px; }
+.entity-header h1 { font-size: clamp(30px, 4.4vw, 46px); margin: 10px 0 8px; text-wrap: balance; }
+.entity-header-meta { display: block; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; margin-bottom: 12px; }
+.entity-header p { color: var(--muted); font-size: 15px; line-height: 1.7; max-width: 620px; }
+.entity-catalogue-link { display: inline-flex; margin: 4px 0 32px; }
+
+.entity-book-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; margin-top: 8px; }
+.entity-book-grid.is-compact { display: flex; flex-wrap: wrap; }
+.entity-book-grid.is-compact .entity-book-item { width: 260px; flex: 0 0 auto; }
+.entity-books-more { margin-top: 28px; }
+
+/* Entity index pages (categories / auteurs / éditeurs) */
+.entity-index-page { max-width: 1216px; margin: auto; padding: 28px 32px 96px; }
+.entity-index-header { padding: 24px 0 40px; max-width: 640px; }
+.entity-index-header h1 { font-size: clamp(32px, 4.6vw, 50px); margin: 10px 0 10px; }
+.entity-index-header p { color: var(--muted); font-size: 15px; line-height: 1.6; }
+.entity-cross-links { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--line); }
+
+/* Categories directory — dense, typographic, no pills/no bordered cards. */
+.category-directory { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.category-directory-item { background: var(--bg); padding: 26px 24px; display: flex; flex-direction: column; gap: 16px; justify-content: space-between; min-height: 108px; transition: background .2s; }
+.category-directory-item:hover { background: var(--surface-alt); }
+.category-directory-item strong { font-family: var(--font-serif); font-size: 19px; font-weight: 500; text-wrap: balance; }
+.category-directory-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--muted); }
+.category-directory-count { font-variant-numeric: tabular-nums; }
+.category-directory-meta svg { color: var(--gold); }
+
+/* Authors directory — person-led, pure typography, no avatar/portrait UI. */
+.author-directory { border-top: 1px solid var(--line); }
+.author-directory-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 4px; border-bottom: 1px solid var(--line); min-height: 44px; }
+.author-directory-row:hover strong { color: var(--gold); }
+.author-directory-row strong { font-family: var(--font-serif); font-size: 19px; font-weight: 500; transition: color .2s; }
+.author-directory-meta { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.author-directory-meta svg { color: var(--gold); }
+
+/* Publishers directory — edition-house-led, a small strip of real
+   covers distinguishes it from the author directory's pure typography. */
+.publisher-directory { border-top: 1px solid var(--line); }
+.publisher-directory-row { display: flex; align-items: center; gap: 24px; padding: 22px 4px; border-bottom: 1px solid var(--line); }
+.publisher-directory-row:hover .publisher-directory-info strong { color: var(--gold); }
+.publisher-directory-info { flex: 1; min-width: 0; }
+.publisher-directory-info strong { display: block; font-family: var(--font-serif); font-size: 19px; font-weight: 500; transition: color .2s; }
+.publisher-directory-meta { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.publisher-directory-covers { display: flex; gap: 8px; flex-shrink: 0; }
+.publisher-directory-covers .cover-small { width: 40px; height: 60px; }
+.publisher-directory-arrow { color: var(--gold); flex-shrink: 0; }
+
+/* Collections index — immersive editorial features, alternating
+   composition. Never a repeat(auto-fill, minmax(320px,1fr)) card grid. */
+.collections-list { display: flex; flex-direction: column; gap: 8px; }
+.collection-feature-block { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 60px; align-items: center; padding: 64px 0; border-bottom: 1px solid var(--line); }
+.collection-feature-block.is-reversed { direction: rtl; }
+.collection-feature-block.is-reversed > * { direction: ltr; }
+.collection-feature-copy h2 { font-size: clamp(30px, 3.8vw, 44px); margin: 14px 0; text-wrap: balance; }
+.collection-feature-copy p { color: var(--muted); font-size: 15px; line-height: 1.7; max-width: 460px; margin-bottom: 8px; }
+.collection-feature-count { display: block; color: var(--muted); font-size: 12px; margin-bottom: 22px; font-variant-numeric: tabular-nums; }
+.collection-feature-media { display: flex; align-items: center; justify-content: center; gap: 24px; min-height: 300px; }
+.collection-feature-mark { font-size: 40px; color: var(--gold); }
+.collection-strip { display: flex; align-items: center; gap: 20px; padding: 26px 0; border-bottom: 1px solid var(--line); }
+.collection-strip-copy { flex: 1; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.collection-strip-copy strong { font-family: var(--font-serif); font-size: 20px; font-weight: 500; }
+.collection-strip-count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.collection-strip svg { color: var(--gold); flex-shrink: 0; }
+
+/* Collection detail — a short digital editorial feature, not a filtered
+   product grid. Media is a controlled, non-overlapping small shelf. */
+.collection-detail-page { max-width: 1216px; margin: auto; padding: 0 32px 96px; }
+.collection-detail-hero { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 60px; align-items: center; padding: 40px 0 64px; }
+.collection-detail-copy h1 { font-size: clamp(34px, 4.6vw, 54px); margin: 14px 0; text-wrap: balance; }
+.collection-detail-copy p { color: var(--muted); font-size: 16px; line-height: 1.75; max-width: 500px; }
+.collection-detail-media { display: flex; align-items: center; justify-content: center; gap: 20px; min-height: 320px; }
+.collection-detail-books { padding-top: 8px; }
+.collection-detail-books-heading { display: flex; align-items: baseline; gap: 14px; margin-bottom: 28px; }
+.collection-detail-books-heading h2 { font-size: 26px; margin: 0; }
+.collection-detail-count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.collection-detail-cta { margin-top: 48px; padding-top: 28px; border-top: 1px solid var(--line); }
+
+/* About page — factual identity, not invented brand mythology. */
+.about-page { max-width: 900px; margin: auto; padding: 0 32px 96px; }
+.about-hero { padding: 40px 0 56px; }
+.about-hero h1 { font-size: clamp(36px, 5vw, 56px); margin: 14px 0; text-wrap: balance; }
+.about-hero p { color: var(--muted); font-size: 16px; line-height: 1.75; max-width: 560px; }
+.about-taxonomy, .about-ordering, .about-delivery, .about-contact { padding: 44px 0; border-top: 1px solid var(--line); }
+.about-taxonomy h2, .about-ordering h2, .about-delivery h2 { font-size: 26px; margin: 0 0 24px; }
+.about-taxonomy-list { display: flex; flex-wrap: wrap; gap: 10px 28px; }
+.about-taxonomy-list a { color: var(--muted); font-size: 14px; }
+.about-taxonomy-list a:hover { color: var(--gold); }
+.about-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+.about-step-number { display: block; color: var(--gold); font-family: var(--font-serif); font-size: 22px; margin-bottom: 10px; }
+.about-step strong { display: block; font-size: 16px; margin-bottom: 8px; }
+.about-step p { color: var(--muted); font-size: 13px; line-height: 1.65; margin: 0; }
+.about-delivery { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: start; }
+.about-delivery p { color: var(--muted); font-size: 14px; line-height: 1.7; max-width: 420px; }
+.about-delivery-facts { display: flex; flex-direction: column; gap: 12px; }
+.about-delivery-facts span { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink); }
+.about-delivery-facts svg { color: var(--gold); }
+.about-contact { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.about-contact p { margin: 6px 0 0; color: var(--ink); font-size: 15px; }
 
 /* Cart */
 .cart-heading { max-width: 1080px; margin: auto; padding: 60px 32px 30px; display: flex; justify-content: space-between; align-items: flex-end; }
@@ -817,10 +927,24 @@ main { overflow: hidden; }
   .pdp-title { font-size: 32px; }
   .pdp-story-modules { margin-top: 40px; gap: 36px; }
   .related { padding-left: 20px; padding-right: 20px; }
-  .collection-hero { margin: 35px 20px 55px; padding: 45px 22px; display: block; }
-  .collection-hero h1 { font-size: 44px; }
-  .collection-stack { margin: 40px auto 0; }
-  .collection-products { padding: 0 20px 60px; }
+  /* Editorial ecosystem — entity/index/collections/about at mobile */
+  .editorial-breadcrumb, .entity-page, .entity-index-page, .collection-detail-page { padding-left: 20px; padding-right: 20px; }
+  .about-page { padding-left: 20px; padding-right: 20px; }
+  .entity-book-grid { grid-template-columns: repeat(2, 1fr); gap: 18px 14px; }
+  .category-directory { grid-template-columns: repeat(2, 1fr); }
+  .collection-feature-block, .collection-feature-block.is-reversed { grid-template-columns: 1fr; direction: ltr; gap: 28px; padding: 44px 0; }
+  .collection-feature-media { min-height: auto; }
+  .collection-feature-media .cover { width: 130px; height: 210px; }
+  .collection-strip { flex-wrap: wrap; }
+  .collection-detail-hero { grid-template-columns: 1fr; gap: 28px; padding: 28px 0 44px; }
+  .collection-detail-media { min-height: auto; }
+  .collection-detail-media .cover { width: 130px; height: 210px; }
+  .publisher-directory-row { flex-wrap: wrap; gap: 14px; }
+  .publisher-directory-covers .cover-small { width: 36px; height: 54px; }
+  .about-steps { grid-template-columns: 1fr; gap: 24px; }
+  .about-delivery { grid-template-columns: 1fr; gap: 24px; }
+  .about-contact { display: block; }
+  .about-contact .button { margin-top: 16px; width: 100%; justify-content: center; }
   .cart-layout { display: block; padding: 0 20px 60px; }
   .cart-summary { margin-top: 30px; }
   .cart-line { grid-template-columns: 56px 1fr auto; gap: 12px; }

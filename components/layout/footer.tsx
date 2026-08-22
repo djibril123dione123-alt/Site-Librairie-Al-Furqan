@@ -21,9 +21,10 @@ export function Footer() {
           <h4>Explorer</h4>
           <Link href="/catalogue">Catalogue</Link>
           <Link href="/catalogue?nouveautes=1">Nouveautés</Link>
-          <Link href="/collections/mieux-comprendre-le-coran">Collections</Link>
-          <Link href="/catalogue?categorie=Coran">Coran</Link>
-          <Link href="/catalogue?categorie=Arabe">Arabe</Link>
+          <Link href="/collections">Collections</Link>
+          <Link href="/categories">Catégories</Link>
+          <Link href="/auteurs">Auteurs</Link>
+          <Link href="/editeurs">Éditeurs</Link>
         </div>
         <div>
           <h4>La librairie</h4>

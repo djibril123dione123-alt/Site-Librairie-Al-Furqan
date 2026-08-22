@@ -1,24 +1,23 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronDown } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { getSiteUrl } from '@/lib/al-furqan-data';
 import { getCollectionBySlug } from '@/lib/data/collections';
 import { getProducts } from '@/lib/data/products';
 import { Cover } from '@/components/books/cover';
-import { SectionTitle } from '@/components/ui/section-title';
 import { BookCard } from '@/components/books/book-card';
+import { EditorialBreadcrumb } from '@/components/editorial/breadcrumb';
+import { EditorialEmptyState } from '@/components/editorial/empty-state';
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const collection = await getCollectionBySlug(params.slug);
   if (!collection) return {};
 
   return {
-    title: `${collection.title} — Librairie Al Furqan`,
+    title: collection.title,
     description: collection.description,
-    alternates: {
-      canonical: `/collections/${collection.slug}`,
-    },
+    alternates: { canonical: `/collections/${collection.slug}` },
     openGraph: {
       title: collection.title,
       description: collection.description,
@@ -29,53 +28,61 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 
 export default async function CollectionPage({ params }: { params: { slug: string } }) {
   const collection = await getCollectionBySlug(params.slug);
-  
-  if (!collection) {
-    notFound();
-  }
+  if (!collection) notFound();
 
-  const collectionProducts = await getProducts({ collection: collection.slug });
-  const countText = `${collectionProducts.length} ouvrage${collectionProducts.length > 1 ? 's' : ''} dans cette sélection.`;
+  const products = await getProducts({ collection: collection.slug });
+  const countLabel = products.length > 0 ? `${products.length} ouvrage${products.length > 1 ? 's' : ''}` : null;
 
   return (
-    <main className="collection-page">
-      <nav aria-label="Fil d'Ariane" className="breadcrumb">
-        <Link href="/">Accueil</Link>
-        <ChevronDown size={14} />
-        <Link href="/collections">Collections</Link>
-        <ChevronDown size={14} />
-        <span>{collection.title}</span>
-      </nav>
-      <div className="collection-hero">
-        <div>
+    <main className="collection-detail-page">
+      <EditorialBreadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Collections', href: '/collections' }, { label: collection.title }]} />
+
+      <section className="collection-detail-hero">
+        <div className="collection-detail-copy">
           <span className="eyebrow">{collection.eyebrow}</span>
           <h1>{collection.title}</h1>
           <p>{collection.description}</p>
         </div>
-        {collectionProducts.length > 0 && (
-          <div className="collection-stack">
-            {collectionProducts.map((p) => (
+        {products.length > 0 && (
+          <div className="collection-detail-media">
+            {products.slice(0, 3).map((p) => (
               <Cover key={p.id} product={p} />
             ))}
           </div>
         )}
-      </div>
-      <section className="collection-products">
-        <SectionTitle eyebrow="LA SÉLECTION AL FURQAN" title={countText} />
-        {collectionProducts.length > 0 ? (
-          <div className="book-grid">
-            {collectionProducts.map((product) => (
-              <BookCard key={product.id} product={product} />
+      </section>
+
+      <section className="collection-detail-books">
+        <div className="collection-detail-books-heading">
+          <h2>La sélection</h2>
+          {countLabel && <span className="collection-detail-count">{countLabel}</span>}
+        </div>
+
+        {products.length > 0 ? (
+          <div className={`entity-book-grid ${products.length < 4 ? 'is-compact' : ''}`}>
+            {products.map((product) => (
+              <div className="entity-book-item" key={product.id}>
+                <BookCard product={product} />
+              </div>
             ))}
           </div>
         ) : (
-          <div style={{ textAlign: 'center', padding: '40px 20px', background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--line)' }}>
-            <p style={{ color: 'var(--muted)', fontSize: 14 }}>
-              Aucun ouvrage n&apos;est actuellement assigné à cette collection.
-            </p>
-          </div>
+          <EditorialEmptyState
+            title="Sélection en préparation"
+            body="Aucun ouvrage n'est actuellement assigné à cette collection."
+            ctaLabel="Voir le catalogue"
+            ctaHref="/catalogue"
+          />
         )}
       </section>
+
+      {products.length > 0 && (
+        <div className="collection-detail-cta">
+          <Link href="/catalogue" className="text-link">
+            Découvrir tout le catalogue <ArrowRight size={16} />
+          </Link>
+        </div>
+      )}
     </main>
   );
 }
