@@ -97,11 +97,16 @@ export function Header() {
             <span>Ma sélection</span>
             {wishlistCount > 0 && <i>{wishlistCount}</i>}
           </Link>
-          <button onClick={() => setCartOpen(true)} className="header-action cart-link" aria-label="Panier">
+          <button onClick={() => setCartOpen(true)} className="header-action cart-link cart-link-desktop" aria-label="Panier">
             <ShoppingBag size={18} />
             <span>Panier</span>
             {cartCount > 0 && <i>{cartCount}</i>}
           </button>
+          <Link href="/panier" className="header-action cart-link cart-link-mobile" aria-label="Panier">
+            <ShoppingBag size={18} />
+            <span>Panier</span>
+            {cartCount > 0 && <i>{cartCount}</i>}
+          </Link>
           <button className="mobile-menu" aria-label="Ouvrir le menu" onClick={() => setMenuOpen(true)}>
             <Menu size={22} />
           </button>

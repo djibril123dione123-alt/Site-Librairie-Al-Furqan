@@ -9,7 +9,7 @@ import { createBrowserClient } from '@/lib/supabase/client';
 import { seedCategories } from '@/lib/dev/seed-products';
 
 export function MobileMenu() {
-  const { menuOpen, setMenuOpen, setSearchOpen, setCartOpen, cartCount, wishlistCount } = useStore();
+  const { menuOpen, setMenuOpen, setSearchOpen, cartCount, wishlistCount } = useStore();
   const [categories, setCategories] = useState<string[]>([]);
   
   useEffect(() => {
@@ -76,14 +76,9 @@ export function MobileMenu() {
           <Link href="/selection" onClick={() => setMenuOpen(false)}>
             <Heart size={18} /> Ma sélection {wishlistCount > 0 && <i>{wishlistCount}</i>}
           </Link>
-          <button
-            onClick={() => {
-              setMenuOpen(false);
-              setCartOpen(true);
-            }}
-          >
+          <Link href="/panier" onClick={() => setMenuOpen(false)}>
             <ShoppingBag size={18} /> Panier {cartCount > 0 && <i>{cartCount}</i>}
-          </button>
+          </Link>
         </div>
         <div className="mobile-menu-categories">
           <strong>Catégories</strong>

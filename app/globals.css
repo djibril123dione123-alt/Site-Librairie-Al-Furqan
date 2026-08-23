@@ -144,6 +144,10 @@ input::placeholder, textarea::placeholder { color: #a19a8d; }
 .header-action { border: 0; background: none; color: var(--ink); display: flex; gap: 8px; align-items: center; font-size: 12px; position: relative; padding: 7px 0; }
 .header-action i { font-style: normal; background: var(--gold); color: white; border-radius: 20px; min-width: 17px; height: 17px; display: grid; place-items: center; font-size: 10px; position: absolute; top: -4px; right: -12px; }
 .mobile-menu { display: none; border: 0; background: none; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; }
+/* Desktop opens the CartDrawer; mobile goes straight to /panier — CSS
+   toggle, not a window.innerWidth branch, so both render and SSR stays
+   correct. */
+.cart-link-mobile { display: none; }
 
 /* Typography — editorial serif (Fraunces) for identity/titles only,
    Inter carries every transactional/functional role. Never mix the two
@@ -747,47 +751,67 @@ main { overflow: hidden; }
 .about-contact { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
 .about-contact p { margin: 6px 0 0; color: var(--ink); font-size: 15px; }
 
-/* Cart */
-.cart-heading { max-width: 1080px; margin: auto; padding: 60px 32px 30px; display: flex; justify-content: space-between; align-items: flex-end; }
-.cart-heading > span { color: var(--muted); font-size: 12px; }
-.cart-layout { max-width: 1080px; margin: auto; padding: 0 32px 90px; display: grid; grid-template-columns: 1fr 320px; gap: 60px; }
-.cart-line { border-top: 1px solid var(--line); display: grid; grid-template-columns: 64px 1fr auto auto; align-items: center; gap: 16px; padding: 20px 0; }
-.cart-line-copy > a { display: block; font-family: var(--font-serif); font-size: 17px; font-weight: 500; }
-.cart-line-copy > span, .cart-line-copy small { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; }
-.quantity { display: inline-flex; align-items: center; border: 1px solid var(--line); margin-top: 10px; border-radius: var(--radius); }
-.quantity button { border: 0; background: none; padding: 6px 10px; }
-.quantity span { min-width: 24px; text-align: center; font-size: 12px; }
-.cart-line > strong { font-size: 13px; white-space: nowrap; }
-.remove-line { border: 0; background: none; color: var(--muted); padding: 6px; }
-.remove-line:hover { color: #9b665e; }
-.cart-summary { background: var(--cream); padding: 26px; align-self: start; border-radius: var(--radius); }
-.summary-total { display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 18px 0; font-size: 13px; }
-.summary-total strong { font-family: var(--font-serif); font-size: 20px; font-weight: 500; }
-.cart-summary p { font-size: 12px; color: var(--muted); line-height: 1.5; }
-.cart-summary label { display: block; font-size: 12px; margin-top: 16px; }
-.cart-summary select { width: 100%; margin-top: 6px; }
-.whatsapp-button { width: 100%; margin-top: 24px; }
-.summary-note { display: flex; gap: 6px; align-items: center; color: #6b8275; font-size: 11px; margin-top: 14px; }
-.empty-state { max-width: 500px; margin: 30px auto 90px; text-align: center; padding: 70px 25px; background: var(--cream); border-radius: var(--radius); }
-.empty-state svg { color: var(--gold); }
-.empty-state h2 { font-size: 30px; margin: 16px 0 8px; }
-.empty-state p { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+/* Cart — "the review desk before delivery": calm, precise, physical. No
+   SaaS-card-per-line, no bordered summary panel. Canonical 1280px shell,
+   matching the rest of the reconstructed storefront. */
+.cart-heading { max-width: 1280px; margin: auto; padding: 40px 32px 24px; display: flex; justify-content: space-between; align-items: flex-end; }
+.cart-heading > span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.cart-layout { max-width: 1280px; margin: auto; padding: 8px 32px 96px; display: grid; grid-template-columns: 1fr 360px; gap: 72px; align-items: start; }
 
-/* Cart drawer */
-.cart-drawer-overlay { position: fixed; inset: 0; z-index: 45; background: rgba(12,45,56,.35); }
-.cart-drawer { width: min(400px, 100%); height: 100%; background: var(--paper); margin-left: auto; padding: 24px; box-shadow: -10px 0 40px rgba(16,47,56,.15); animation: slide-in .25s ease-out; overflow-y: auto; }
-.drawer-heading { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 18px; }
-.drawer-heading h2 { font-size: 24px; margin: 0; }
+.cart-line { border-top: 1px solid var(--line); display: grid; grid-template-columns: 80px 1fr auto auto; align-items: center; gap: 20px; padding: 24px 0; }
+.cart-line-cover { display: block; flex-shrink: 0; }
+.cart-line-cover .cover-small { width: 56px; height: 84px; }
+.cart-line-copy > a { display: block; font-family: var(--font-serif); font-size: 17px; font-weight: 500; }
+.cart-line-copy > a:hover { color: var(--gold); }
+.cart-line-copy > span { display: block; color: var(--muted); font-size: 12px; margin-top: 3px; }
+.cart-line-copy small { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; }
+.cart-line-warning { display: flex; align-items: center; gap: 5px; color: var(--warning); font-size: 11px; margin-top: 6px; }
+.cart-line-qty-static { display: block; color: var(--muted); font-size: 12px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+.cart-line.is-invalid .cart-line-copy > a { color: var(--muted); }
+.cart-line-missing { border-top: 1px solid var(--line); border-left: 2px solid var(--danger); display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 0 20px 14px; }
+.cart-line-missing strong { font-size: 13px; font-weight: 500; color: var(--ink); }
+
+.quantity { display: inline-flex; align-items: center; border: 1px solid var(--line); margin-top: 10px; border-radius: var(--radius); }
+.quantity button { border: 0; background: none; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.quantity button:disabled { opacity: .35; cursor: not-allowed; }
+.quantity span { min-width: 24px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
+.cart-line-total { font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.remove-line { border: 0; background: none; color: var(--muted); min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.remove-line:hover { color: var(--danger); }
+
+/* Summary — composition, not a bordered card. */
+.cart-summary { position: sticky; top: var(--sticky-offset); align-self: start; padding-top: 4px; }
+.summary-total { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--line); padding: 18px 0; margin-top: 14px; font-size: 13px; }
+.summary-total strong { font-family: var(--font-serif); font-size: 22px; font-weight: 500; }
+.cart-summary-note { font-size: 12px; color: var(--muted); line-height: 1.6; margin: 16px 0 0; }
+.cart-summary-blocked { font-size: 12px; color: var(--danger); line-height: 1.6; margin: 18px 0 0; }
+.cart-summary-cta { width: 100%; margin-top: 18px; }
+.cart-summary-secondary { display: flex; justify-content: center; margin-top: 16px; }
+
+/* Loading skeleton — warm surfaces, no gray SaaS spinner, no layout jump. */
+.cart-line-skeleton { pointer-events: none; }
+.cart-line-cover-skeleton { width: 56px; height: 84px; border-radius: 2px; }
+
+/* Cart drawer — a quick review surface, not the entire checkout. Desktop
+   only (see .cart-link-desktop/.cart-link-mobile); mobile goes straight
+   to /panier. */
+.cart-drawer-overlay { position: fixed; inset: 0; z-index: 45; background: rgba(12,45,56,.35); animation: cart-overlay-in var(--motion-base) var(--ease-premium); }
+.cart-drawer { width: min(440px, 100%); height: 100%; background: var(--bg); margin-left: auto; padding: 28px; box-shadow: -10px 0 40px rgba(16,47,56,.15); animation: cart-drawer-in var(--motion-base) var(--ease-premium); overflow-y: auto; display: flex; flex-direction: column; }
+@keyframes cart-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cart-drawer-in { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) { .cart-drawer { animation: none; } }
+.drawer-heading { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 18px; flex-shrink: 0; }
+.drawer-heading h2 { font-size: 22px; margin: 0; }
 .drawer-heading h2 span { font: 12px sans-serif; color: var(--gold); vertical-align: middle; }
-.drawer-lines { padding: 8px 0; }
-.drawer-line { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-.drawer-line > div { display: grid; gap: 4px; }
-.drawer-line strong { font-family: var(--font-serif); font-size: 14px; font-weight: 500; }
-.drawer-line span { color: var(--muted); font-size: 11px; }
-.drawer-line small { color: var(--muted); font-size: 10px; }
-.drawer-cta { width: 100%; margin-top: 20px; }
-.drawer-empty { text-align: center; padding: 60px 0; color: var(--muted); }
-.drawer-empty svg { color: var(--gold); }
+.drawer-lines { padding: 4px 0; flex: 1; }
+.cart-line-compact { grid-template-columns: 56px 1fr auto auto; gap: 14px; padding: 16px 0; }
+.cart-line-compact .cart-line-cover .cover-small { width: 44px; height: 66px; }
+.cart-line-compact .cart-line-copy > a { font-size: 14px; }
+.cart-line-compact .quantity { margin-top: 8px; }
+.drawer-summary { flex-shrink: 0; border-top: 1px solid var(--line); padding-top: 16px; margin-top: 8px; }
+.drawer-cta { width: 100%; margin-top: 14px; }
+.drawer-error { text-align: center; padding: 40px 0; color: var(--muted); font-size: 13px; }
+.drawer-error .button { margin-top: 16px; }
 .toast { position: fixed; z-index: 60; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--deep); color: var(--paper); padding: 12px 18px; border-radius: 99px; display: flex; gap: 8px; align-items: center; box-shadow: 0 8px 25px rgba(16,47,56,.2); font-size: 13px; animation: toast-in .25s ease-out; }
 .toast svg { color: #9ac5a5; }
 
@@ -890,6 +914,12 @@ main { overflow: hidden; }
   .header-actions { margin-left: auto; gap: 14px; }
   .mobile-menu { display: block; }
   .header-action { padding: 4px; }
+  .cart-link-desktop { display: none; }
+  .cart-link-mobile { display: inline-flex; }
+  /* Defensive: the drawer is a desktop-only surface (see §34) — nothing
+     should trigger cartOpen on mobile anymore, but this keeps it from
+     ever covering the screen if it somehow did. */
+  .cart-drawer-overlay { display: none; }
   /* Hero recomposed for mobile: the book leads (order:-1), not a scaled
      copy of the desktop two-column layout. H1 stays first in the DOM for
      reading order/SEO; only the visual order changes. */
@@ -974,12 +1004,22 @@ main { overflow: hidden; }
   .about-delivery { grid-template-columns: 1fr; gap: 24px; }
   .about-contact { display: block; }
   .about-contact .button { margin-top: 16px; width: 100%; justify-content: center; }
-  .cart-layout { display: block; padding: 0 20px 60px; }
-  .cart-summary { margin-top: 30px; }
-  .cart-line { grid-template-columns: 56px 1fr auto; gap: 12px; }
-  .cart-line > strong { grid-column: 2; }
-  .remove-line { grid-column: 3; grid-row: 1; }
-  .cart-line .cover-small { width: 54px; height: 78px; }
+  /* Cart at mobile is the PRIMARY experience (no drawer dependency) — a
+     deliberate single-column anatomy, not the desktop grid compressed. */
+  .cart-layout { display: block; padding: 8px 20px 60px; }
+  .cart-summary { position: static; margin-top: 32px; }
+  .cart-line {
+    grid-template-columns: 64px 1fr auto;
+    grid-template-areas: "cover copy remove" "cover total total";
+    gap: 6px 14px;
+    padding: 20px 0;
+  }
+  .cart-line-cover { grid-area: cover; }
+  .cart-line-cover .cover-small { width: 60px; height: 90px; }
+  .cart-line-copy { grid-area: copy; }
+  .cart-line-total { grid-area: total; justify-self: start; margin-top: 8px; }
+  .remove-line { grid-area: remove; align-self: start; }
+  .cart-line-missing { padding-left: 12px; }
   .info-hero, .info-content { padding-left: 20px; padding-right: 20px; }
   .delivery-destinations, .delivery-methods { grid-template-columns: 1fr; }
   .contact-grid { grid-template-columns: 1fr; }

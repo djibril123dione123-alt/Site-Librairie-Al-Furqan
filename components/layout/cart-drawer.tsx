@@ -1,104 +1,132 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { X, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useStore } from '../providers';
+import { useCartRevalidation } from '../cart/use-cart-revalidation';
+import { CartLineRow } from '../cart/cart-line-row';
+import { CartLinesSkeleton } from '../cart/cart-line-skeleton';
+import { EmptyState } from '../ui/empty-state';
 import { formatPrice } from '@/lib/al-furqan-data';
-import { Cover } from '../books/cover';
-import { createBrowserClient } from '@/lib/supabase/client';
-import { dbProductToUi } from '@/lib/types/mappers';
-import type { Product } from '@/lib/types/ui';
-import { seedProducts } from '@/lib/dev/seed-products';
 
 export function CartDrawer() {
-  const { cart, cartCount, cartOpen, setCartOpen } = useStore();
-  const [products, setProducts] = useState<Record<string, Product>>({});
-  
-  useEffect(() => {
-    async function loadProducts() {
-      if (cart.length === 0 || !cartOpen) return;
-      
-      const ids = cart.map(c => c.productId);
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      
-      if (!supabaseUrl) {
-        const map: Record<string, Product> = {};
-        ids.forEach(id => {
-          const p = seedProducts.find(s => s.id === id);
-          if (p) map[id] = p as unknown as Product;
-        });
-        setProducts(map);
-        return;
-      }
+  const { cart, cartCount, cartOpen, setCartOpen, updateQuantity, removeFromCart } = useStore();
+  const { loading, resolution } = useCartRevalidation(cartOpen);
+  const { lines, loadError } = resolution;
 
-      try {
-        const supabase = createBrowserClient();
-        const { data, error } = await supabase
-          .from('products')
-          .select(`*, product_variants(*)`)
-          .in('id', ids);
-          
-        if (!error && data) {
-          const map: Record<string, Product> = {};
-          data.forEach(d => {
-            map[d.id] = dbProductToUi(d, supabaseUrl);
-          });
-          setProducts(map);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
+
+  // Real dialog semantics: focus in on open, trap Tab, Escape closes, focus
+  // restores to whatever opened it, background scroll locked — same pattern
+  // as the catalogue's mobile filter drawer.
+  useEffect(() => {
+    if (!cartOpen) return;
+    previouslyFocused.current = document.activeElement as HTMLElement;
+    const scrollBarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    if (scrollBarWidth > 0) document.body.style.paddingRight = `${scrollBarWidth}px`;
+    drawerRef.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setCartOpen(false);
+      } else if (e.key === 'Tab' && drawerRef.current) {
+        const focusables = drawerRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
         }
-      } catch (err) {
-        console.error(err);
       }
-    }
-    loadProducts();
-  }, [cart, cartOpen]);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+      previouslyFocused.current?.focus();
+    };
+  }, [cartOpen, setCartOpen]);
 
   if (!cartOpen) return null;
 
+  const validLines = lines.filter((l) => l.status === 'VALID');
+  const hasInvalidLines = lines.some((l) => l.status !== 'VALID');
+  const subtotal = validLines.reduce((sum, l) => sum + (l.lineTotal ?? 0), 0);
+
   return (
     <div className="cart-drawer-overlay" onClick={() => setCartOpen(false)}>
-      <aside className="cart-drawer" onClick={(e) => e.stopPropagation()}>
+      <aside
+        className="cart-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cart-drawer-heading"
+        ref={drawerRef}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="drawer-heading">
-          <h2>
+          <h2 id="cart-drawer-heading">
             Votre panier <span>{cartCount}</span>
           </h2>
-          <button onClick={() => setCartOpen(false)} aria-label="Fermer le panier">
+          <button onClick={() => setCartOpen(false)} aria-label="Fermer le panier" data-autofocus>
             <X />
           </button>
         </div>
-        {cart.length ? (
-          <>
-            <div className="drawer-lines">
-              {cart.map((line) => {
-                const item = products[line.productId];
-                return item ? (
-                  <div className="drawer-line" key={`${line.productId}-${line.variant?.id}`}>
-                    <Cover product={item} small />
-                    <div>
-                      <strong>{item.title}</strong>
-                      <span>
-                        {line.quantity} × {formatPrice(line.variant?.price || item.price)}
-                      </span>
-                      {line.variant && (
-                        <small>{line.variant.attributes.map((a: any) => `${a.value}`).join(' · ')}</small>
-                      )}
-                    </div>
-                  </div>
-                ) : null;
-              })}
-            </div>
-            <Link href="/panier" onClick={() => setCartOpen(false)} className="button button-dark drawer-cta">
-              Préparer ma commande <ArrowRight size={17} />
-            </Link>
-          </>
-        ) : (
-          <div className="drawer-empty">
-            <ShoppingBag size={30} />
-            <p>Votre panier est vide.</p>
+
+        {cart.length === 0 ? (
+          <EmptyState mark={<ShoppingBag size={20} />} title="Votre panier est vide." body="Découvrez les ouvrages Al Furqan.">
             <Link href="/catalogue" onClick={() => setCartOpen(false)} className="text-link">
               Découvrir le catalogue <ArrowRight size={15} />
             </Link>
+          </EmptyState>
+        ) : loading ? (
+          <div className="drawer-lines">
+            <CartLinesSkeleton count={Math.min(cart.length, 2)} compact />
           </div>
+        ) : loadError ? (
+          <div className="drawer-error">
+            <p>Nous n&apos;avons pas pu vérifier votre panier pour le moment.</p>
+            <Link href="/panier" onClick={() => setCartOpen(false)} className="button button-dark">
+              Voir mon panier
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className="drawer-lines">
+              {lines.map((resolved) => (
+                <CartLineRow
+                  key={`${resolved.line.productId}-${resolved.line.variant?.id || 'base'}-${resolved.cartIndex}`}
+                  resolved={resolved}
+                  onIncrease={() => updateQuantity(resolved.cartIndex, 1)}
+                  onDecrease={() => updateQuantity(resolved.cartIndex, -1)}
+                  onRemove={() => removeFromCart(resolved.cartIndex)}
+                  compact
+                />
+              ))}
+            </div>
+
+            <div className="drawer-summary">
+              <div className="summary-total">
+                <span>Sous-total</span>
+                <strong>{formatPrice(subtotal)}</strong>
+              </div>
+              {hasInvalidLines && (
+                <p className="cart-summary-blocked">Vérifiez les articles signalés dans votre panier.</p>
+              )}
+              <Link href="/panier" onClick={() => setCartOpen(false)} className="button button-dark drawer-cta">
+                Préparer ma commande <ArrowRight size={17} />
+              </Link>
+            </div>
+          </>
         )}
       </aside>
     </div>
