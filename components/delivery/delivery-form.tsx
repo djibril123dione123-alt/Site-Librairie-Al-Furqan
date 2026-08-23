@@ -5,7 +5,7 @@ import { MapPin, Navigation, Building, Truck, ChevronRight, ExternalLink } from 
 import { createBrowserClient } from '@/lib/supabase/client';
 import { SearchableCombobox, ComboboxOption } from '@/components/ui/searchable-combobox';
 import { formatPrice } from '@/lib/al-furqan-data';
-import { estimatePostalFee, selectPostalService, POSTAL_SERVICE_LABELS, LA_POSTE_SIMULATOR_URL, type PostalEstimateResult } from '@/lib/delivery/postal-pricing';
+import { LA_POSTE_SMALL_SHIPMENT_GUIDANCE, LA_POSTE_SIMULATOR_URL } from '@/lib/delivery/postal-pricing';
 
 export type DeliveryMethod = 'standard' | 'la_poste';
 
@@ -38,8 +38,6 @@ interface DeliveryFormProps {
     location?: LocationData;
     postOffice?: PostOffice;
   };
-  /** Total estimated cart weight in grams — null/undefined if unknown or incomplete. */
-  cartWeightG?: number | null;
 }
 
 function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -59,44 +57,26 @@ const FALLBACK_REGIONS = [
   'THIES', 'ZIGUINCHOR'
 ];
 
-function PostalFeeNote({ estimate, weightG }: { estimate: PostalEstimateResult; weightG?: number | null }) {
+function PostalFeeGuidance() {
+  const { minFcfa, maxFcfa } = LA_POSTE_SMALL_SHIPMENT_GUIDANCE;
   return (
     <div className="postal-fee-note">
-      {estimate.status === 'AVAILABLE' && estimate.estimatedFeeFcfa !== null ? (
-        <>
-          <div className="postal-fee-row">
-            <span>Frais La Poste estimés</span>
-            <strong>≈ {formatPrice(estimate.estimatedFeeFcfa)}</strong>
-          </div>
-          {weightG != null && (
-            <p className="postal-fee-basis">
-              {(weightG / 1000).toFixed(2).replace('.', ',')} kg · tarif {POSTAL_SERVICE_LABELS[estimate.service]}
-            </p>
-          )}
-        </>
-      ) : estimate.status === 'MISSING_PRODUCT_WEIGHT' || estimate.status === 'OUTSIDE_SUPPORTED_WEIGHT' ? (
-        <p className="postal-fee-unavailable">
-          Le tarif sera confirmé par La Poste.{' '}
-          <a href={LA_POSTE_SIMULATOR_URL} target="_blank" rel="noopener noreferrer">
-            Simulateur officiel <ExternalLink size={11} />
-          </a>
-        </p>
-      ) : (
-        <p className="postal-fee-unavailable">
-          Le tarif sera confirmé par La Poste.{' '}
-          <a href={LA_POSTE_SIMULATOR_URL} target="_blank" rel="noopener noreferrer">
-            Simulateur officiel <ExternalLink size={11} />
-          </a>
-        </p>
-      )}
+      <p className="postal-fee-heading">Frais La Poste</p>
+      <p className="postal-fee-range">
+        Pour un petit envoi, prévoyez généralement entre <strong>{formatPrice(minFcfa)}</strong> et <strong>{formatPrice(maxFcfa)}</strong>.
+      </p>
+      <p className="postal-fee-note-line">À régler directement à La Poste lors du retrait.</p>
       <p className="postal-fee-disclaimer">
-        Estimation selon le poids de la commande — à régler directement à La Poste lors du retrait du colis. Le montant appliqué en bureau fait foi.
+        Le montant exact dépend du poids et de la destination. Une commande plus lourde peut coûter davantage.{' '}
+        <a href={LA_POSTE_SIMULATOR_URL} target="_blank" rel="noopener noreferrer">
+          Simulateur officiel de La Poste <ExternalLink size={11} />
+        </a>
       </p>
     </div>
   );
 }
 
-export function DeliveryForm({ onValidSubmit, initialData, cartWeightG }: DeliveryFormProps) {
+export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) {
   const supabase = useMemo(() => createBrowserClient(), []);
 
   const [method, setMethod] = useState<DeliveryMethod | null>(initialData?.method || null);
@@ -316,10 +296,6 @@ export function DeliveryForm({ onValidSubmit, initialData, cartWeightG }: Delive
     finalLocality.trim().length > 0 &&
     (method === 'la_poste' ? (isCustomOffice ? customOfficeInput.trim().length > 0 : selectedOffice !== null) : quartier.trim().length > 0)
   );
-
-  const postalEstimate = method === 'la_poste'
-    ? estimatePostalFee({ weightG: cartWeightG ?? null, service: selectPostalService(cartWeightG ?? null) })
-    : null;
 
   const handleNext = () => {
     if (!isFormValid) return;
@@ -608,9 +584,7 @@ export function DeliveryForm({ onValidSubmit, initialData, cartWeightG }: Delive
             </div>
           )}
 
-          {(selectedOffice || isCustomOffice) && postalEstimate && (
-            <PostalFeeNote estimate={postalEstimate} weightG={cartWeightG} />
-          )}
+          <PostalFeeGuidance />
         </div>
       )}
 

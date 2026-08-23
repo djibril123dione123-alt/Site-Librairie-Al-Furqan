@@ -1005,7 +1005,7 @@ export function ProductForm({
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label" htmlFor="weightG">
-                      Poids réel <span className="form-label-optional">facultatif — grammes</span>
+                      Poids de l&apos;ouvrage <span className="form-label-optional">facultatif — grammes</span>
                     </label>
                     <div style={{ position: 'relative' }}>
                       <input
@@ -1021,7 +1021,7 @@ export function ProductForm({
                       <span style={{ position: 'absolute', right: 12, top: 8, fontSize: 12, color: 'var(--admin-text-muted)', fontWeight: 600 }}>g</span>
                     </div>
                     <span style={{ fontSize: 11, color: 'var(--admin-text-subtle)' }}>
-                      Poids réel de l&apos;ouvrage seul, sans emballage d&apos;expédition. Utilisé uniquement pour estimer les frais La Poste au retrait — n&apos;affecte pas le prix. Laisser vide si inconnu.
+                      Facultatif. Cette information n&apos;est pas nécessaire pour publier ou commander un livre — conservée pour de futurs besoins logistiques.
                     </span>
                   </div>
                 </div>

@@ -2,14 +2,14 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { MessageCircle, ArrowLeft, ExternalLink } from 'lucide-react';
+import { MessageCircle, ArrowLeft } from 'lucide-react';
 import { formatPrice, generateOrderRef, buildWhatsAppUrl, getSiteUrl } from '@/lib/al-furqan-data';
 import { useStore } from '@/components/providers';
 import { DeliveryForm, DeliveryMethod, LocationData, PostOffice } from '@/components/delivery/delivery-form';
 import { useCartRevalidation } from '@/components/cart/use-cart-revalidation';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { EmptyState } from '@/components/ui/empty-state';
-import { calculateCartWeight, estimatePostalFee, selectPostalService, LA_POSTE_SIMULATOR_URL } from '@/lib/delivery/postal-pricing';
+import { LA_POSTE_SMALL_SHIPMENT_GUIDANCE } from '@/lib/delivery/postal-pricing';
 
 type Step = 'delivery' | 'verification';
 
@@ -72,18 +72,6 @@ export default function LivraisonPage() {
 
   const subtotal = validLines.reduce((sum, l) => sum + (l.lineTotal ?? 0), 0);
 
-  const cartWeight = calculateCartWeight(
-    validLines.map((l) => ({ weightG: l.product?.weightG ?? null, quantity: l.line.quantity }))
-  );
-
-  const postalEstimate = deliveryData?.method === 'la_poste'
-    ? estimatePostalFee({ weightG: cartWeight.totalWeightG, service: selectPostalService(cartWeight.totalWeightG) })
-    : null;
-
-  const estimatedBudgetTotal = postalEstimate?.status === 'AVAILABLE' && postalEstimate.estimatedFeeFcfa !== null
-    ? subtotal + postalEstimate.estimatedFeeFcfa
-    : null;
-
   const handleDeliverySubmit = (data: DeliveryChoice) => {
     setDeliveryData(data);
     if (typeof window !== 'undefined') {
@@ -108,14 +96,7 @@ export default function LivraisonPage() {
 
     let postalText = '';
     if (deliveryData.method === 'la_poste') {
-      if (postalEstimate?.status === 'AVAILABLE' && postalEstimate.estimatedFeeFcfa !== null) {
-        postalText = `Frais La Poste estimés : ≈ ${formatPrice(postalEstimate.estimatedFeeFcfa)} (à régler directement à La Poste au retrait)`;
-        if (estimatedBudgetTotal !== null) {
-          postalText += `\nBudget total estimatif (indicatif) : ≈ ${formatPrice(estimatedBudgetTotal)}`;
-        }
-      } else {
-        postalText = 'Frais La Poste : tarif non estimé en ligne — à régler directement à La Poste au retrait.';
-      }
+      postalText = `Frais La Poste :\nPrévoir généralement ${formatPrice(LA_POSTE_SMALL_SHIPMENT_GUIDANCE.minFcfa)} à ${formatPrice(LA_POSTE_SMALL_SHIPMENT_GUIDANCE.maxFcfa)} pour un ${LA_POSTE_SMALL_SHIPMENT_GUIDANCE.label}.\nÀ régler directement à La Poste lors du retrait.\nLe montant exact dépend du poids et de la destination.\nUne commande plus lourde peut coûter davantage.`;
     }
 
     const message = `Assalāmu ʿalaykum,
@@ -137,7 +118,7 @@ ${validLines
 
 Montant des ouvrages : ${formatPrice(subtotal)}
 
-*LIVRAISON / LA POSTE*
+*RÉCEPTION / LA POSTE*
 ${deliveryText}${postalText ? `\n${postalText}` : ''}
 
 *COORDONNÉES CLIENT*
@@ -198,7 +179,6 @@ Référence commande : ${ref.current}`;
             <DeliveryForm
               onValidSubmit={handleDeliverySubmit}
               initialData={deliveryData || draftFromStorage}
-              cartWeightG={cartWeight.totalWeightG}
             />
           )
         ) : (
@@ -250,35 +230,13 @@ Référence commande : ${ref.current}`;
             {deliveryData?.method === 'la_poste' && (
               <section className="review-section">
                 <h3 className="review-section-title">Frais postaux</h3>
-                {postalEstimate?.status === 'AVAILABLE' && postalEstimate.estimatedFeeFcfa !== null ? (
-                  <>
-                    {cartWeight.totalWeightG !== null && (
-                      <p className="review-postal-basis">Poids estimé : {(cartWeight.totalWeightG / 1000).toFixed(2).replace('.', ',')} kg</p>
-                    )}
-                    <div className="review-total-row">
-                      <span>Frais La Poste estimés</span>
-                      <strong>≈ {formatPrice(postalEstimate.estimatedFeeFcfa)}</strong>
-                    </div>
-                    <p className="review-postal-note">À régler directement à La Poste au retrait.</p>
-                  </>
-                ) : (
-                  <p className="review-postal-note">
-                    Frais La Poste — Tarif non estimé en ligne. Le montant sera appliqué directement par La Poste lors du retrait.{' '}
-                    <a href={LA_POSTE_SIMULATOR_URL} target="_blank" rel="noopener noreferrer">
-                      Simulateur officiel <ExternalLink size={11} />
-                    </a>
-                  </p>
-                )}
-              </section>
-            )}
-
-            {estimatedBudgetTotal !== null && (
-              <section className="review-section review-section-budget">
-                <h3 className="review-section-title">Budget indicatif</h3>
-                <div className="review-total-row">
-                  <span>Ouvrages + estimation La Poste</span>
-                  <strong>Budget total estimatif ≈ {formatPrice(estimatedBudgetTotal)}</strong>
-                </div>
+                <p className="review-postal-range">
+                  Pour un petit envoi : généralement <strong>{formatPrice(LA_POSTE_SMALL_SHIPMENT_GUIDANCE.minFcfa)}</strong> à <strong>{formatPrice(LA_POSTE_SMALL_SHIPMENT_GUIDANCE.maxFcfa)}</strong>
+                </p>
+                <p className="review-postal-note">À régler directement à La Poste lors du retrait.</p>
+                <p className="review-postal-disclaimer">
+                  Le montant exact dépend du poids et de la destination. Une commande plus lourde peut coûter davantage.
+                </p>
               </section>
             )}
 
