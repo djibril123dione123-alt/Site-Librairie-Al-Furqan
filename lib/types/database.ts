@@ -83,6 +83,7 @@ export interface Database {
           status: ProductStatus;
           availability: ProductAvailability;
           stock_quantity: number | null;
+          weight_g: number | null;
           language: string | null;
           isbn: string | null;
           pages: number | null;

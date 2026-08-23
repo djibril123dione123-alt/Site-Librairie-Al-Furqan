@@ -48,6 +48,7 @@ export type Product = {
   price: number;
   availability: Availability;
   stockQuantity?: number;
+  weightG?: number | null;
   featured?: boolean;
   newArrival?: boolean;
   restocked?: boolean;

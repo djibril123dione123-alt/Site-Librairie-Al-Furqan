@@ -90,6 +90,7 @@ type FormData = {
   compareAtPrice: string;
   availability: Availability;
   stockQuantity: string;
+  weightG: string;
   shortDescription: string;
   description: string;
   language: string;
@@ -125,6 +126,7 @@ const DEFAULT_FORM: FormData = {
   compareAtPrice: '',
   availability: 'Disponible',
   stockQuantity: '',
+  weightG: '',
   shortDescription: '',
   description: '',
   language: 'Français',
@@ -443,6 +445,7 @@ export function ProductForm({
         compareAtPrice: form.compareAtPrice !== '' ? Number(form.compareAtPrice) : null,
         availability: form.availability,
         stockQuantity: form.stockQuantity !== '' ? Number(form.stockQuantity) : null,
+        weightG: form.weightG !== '' ? Number(form.weightG) : null,
         shortDescription: form.shortDescription.trim() || null,
         description: form.description.trim() || null,
         language: form.language,
@@ -996,6 +999,30 @@ export function ProductForm({
                       value={form.binding}
                       onChange={(e) => setField('binding', e.target.value)}
                     />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="weightG">
+                      Poids réel <span className="form-label-optional">facultatif — grammes</span>
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        id="weightG"
+                        type="number"
+                        className="form-input"
+                        placeholder="Ex: 850"
+                        min={1}
+                        step={1}
+                        value={form.weightG}
+                        onChange={(e) => setField('weightG', e.target.value)}
+                      />
+                      <span style={{ position: 'absolute', right: 12, top: 8, fontSize: 12, color: 'var(--admin-text-muted)', fontWeight: 600 }}>g</span>
+                    </div>
+                    <span style={{ fontSize: 11, color: 'var(--admin-text-subtle)' }}>
+                      Poids réel de l&apos;ouvrage emballé. Utilisé uniquement pour estimer les frais La Poste au retrait — n&apos;affecte pas le prix. Laisser vide si inconnu.
+                    </span>
                   </div>
                 </div>
               </>

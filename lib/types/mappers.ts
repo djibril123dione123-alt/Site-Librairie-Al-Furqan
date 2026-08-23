@@ -114,6 +114,7 @@ export function dbProductToUi(
     price: dbProduct.price ?? 0,
     availability,
     stockQuantity: dbProduct.stock_quantity ?? undefined,
+    weightG: dbProduct.weight_g ?? null,
     featured: dbProduct.featured,
     newArrival: dbProduct.new_arrival,
     restocked: dbProduct.restocked,

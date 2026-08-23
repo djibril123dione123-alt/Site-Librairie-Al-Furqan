@@ -163,6 +163,7 @@ export async function PUT(
   if ('compareAtPrice' in body) updatePayload.compare_at_price = parseNumberOrNull(body.compareAtPrice);
   if (dbAvailability) updatePayload.availability = dbAvailability;
   if ('stockQuantity' in body) updatePayload.stock_quantity = stockQuantity;
+  if ('weightG' in body) updatePayload.weight_g = parseNumberOrNull(body.weightG);
   if (body.status) updatePayload.status = body.status;
   if ('language' in body) updatePayload.language = body.language || null;
   if ('isbn' in body) updatePayload.isbn = body.isbn || null;

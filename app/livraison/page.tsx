@@ -1,31 +1,36 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ChevronDown, MessageCircle, ArrowLeft } from 'lucide-react';
+import { MessageCircle, ArrowLeft, ExternalLink } from 'lucide-react';
 import { formatPrice, generateOrderRef, buildWhatsAppUrl, getSiteUrl } from '@/lib/al-furqan-data';
-import { useStore, CartLine } from '@/components/providers';
+import { useStore } from '@/components/providers';
 import { DeliveryForm, DeliveryMethod, LocationData, PostOffice } from '@/components/delivery/delivery-form';
-import { createBrowserClient } from '@/lib/supabase/client';
-import { dbProductToUi } from '@/lib/types/mappers';
-import type { Product } from '@/lib/types/ui';
-import { seedProducts } from '@/lib/dev/seed-products';
+import { useCartRevalidation } from '@/components/cart/use-cart-revalidation';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { EmptyState } from '@/components/ui/empty-state';
+import { calculateCartWeight, estimatePostalFee, LA_POSTE_SIMULATOR_URL } from '@/lib/delivery/postal-pricing';
 
 type Step = 'delivery' | 'verification';
 
+type DeliveryChoice = {
+  method: DeliveryMethod;
+  location: LocationData;
+  postOffice?: PostOffice;
+};
+
+const DRAFT_KEY = 'af-delivery-draft';
+
 export default function LivraisonPage() {
-  const { cart } = useStore();
-  
+  const { loading, resolution } = useCartRevalidation();
+  const lines = resolution.lines;
+
   const [step, setStep] = useState<Step>('delivery');
-  const [deliveryData, setDeliveryData] = useState<{
-    method: DeliveryMethod;
-    location: LocationData;
-    postOffice?: PostOffice;
-  } | null>(null);
-  
+  const [deliveryData, setDeliveryData] = useState<DeliveryChoice | null>(null);
+
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  
+
   const ref = useRef<string | null>(null);
   if (!ref.current && typeof window !== 'undefined') {
     const stored = sessionStorage.getItem('af-order-ref');
@@ -38,82 +43,50 @@ export default function LivraisonPage() {
     }
   }
 
-  const [products, setProducts] = useState<Record<string, Product>>({});
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadProducts() {
-      if (cart.length === 0) {
-        setLoading(false);
-        return;
-      }
-      
-      const ids = cart.map(c => c.productId);
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      
-      if (!supabaseUrl) {
-        const map: Record<string, Product> = {};
-        ids.forEach(id => {
-          const p = seedProducts.find(s => s.id === id);
-          if (p) map[id] = p;
-        });
-        setProducts(map);
-        setLoading(false);
-        return;
-      }
-
+  // Read synchronously (not via useEffect) so DeliveryForm's initial mount —
+  // which seeds its internal state from `initialData` exactly once — sees
+  // the draft on the very first client render instead of one render late.
+  let draftFromStorage: DeliveryChoice | undefined;
+  if (typeof window !== 'undefined') {
+    const stored = sessionStorage.getItem(DRAFT_KEY);
+    if (stored) {
       try {
-        const supabase = createBrowserClient();
-        const { data, error } = await supabase
-          .from('products')
-          .select(`*, authors(*), publishers(*), categories(*), product_images(*), product_variants(*)`)
-          .in('id', ids)
-          .eq('status', 'published');
-          
-        if (!error && data) {
-          const map: Record<string, Product> = {};
-          data.forEach(d => {
-            map[d.id] = dbProductToUi(d, supabaseUrl);
-          });
-          setProducts(map);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+        draftFromStorage = JSON.parse(stored);
+      } catch {
+        // Brouillon corrompu — ignoré silencieusement
       }
     }
-    loadProducts();
-  }, [cart]);
-  
-  const detailed = cart
-    .map((line) => {
-      const product = products[line.productId];
-      if (!product) return null;
-      const matchedVar = line.variant ? product.variants?.find((v) => v.id === line.variant!.id) : undefined;
-      const isAvailable = product.availability !== 'Indisponible temporairement';
-      const maxStock = matchedVar ? matchedVar.stock : product.stockQuantity ?? null;
-      const isStockValid = maxStock === null || maxStock === undefined || (maxStock > 0 && line.quantity <= maxStock);
-      const isValid = isAvailable && (!line.variant || Boolean(matchedVar)) && isStockValid;
+  }
 
-      return { line, product, matchedVar, isValid, maxStock };
-    })
-    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const validLines = lines.filter((l) => l.status === 'VALID');
+  const invalidLines = lines.filter((l) => l.status !== 'VALID');
+  const cartIsEmpty = !loading && lines.length === 0;
+  const cartHasInvalidLines = !loading && lines.length > 0 && invalidLines.length > 0;
 
-  const hasInvalidItem = detailed.length < cart.length || detailed.some((item) => !item.isValid);
+  const subtotal = validLines.reduce((sum, l) => sum + (l.lineTotal ?? 0), 0);
 
-  const subtotal = detailed.reduce((sum, { line, product, matchedVar }) => {
-    const price = matchedVar?.price || line.variant?.price || product.price;
-    return sum + price * line.quantity;
-  }, 0);
+  const cartWeight = calculateCartWeight(
+    validLines.map((l) => ({ weightG: l.product?.weightG ?? null, quantity: l.line.quantity }))
+  );
 
-  const handleDeliverySubmit = (data: { method: DeliveryMethod, location: LocationData, postOffice?: PostOffice }) => {
+  const postalEstimate = deliveryData?.method === 'la_poste'
+    ? estimatePostalFee({ weightG: cartWeight.totalWeightG, service: 'colis_national' })
+    : null;
+
+  const estimatedBudgetTotal = postalEstimate?.status === 'AVAILABLE' && postalEstimate.estimatedFeeFcfa !== null
+    ? subtotal + postalEstimate.estimatedFeeFcfa
+    : null;
+
+  const handleDeliverySubmit = (data: DeliveryChoice) => {
     setDeliveryData(data);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(data));
+    }
     setStep('verification');
   };
 
   const handleFinalSubmit = () => {
-    if (!deliveryData || !name || !phone || hasInvalidItem) return;
+    if (!deliveryData || !name || !phone || cartHasInvalidLines) return;
 
     import('@/lib/data/analytics').then((m) => m.trackCatalogEvent('whatsapp_click'));
 
@@ -126,29 +99,39 @@ export default function LivraisonPage() {
       deliveryText = `Mode : Livraison à une adresse\nRégion : ${deliveryData.location.region}${deliveryData.location.department ? `\nDépartement : ${deliveryData.location.department}` : ''}${deliveryData.location.commune ? `\nCommune : ${deliveryData.location.commune}` : ''}\nLocalité : ${deliveryData.location.locality}\nQuartier / Rue : ${deliveryData.location.quartier || 'Non précisé'}${deliveryData.location.repere ? `\nRepère : ${deliveryData.location.repere}` : ''}`;
     }
 
+    let postalText = '';
+    if (deliveryData.method === 'la_poste') {
+      if (postalEstimate?.status === 'AVAILABLE' && postalEstimate.estimatedFeeFcfa !== null) {
+        postalText = `Frais La Poste estimés : ≈ ${formatPrice(postalEstimate.estimatedFeeFcfa)} (à régler directement à La Poste au retrait)`;
+        if (estimatedBudgetTotal !== null) {
+          postalText += `\nBudget total estimatif (indicatif) : ≈ ${formatPrice(estimatedBudgetTotal)}`;
+        }
+      } else {
+        postalText = 'Frais La Poste : tarif non estimé en ligne — à régler directement à La Poste au retrait.';
+      }
+    }
+
     const message = `Assalāmu ʿalaykum,
 je souhaite finaliser ma commande Al Furqan.
 
-*DÉTAILS DE LA COMMANDE*
-${detailed
-  .map(({ line, product, matchedVar }, index) => {
-    const unitPrice = matchedVar?.price || product.price;
-    const lineTotal = unitPrice * line.quantity;
-    const skuVal = matchedVar?.sku || line.variant?.sku;
+*COMMANDE AL FURQAN*
+${validLines
+  .map(({ line, product, matchedVariant, unitPrice }, index) => {
+    const lineTotal = unitPrice !== null ? unitPrice * line.quantity : 0;
+    const skuVal = matchedVariant?.sku;
     const skuStr = skuVal ? ` (SKU: ${skuVal})` : '';
-    const variantStr = line.variant
-      ? `\n  ↳ ${line.variant.attributes.map((a: any) => `${a.label || 'Option'} : ${a.value}`).join(' · ')}${skuStr}`
+    const variantStr = matchedVariant && matchedVariant.attributes.length > 0
+      ? `\n  ↳ ${matchedVariant.attributes.map((a) => `${a.label} : ${a.value}`).join(' · ')}${skuStr}`
       : '';
-    const productUrl = `${baseUrl}/livres/${product.slug}`;
-    return `${index + 1} × ${product.title}${variantStr}\n  Prix : ${formatPrice(lineTotal)}\n  Lien : ${productUrl}`;
+    const productUrl = `${baseUrl}/livres/${product!.slug}`;
+    return `${index + 1} × ${product!.title}${variantStr}\n  Prix : ${formatPrice(lineTotal)}\n  Lien : ${productUrl}`;
   })
   .join('\n\n')}
 
-Sous-total livres : ${formatPrice(subtotal)}
-Frais de livraison : à confirmer avec Al Furqan
+Montant des ouvrages : ${formatPrice(subtotal)}
 
-*INFORMATIONS DE LIVRAISON*
-${deliveryText}
+*LIVRAISON / LA POSTE*
+${deliveryText}${postalText ? `\n${postalText}` : ''}
 
 *COORDONNÉES CLIENT*
 Nom : ${name}
@@ -159,141 +142,167 @@ Référence commande : ${ref.current}`;
     window.location.href = buildWhatsAppUrl(message);
   };
 
-  if (loading) {
-    return <div style={{ padding: '100px 32px', textAlign: 'center', color: 'var(--muted)' }}>Chargement de la commande...</div>;
-  }
-
   return (
-    <main className="cart-page">
-      <div className="breadcrumb">
-        <Link href="/">Accueil</Link>
-        <ChevronDown size={14} />
-        <Link href="/panier">Panier</Link>
-        <ChevronDown size={14} />
-        <span>Livraison</span>
-      </div>
-      
-      <div className="cart-heading flex-col items-start gap-2">
+    <main className="delivery-page">
+      <Breadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Panier', href: '/panier' }, { label: 'Livraison' }]} />
+
+      <ol className="delivery-progress" aria-label="Étapes de la commande">
+        <li className="is-done">1. Panier</li>
+        <li className={step === 'delivery' ? 'is-current' : 'is-done'}>2. Livraison</li>
+        <li className={step === 'verification' ? 'is-current' : ''}>3. Vérification</li>
+      </ol>
+
+      <div className="delivery-heading">
         {step === 'delivery' ? (
-          <Link href="/panier" className="text-xs text-[var(--gold)] flex items-center gap-1 hover:underline mb-2">
+          <Link href="/panier" className="delivery-back-link">
             <ArrowLeft size={14} /> Retour au panier
           </Link>
         ) : (
-          <button onClick={() => setStep('delivery')} className="text-xs text-[var(--gold)] flex items-center gap-1 hover:underline mb-2">
+          <button onClick={() => setStep('delivery')} className="delivery-back-link">
             <ArrowLeft size={14} /> Modifier la livraison
           </button>
         )}
-        <span className="eyebrow">ÉTAPE {step === 'delivery' ? '2' : '3'} SUR 3</span>
-        <h1 className="serif text-4xl mb-2">{step === 'delivery' ? 'Informations de Livraison' : 'Vérification'}</h1>
-        <p className="text-[var(--muted)] text-sm">
-          {step === 'delivery' 
-            ? 'Veuillez indiquer vos préférences pour la réception de votre commande.' 
-            : 'Vérifiez vos informations avant de confirmer.'}
+        <h1 className="serif delivery-title">{step === 'delivery' ? 'Informations de livraison' : 'Vérification de la commande'}</h1>
+        <p className="delivery-subtitle">
+          {step === 'delivery'
+            ? 'Veuillez indiquer vos préférences pour la réception de votre commande.'
+            : 'Vérifiez vos informations avant de confirmer sur WhatsApp.'}
         </p>
+        <p className="delivery-trust-note">Votre commande sera finalisée avec Al Furqan sur WhatsApp.</p>
       </div>
 
-      <div className="cart-layout max-w-[800px] !grid-cols-1 pt-4">
-        {detailed.length === 0 ? (
-          <div className="bg-[var(--paper)] p-8 text-center rounded-xl">
-            <p>Votre panier est vide. Veuillez retourner au catalogue.</p>
-            <Link href="/catalogue" className="button button-dark mt-4">
-              Explorer le catalogue
-            </Link>
+      <div className="delivery-content">
+        {loading ? (
+          <p className="delivery-loading">Vérification de votre panier...</p>
+        ) : cartIsEmpty ? (
+          <EmptyState title="Votre panier est vide" body="Ajoutez un ouvrage à votre panier avant de poursuivre vers la livraison.">
+            <Link href="/catalogue" className="button button-dark">Explorer le catalogue</Link>
+          </EmptyState>
+        ) : cartHasInvalidLines ? (
+          <div className="delivery-blocked-notice">
+            <strong>Certains articles de votre panier ne sont plus valides.</strong>
+            <p>Retournez au panier pour les corriger avant de poursuivre vers la livraison.</p>
+            <Link href="/panier" className="button button-dark">Retourner au panier</Link>
           </div>
         ) : step === 'delivery' ? (
-          <DeliveryForm 
-            onValidSubmit={handleDeliverySubmit} 
-            initialData={
-              deliveryData || 
-              (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('af-delivery-draft')
-                ? JSON.parse(sessionStorage.getItem('af-delivery-draft')!)
-                : undefined)
-            }
+          <DeliveryForm
+            onValidSubmit={handleDeliverySubmit}
+            initialData={deliveryData || draftFromStorage}
+            cartWeightG={cartWeight.totalWeightG}
           />
         ) : (
-          <div className="verification-step animate-in fade-in">
-            <div className="bg-[var(--bg)] border border-[var(--line)] rounded-xl p-6 mb-6">
-              <h3 className="serif text-xl font-medium mb-4">Votre commande</h3>
-              <div className="space-y-3 mb-4 border-b border-[var(--line)] pb-4">
-                {detailed.map(({ line, product }, idx) => (
-                  <div key={idx} className="flex justify-between text-sm">
-                    <div>
-                      <span className="font-medium">{line.quantity} × {product.title}</span>
-                      {line.variant && <div className="text-xs text-[var(--muted)] mt-1">{line.variant.attributes.map((a: any) => `${a.label || 'Option'} : ${a.value}`).join(' · ')}</div>}
+          <div className="verification-step">
+            <section className="review-section">
+              <h3 className="review-section-title">Ouvrages</h3>
+              <div className="review-line-list">
+                {validLines.map(({ line, product, matchedVariant, unitPrice }, idx) => (
+                  <div key={idx} className="review-line">
+                    <div className="review-line-copy">
+                      <span className="review-line-title">{line.quantity} × {product!.title}</span>
+                      {matchedVariant && matchedVariant.attributes.length > 0 && (
+                        <small>{matchedVariant.attributes.map((a) => `${a.label} : ${a.value}`).join(' · ')}</small>
+                      )}
                     </div>
-                    <span className="font-medium">{formatPrice((line.variant?.price || product.price) * line.quantity)}</span>
+                    <strong>{unitPrice !== null ? formatPrice(unitPrice * line.quantity) : '—'}</strong>
                   </div>
                 ))}
               </div>
-              <div className="flex justify-between items-center text-lg">
-                <span className="serif">Sous-total livres</span>
-                <span className="font-medium text-[var(--gold)]">{formatPrice(subtotal)}</span>
+              <div className="review-total-row">
+                <span>Montant des ouvrages</span>
+                <strong>{formatPrice(subtotal)}</strong>
               </div>
-            </div>
+            </section>
 
-            <div className="bg-[var(--bg)] border border-[var(--line)] rounded-xl p-6 mb-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="serif text-xl font-medium">Livraison</h3>
-                <button onClick={() => setStep('delivery')} className="text-xs text-[var(--gold)] underline">Modifier</button>
+            <section className="review-section">
+              <div className="review-section-header">
+                <h3 className="review-section-title">Réception</h3>
+                <button onClick={() => setStep('delivery')} className="review-edit-link">Modifier</button>
               </div>
-              <div className="text-sm space-y-1 text-[var(--muted)]">
+              <div className="review-detail-list">
                 {deliveryData?.method === 'la_poste' ? (
                   <>
-                    <p><strong className="text-black">Mode :</strong> La Poste</p>
-                    <p><strong className="text-black">Bureau :</strong> {deliveryData.postOffice?.name}</p>
-                    <p><strong className="text-black">Adresse :</strong> {deliveryData.postOffice?.address}</p>
+                    <p><span>Mode</span> La Poste Sénégal</p>
+                    <p><span>Bureau</span> {deliveryData.postOffice?.name}</p>
+                    {deliveryData.postOffice?.address && <p><span>Adresse</span> {deliveryData.postOffice.address}</p>}
                   </>
                 ) : (
                   <>
-                    <p><strong className="text-black">Mode :</strong> Livraison à une adresse</p>
-                    <p><strong className="text-black">Localité :</strong> {deliveryData?.location.locality} ({deliveryData?.location.region})</p>
-                    <p><strong className="text-black">Quartier :</strong> {deliveryData?.location.quartier}</p>
-                    {deliveryData?.location.repere && <p><strong className="text-black">Repère :</strong> {deliveryData.location.repere}</p>}
+                    <p><span>Mode</span> Livraison à une adresse</p>
+                    <p><span>Localité</span> {deliveryData?.location.locality} ({deliveryData?.location.region})</p>
+                    <p><span>Quartier</span> {deliveryData?.location.quartier}</p>
+                    {deliveryData?.location.repere && <p><span>Repère</span> {deliveryData.location.repere}</p>}
                   </>
                 )}
               </div>
-            </div>
+            </section>
 
-            <div className="bg-[var(--bg)] border border-[var(--line)] rounded-xl p-6 mb-8">
-              <h3 className="serif text-xl font-medium mb-4">Vos coordonnées</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="input-group">
-                  <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2">Prénom & Nom</label>
-                  <input 
-                    type="text" 
+            {deliveryData?.method === 'la_poste' && (
+              <section className="review-section">
+                <h3 className="review-section-title">Frais postaux</h3>
+                {postalEstimate?.status === 'AVAILABLE' && postalEstimate.estimatedFeeFcfa !== null ? (
+                  <>
+                    {cartWeight.totalWeightG !== null && (
+                      <p className="review-postal-basis">Poids estimé : {(cartWeight.totalWeightG / 1000).toFixed(2).replace('.', ',')} kg</p>
+                    )}
+                    <div className="review-total-row">
+                      <span>Frais La Poste estimés</span>
+                      <strong>≈ {formatPrice(postalEstimate.estimatedFeeFcfa)}</strong>
+                    </div>
+                    <p className="review-postal-note">À régler directement à La Poste au retrait.</p>
+                  </>
+                ) : (
+                  <p className="review-postal-note">
+                    Frais La Poste — Tarif non estimé en ligne. Le montant sera appliqué directement par La Poste lors du retrait.{' '}
+                    <a href={LA_POSTE_SIMULATOR_URL} target="_blank" rel="noopener noreferrer">
+                      Simulateur officiel <ExternalLink size={11} />
+                    </a>
+                  </p>
+                )}
+              </section>
+            )}
+
+            {estimatedBudgetTotal !== null && (
+              <section className="review-section review-section-budget">
+                <h3 className="review-section-title">Budget indicatif</h3>
+                <div className="review-total-row">
+                  <span>Ouvrages + estimation La Poste</span>
+                  <strong>Budget total estimatif ≈ {formatPrice(estimatedBudgetTotal)}</strong>
+                </div>
+              </section>
+            )}
+
+            <section className="review-section">
+              <h3 className="review-section-title">Vos coordonnées</h3>
+              <div className="review-contact-grid">
+                <div className="delivery-field">
+                  <label className="delivery-field-label" htmlFor="customer-name">Prénom &amp; nom</label>
+                  <input
+                    id="customer-name"
+                    type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Ex: Oumar Ndiaye"
-                    className="w-full border border-[var(--line)] bg-white p-3 rounded-md"
+                    className="delivery-text-input"
                   />
                 </div>
-                <div className="input-group">
-                  <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2">Téléphone</label>
-                  <input 
-                    type="tel" 
+                <div className="delivery-field">
+                  <label className="delivery-field-label" htmlFor="customer-phone">Téléphone</label>
+                  <input
+                    id="customer-phone"
+                    type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="Ex: 77 123 45 67"
-                    className="w-full border border-[var(--line)] bg-white p-3 rounded-md"
+                    className="delivery-text-input"
                   />
                 </div>
               </div>
-            </div>
+            </section>
 
-            {hasInvalidItem && (
-              <div className="p-4 mb-6 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex flex-col gap-2">
-                <strong>Certains articles de votre commande sont devenus indisponibles ou épuisés.</strong>
-                <p>Veuillez retourner dans votre panier pour réajuster votre sélection avant de poursuivre.</p>
-                <Link href="/panier" className="text-red-800 underline font-semibold mt-1">
-                  ← Retourner au panier
-                </Link>
-              </div>
-            )}
-
-            <button 
+            <button
               onClick={handleFinalSubmit}
-              disabled={!name || !phone || hasInvalidItem}
-              className="button button-dark w-full py-4 text-base disabled:opacity-50"
+              disabled={!name || !phone || cartHasInvalidLines}
+              className="button button-dark delivery-whatsapp-button"
             >
               <MessageCircle size={18} /> Commander sur WhatsApp
             </button>

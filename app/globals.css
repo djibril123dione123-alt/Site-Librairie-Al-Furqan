@@ -823,6 +823,112 @@ main { overflow: hidden; }
 .toast { position: fixed; z-index: 60; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--deep); color: var(--paper); padding: 12px 18px; border-radius: 99px; display: flex; gap: 8px; align-items: center; box-shadow: 0 8px 25px rgba(16,47,56,.2); font-size: 13px; animation: toast-in .25s ease-out; }
 .toast svg { color: #9ac5a5; }
 
+/* ============================================================
+   Delivery / Review / WhatsApp handoff — Phase F2.
+   Calm editorial language (thin dividers, quiet gold selected-state,
+   no bordered SaaS cards) consistent with the rest of the reconstructed
+   storefront. La Poste's estimated fee is always visually and textually
+   separated from Al Furqan's book subtotal — never summed silently.
+   ============================================================ */
+.delivery-page { min-height: 600px; }
+.delivery-progress { max-width: 800px; margin: 18px auto 0; padding: 0 32px; display: flex; align-items: center; gap: 10px; list-style: none; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.delivery-progress li { padding-bottom: 6px; border-bottom: 2px solid transparent; }
+.delivery-progress li.is-done { color: var(--ink); border-color: var(--line); }
+.delivery-progress li.is-current { color: var(--gold); font-weight: 700; border-color: var(--gold); }
+.delivery-heading { max-width: 800px; margin: auto; padding: 20px 32px 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.delivery-back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--gold); border: 0; background: none; padding: 0; margin-bottom: 6px; }
+.delivery-back-link:hover { text-decoration: underline; }
+.delivery-title { font-size: clamp(30px, 4vw, 42px); margin: 0; }
+.delivery-subtitle { color: var(--muted); font-size: 13px; margin: 0; }
+.delivery-trust-note { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
+.delivery-content { max-width: 800px; margin: auto; padding: 16px 32px 96px; }
+.delivery-loading { text-align: center; color: var(--muted); padding: 80px 0; }
+.delivery-blocked-notice { border-top: 3px solid var(--danger); background: var(--surface); padding: 28px; text-align: left; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.delivery-blocked-notice strong { color: var(--ink); font-size: 15px; }
+.delivery-blocked-notice p { color: var(--muted); font-size: 13px; margin: 0; }
+
+/* Form shell */
+.delivery-form-container { display: flex; flex-direction: column; gap: 40px; }
+.delivery-step { padding-top: 32px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 18px; }
+.delivery-form-container > .delivery-step:first-child { padding-top: 0; border-top: 0; }
+.delivery-step-title { font-family: var(--font-serif); font-size: 19px; font-weight: 500; margin: 0; }
+
+/* Radio rows — quiet list language, not bordered cards */
+.delivery-method-list, .delivery-office-list { display: flex; flex-direction: column; }
+.delivery-method-row, .delivery-office-row { display: flex; align-items: center; gap: 14px; padding: 16px 4px; border-top: 1px solid var(--line); cursor: pointer; transition: background var(--motion-fast) var(--ease-premium); }
+.delivery-method-list label:first-child, .delivery-office-list label:first-child { border-top: 0; }
+.delivery-method-row:hover, .delivery-office-row:hover { background: var(--surface-alt); }
+.delivery-method-row.is-selected, .delivery-office-row.is-selected { background: var(--paper); }
+.delivery-radio-input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--gold); margin: 0; }
+.delivery-method-icon { color: var(--gold); flex-shrink: 0; }
+.delivery-method-copy { display: flex; flex-direction: column; gap: 3px; }
+.delivery-method-copy strong { font-family: var(--font-serif); font-size: 15px; font-weight: 500; }
+.delivery-method-copy small { color: var(--muted); font-size: 12px; }
+
+/* Fields */
+.delivery-field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.delivery-field-grid-tight { padding-top: 4px; }
+.delivery-field { display: flex; flex-direction: column; gap: 6px; }
+.delivery-field-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; color: var(--gold); }
+.delivery-field-optional { color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 4px; }
+.delivery-text-input { width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 11px 13px; font-size: 13px; min-height: 44px; }
+.delivery-inline-note { background: var(--paper); border-left: 2px solid var(--gold); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.delivery-hint { color: var(--muted); font-size: 11.5px; margin: 0; }
+.delivery-error-text { color: var(--danger); font-size: 12px; font-weight: 600; margin: 0; }
+
+/* La Poste office selection */
+.delivery-office-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.delivery-office-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.delivery-geo-button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--gold); background: var(--paper); color: var(--gold); font-size: 12px; font-weight: 600; padding: 9px 14px; border-radius: var(--radius-sm); min-height: 38px; }
+.delivery-geo-button:disabled { opacity: .5; }
+.delivery-map-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.delivery-map-link:hover { color: var(--gold); text-decoration: underline; }
+.delivery-office-search { margin-top: 2px; }
+.delivery-office-copy { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.delivery-office-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.delivery-office-name-row strong { font-size: 13.5px; color: var(--ink); }
+.delivery-office-custom-label { color: var(--gold); font-size: 13.5px; }
+.delivery-office-region { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); background: var(--surface-alt); padding: 2px 8px; border-radius: 99px; }
+.delivery-office-address { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
+.delivery-office-address svg { color: var(--gold); flex-shrink: 0; }
+.delivery-office-distance { font-size: 11.5px; font-weight: 700; color: var(--gold); white-space: nowrap; }
+
+/* Postal fee — always visually distinct from the book subtotal */
+.postal-fee-note { margin-top: 4px; padding: 16px 18px; background: var(--surface-alt); border-radius: var(--radius-sm); display: flex; flex-direction: column; gap: 6px; }
+.postal-fee-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.5px; }
+.postal-fee-row strong { color: var(--gold); font-size: 15px; }
+.postal-fee-basis { margin: 0; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.postal-fee-unavailable { margin: 0; font-size: 12.5px; color: var(--muted); }
+.postal-fee-unavailable a { color: var(--gold); display: inline-flex; align-items: center; gap: 3px; }
+.postal-fee-disclaimer { margin: 4px 0 0; font-size: 11px; color: var(--muted); line-height: 1.6; }
+
+.delivery-submit-row { padding-top: 8px; }
+.delivery-submit-button { width: 100%; padding: 16px 20px; font-size: 14px; }
+
+/* Review / verification */
+.verification-step { display: flex; flex-direction: column; gap: 32px; }
+.review-section { padding-top: 24px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 14px; }
+.verification-step > .review-section:first-child { padding-top: 0; border-top: 0; }
+.review-section-header { display: flex; justify-content: space-between; align-items: center; }
+.review-section-title { font-family: var(--font-serif); font-size: 17px; font-weight: 500; margin: 0; text-transform: uppercase; letter-spacing: .03em; }
+.review-edit-link { border: 0; background: none; color: var(--gold); font-size: 12px; text-decoration: underline; padding: 0; }
+.review-line-list { display: flex; flex-direction: column; gap: 12px; }
+.review-line { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; font-size: 13.5px; }
+.review-line-copy { display: flex; flex-direction: column; gap: 3px; }
+.review-line-title { font-weight: 600; color: var(--ink); }
+.review-line-copy small { color: var(--muted); font-size: 11.5px; }
+.review-total-row { display: flex; justify-content: space-between; align-items: baseline; padding-top: 12px; border-top: 1px solid var(--line); font-size: 15px; }
+.review-total-row strong { color: var(--gold); }
+.review-detail-list { display: flex; flex-direction: column; gap: 6px; }
+.review-detail-list p { margin: 0; font-size: 13px; color: var(--ink); display: flex; gap: 8px; }
+.review-detail-list p span { color: var(--muted); min-width: 90px; flex-shrink: 0; }
+.review-postal-basis { margin: 0; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.review-postal-note { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+.review-postal-note a { color: var(--gold); display: inline-flex; align-items: center; gap: 3px; }
+.review-section-budget { background: var(--surface-alt); padding: 18px; border-top: 0; }
+.review-contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.delivery-whatsapp-button { width: 100%; padding: 17px 20px; font-size: 14px; }
+
 /* Mobile menu */
 .mobile-menu-overlay { position: fixed; inset: 0; z-index: 55; background: rgba(12,45,56,.35); }
 .mobile-menu-panel { width: min(320px, 100%); height: 100%; background: var(--paper); padding: 22px 20px; overflow-y: auto; animation: menu-in .25s ease-out; }
@@ -1031,6 +1137,14 @@ main { overflow: hidden; }
   .info-hero, .info-content { padding-left: 20px; padding-right: 20px; }
   .delivery-destinations, .delivery-methods { grid-template-columns: 1fr; }
   .contact-grid { grid-template-columns: 1fr; }
+  /* Delivery / review — one decision at a time, full-width controls,
+     no compressed two-column fields (Phase F2). */
+  .delivery-progress, .delivery-heading, .delivery-content { padding-left: 20px; padding-right: 20px; }
+  .delivery-field-grid, .review-contact-grid { grid-template-columns: 1fr; gap: 16px; }
+  .delivery-office-header { flex-direction: column; align-items: stretch; }
+  .delivery-office-actions { justify-content: space-between; }
+  .delivery-office-row, .delivery-method-row { align-items: flex-start; }
+  .delivery-office-distance { align-self: center; }
 }
 
 /* Responsive — small mobile */

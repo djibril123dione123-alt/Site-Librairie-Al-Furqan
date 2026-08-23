@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { MapPin, Navigation, Building, Truck, ChevronRight, ExternalLink } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { SearchableCombobox, ComboboxOption } from '@/components/ui/searchable-combobox';
+import { formatPrice } from '@/lib/al-furqan-data';
+import { estimatePostalFee, LA_POSTE_SIMULATOR_URL, type PostalEstimateResult } from '@/lib/delivery/postal-pricing';
 
 export type DeliveryMethod = 'standard' | 'la_poste';
 
@@ -36,10 +38,12 @@ interface DeliveryFormProps {
     location?: LocationData;
     postOffice?: PostOffice;
   };
+  /** Total estimated cart weight in grams — null/undefined if unknown or incomplete. */
+  cartWeightG?: number | null;
 }
 
 function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371; 
+  const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
   const a =
@@ -55,27 +59,64 @@ const FALLBACK_REGIONS = [
   'THIES', 'ZIGUINCHOR'
 ];
 
-export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) {
+function PostalFeeNote({ estimate, weightG }: { estimate: PostalEstimateResult; weightG?: number | null }) {
+  return (
+    <div className="postal-fee-note">
+      {estimate.status === 'AVAILABLE' && estimate.estimatedFeeFcfa !== null ? (
+        <>
+          <div className="postal-fee-row">
+            <span>Frais La Poste estimés</span>
+            <strong>≈ {formatPrice(estimate.estimatedFeeFcfa)}</strong>
+          </div>
+          {weightG != null && (
+            <p className="postal-fee-basis">
+              {(weightG / 1000).toFixed(2).replace('.', ',')} kg · tarif courrier/paquet national
+            </p>
+          )}
+        </>
+      ) : estimate.status === 'MISSING_PRODUCT_WEIGHT' || estimate.status === 'OUTSIDE_SUPPORTED_WEIGHT' ? (
+        <p className="postal-fee-unavailable">
+          Le tarif sera confirmé par La Poste.{' '}
+          <a href={LA_POSTE_SIMULATOR_URL} target="_blank" rel="noopener noreferrer">
+            Simulateur officiel <ExternalLink size={11} />
+          </a>
+        </p>
+      ) : (
+        <p className="postal-fee-unavailable">
+          Le tarif sera confirmé par La Poste.{' '}
+          <a href={LA_POSTE_SIMULATOR_URL} target="_blank" rel="noopener noreferrer">
+            Simulateur officiel <ExternalLink size={11} />
+          </a>
+        </p>
+      )}
+      <p className="postal-fee-disclaimer">
+        Estimation selon le poids de la commande — à régler directement à La Poste lors du retrait du colis. Le montant appliqué en bureau fait foi.
+      </p>
+    </div>
+  );
+}
+
+export function DeliveryForm({ onValidSubmit, initialData, cartWeightG }: DeliveryFormProps) {
   const supabase = useMemo(() => createBrowserClient(), []);
-  
+
   const [method, setMethod] = useState<DeliveryMethod | null>(initialData?.method || null);
-  
+
   // Server-driven geographic state
   const [regions, setRegions] = useState<string[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
   const [communes, setCommunes] = useState<string[]>([]);
   const [localitiesOptions, setLocalitiesOptions] = useState<ComboboxOption[]>([]);
   const [localitiesLoading, setLocalitiesLoading] = useState(false);
-  
+
   const [selectedRegion, setSelectedRegion] = useState(initialData?.location?.region || '');
   const [selectedDept, setSelectedDept] = useState(initialData?.location?.department || '');
   const [selectedCommune, setSelectedCommune] = useState(initialData?.location?.commune || '');
   const [selectedLocality, setSelectedLocality] = useState(initialData?.location?.locality || '');
-  
+
   const [customLocalityInput, setCustomLocalityInput] = useState('');
   const [quartier, setQuartier] = useState(initialData?.location?.quartier || '');
   const [repere, setRepere] = useState(initialData?.location?.repere || '');
-  
+
   // Post offices state
   const [allOffices, setAllOffices] = useState<PostOffice[]>([]);
   const [selectedOffice, setSelectedOffice] = useState<PostOffice | null>(initialData?.postOffice || null);
@@ -140,9 +181,9 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
     }
     async function fetchCommunes() {
       try {
-        const { data, error } = await supabase.rpc('get_senegal_communes', { 
-          p_region: selectedRegion, 
-          p_department: selectedDept || null 
+        const { data, error } = await supabase.rpc('get_senegal_communes', {
+          p_region: selectedRegion,
+          p_department: selectedDept || null
         });
         if (!error && data) {
           setCommunes(data.map((c: any) => c.commune).filter(Boolean));
@@ -206,7 +247,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
           .select('*')
           .eq('provider', 'la_poste')
           .eq('is_active', true);
-          
+
         if (error) throw error;
         setAllOffices(data || []);
       } catch (err) {
@@ -228,14 +269,14 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
       (pos) => {
         setLocating(false);
         const { latitude, longitude } = pos.coords;
-        
+
         const validOffices = allOffices.filter(o => o.latitude !== null && o.longitude !== null);
         if (validOffices.length > 0) {
           const withDistance = validOffices.map(o => ({
             ...o,
             distanceKm: getDistanceFromLatLonInKm(latitude, longitude, Number(o.latitude), Number(o.longitude))
           })).sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
-          
+
           setAllOffices(withDistance);
           setSelectedOffice(withDistance[0]);
           setIsCustomOffice(false);
@@ -251,7 +292,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
   // Filtered offices for display
   const displayedOffices = useMemo(() => {
     let list = allOffices;
-    
+
     // Filter by region if user selected a region AND office has region defined
     if (selectedRegion) {
       const regUpper = selectedRegion.toUpperCase();
@@ -276,73 +317,81 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
     (method === 'la_poste' ? (isCustomOffice ? customOfficeInput.trim().length > 0 : selectedOffice !== null) : quartier.trim().length > 0)
   );
 
+  const postalEstimate = method === 'la_poste'
+    ? estimatePostalFee({ weightG: cartWeightG ?? null, service: 'colis_national' })
+    : null;
+
   const handleNext = () => {
     if (!isFormValid) return;
-    
+
     onValidSubmit({
       method: method!,
-      location: { 
-        region: selectedRegion, 
+      location: {
+        region: selectedRegion,
         department: selectedDept,
         commune: selectedCommune,
-        locality: finalLocality, 
-        quartier, 
+        locality: finalLocality,
+        quartier,
         repere,
         isCustomLocality: selectedLocality === "Je ne trouve pas ma localité"
       },
       postOffice: method === 'la_poste' ? (
-        isCustomOffice 
-          ? { id: 'custom', name: customOfficeInput, address: null, region: selectedRegion || null, locality: null, latitude: 0, longitude: 0, isCustomOffice: true } 
+        isCustomOffice
+          ? { id: 'custom', name: customOfficeInput, address: null, region: selectedRegion || null, locality: null, latitude: 0, longitude: 0, isCustomOffice: true }
           : selectedOffice!
       ) : undefined
     });
   };
 
   return (
-    <div className="delivery-form-container space-y-8">
+    <div className="delivery-form-container">
       {/* 1. Mode de réception */}
-      <div className="step-block">
-        <h3 className="serif text-xl font-medium mb-4">1. Mode de réception</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <label className={`delivery-method-card p-5 border-2 rounded-xl cursor-pointer transition-all ${method === 'standard' ? 'border-[var(--gold)] bg-[var(--paper)]' : 'border-[var(--line)] bg-[var(--bg)] hover:border-[var(--gold)]'}`}>
-            <input 
-              type="radio" 
-              name="method" 
-              value="standard" 
-              className="sr-only"
+      <div className="delivery-step">
+        <h3 className="delivery-step-title">1. Mode de réception</h3>
+        <div className="delivery-method-list" role="radiogroup" aria-label="Mode de réception">
+          <label className={`delivery-method-row ${method === 'standard' ? 'is-selected' : ''}`}>
+            <input
+              type="radio"
+              name="method"
+              value="standard"
+              className="delivery-radio-input"
               checked={method === 'standard'}
-              onChange={() => setMethod('standard')} 
+              onChange={() => setMethod('standard')}
             />
-            <Truck size={24} className="mb-3 text-[var(--gold)]" />
-            <strong className="block serif text-lg mb-1">Livraison à une adresse</strong>
-            <p className="text-xs text-[var(--muted)]">Livraison à domicile, bureau ou quartier au Sénégal.</p>
+            <Truck size={20} className="delivery-method-icon" aria-hidden="true" />
+            <span className="delivery-method-copy">
+              <strong>Livraison à une adresse</strong>
+              <small>Livraison à domicile, bureau ou quartier au Sénégal.</small>
+            </span>
           </label>
-          
-          <label className={`delivery-method-card p-5 border-2 rounded-xl cursor-pointer transition-all ${method === 'la_poste' ? 'border-[var(--gold)] bg-[var(--paper)]' : 'border-[var(--line)] bg-[var(--bg)] hover:border-[var(--gold)]'}`}>
-            <input 
-              type="radio" 
-              name="method" 
-              value="la_poste" 
-              className="sr-only"
+
+          <label className={`delivery-method-row ${method === 'la_poste' ? 'is-selected' : ''}`}>
+            <input
+              type="radio"
+              name="method"
+              value="la_poste"
+              className="delivery-radio-input"
               checked={method === 'la_poste'}
-              onChange={() => setMethod('la_poste')} 
+              onChange={() => setMethod('la_poste')}
             />
-            <Building size={24} className="mb-3 text-[var(--gold)]" />
-            <strong className="block serif text-lg mb-1">La Poste Sénégal</strong>
-            <p className="text-xs text-[var(--muted)]">Retrait dans un bureau de poste cartographié.</p>
+            <Building size={20} className="delivery-method-icon" aria-hidden="true" />
+            <span className="delivery-method-copy">
+              <strong>La Poste Sénégal</strong>
+              <small>Retrait dans un bureau de poste cartographié.</small>
+            </span>
           </label>
         </div>
       </div>
 
       {/* 2. Hiérarchie géographique */}
       {method && (
-        <div className="step-block border-t border-[var(--line)] pt-8 animate-in fade-in space-y-6">
-          <h3 className="serif text-xl font-medium">2. Localisation (ANSD RGPH-5 2023)</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="delivery-step">
+          <h3 className="delivery-step-title">2. Localisation (ANSD RGPH-5 2023)</h3>
+
+          <div className="delivery-field-grid">
             {/* Région */}
-            <div>
-              <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Région (14 régions du Sénégal)</label>
+            <div className="delivery-field">
+              <label className="delivery-field-label">Région (14 régions du Sénégal)</label>
               <SearchableCombobox
                 options={regions}
                 value={selectedRegion}
@@ -358,8 +407,8 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
             </div>
 
             {/* Département */}
-            <div>
-              <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Département (Optionnel)</label>
+            <div className="delivery-field">
+              <label className="delivery-field-label">Département <span className="delivery-field-optional">facultatif</span></label>
               <SearchableCombobox
                 options={departments}
                 value={selectedDept}
@@ -375,8 +424,8 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
             </div>
 
             {/* Commune */}
-            <div>
-              <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Commune / Arrondissement (Optionnel)</label>
+            <div className="delivery-field">
+              <label className="delivery-field-label">Commune / Arrondissement <span className="delivery-field-optional">facultatif</span></label>
               <SearchableCombobox
                 options={communes}
                 value={selectedCommune}
@@ -391,8 +440,8 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
             </div>
 
             {/* Localité / Quartier (Serveur Search Engine) */}
-            <div>
-              <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Localité / Quartier / Village</label>
+            <div className="delivery-field">
+              <label className="delivery-field-label">Localité / Quartier / Village</label>
               <SearchableCombobox
                 options={localitiesOptions}
                 value={selectedLocality}
@@ -409,40 +458,40 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
 
           {/* Fallback Saisie Manuelle Localité */}
           {selectedLocality === "Je ne trouve pas ma localité" && (
-            <div className="bg-[var(--paper)] p-4 rounded-lg border border-[var(--gold)] animate-in fade-in">
-              <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Saisissez le nom de votre localité</label>
-              <input 
-                type="text" 
+            <div className="delivery-inline-note">
+              <label className="delivery-field-label">Saisissez le nom de votre localité</label>
+              <input
+                type="text"
                 value={customLocalityInput}
                 onChange={(e) => setCustomLocalityInput(e.target.value)}
                 placeholder="Ex: Touba Mosquée, Village de Ndiemane..."
-                className="w-full border border-[var(--line)] bg-[var(--bg)] p-3 rounded-md text-sm"
+                className="delivery-text-input"
               />
-              <p className="text-[11px] text-[var(--muted)] mt-1">Cette précision sera transmise directement avec votre commande WhatsApp.</p>
+              <p className="delivery-hint">Cette précision sera transmise directement avec votre commande WhatsApp.</p>
             </div>
           )}
 
           {/* Champs Adresse Supplémentaires */}
           {method === 'standard' && selectedLocality && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
-              <div>
-                <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Quartier / Rue (Requis)</label>
-                <input 
-                  type="text" 
+            <div className="delivery-field-grid delivery-field-grid-tight">
+              <div className="delivery-field">
+                <label className="delivery-field-label">Quartier / Rue (requis)</label>
+                <input
+                  type="text"
                   value={quartier}
                   onChange={(e) => setQuartier(e.target.value)}
                   placeholder="Ex: Sicap Liberté 5, Rue 10"
-                  className="w-full border border-[var(--line)] bg-[var(--bg)] p-3 rounded-md text-sm"
+                  className="delivery-text-input"
                 />
               </div>
-              <div>
-                <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Repère / Précision (Optionnel)</label>
-                <input 
-                  type="text" 
+              <div className="delivery-field">
+                <label className="delivery-field-label">Repère / Précision <span className="delivery-field-optional">facultatif</span></label>
+                <input
+                  type="text"
                   value={repere}
                   onChange={(e) => setRepere(e.target.value)}
                   placeholder="Ex: Près de la mosquée, Villa 102..."
-                  className="w-full border border-[var(--line)] bg-[var(--bg)] p-3 rounded-md text-sm"
+                  className="delivery-text-input"
                 />
               </div>
             </div>
@@ -452,141 +501,125 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
 
       {/* 3. Sélection Bureau La Poste */}
       {method === 'la_poste' && (
-        <div className="step-block border-t border-[var(--line)] pt-8 animate-in fade-in space-y-4">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+        <div className="delivery-step">
+          <div className="delivery-office-header">
             <div>
-              <h3 className="serif text-xl font-medium">3. Bureau de Poste ({allOffices.length} points cartographiés)</h3>
-              <p className="text-xs text-[var(--muted)] mt-0.5">Points de service officiellement cartographiés par La Poste Sénégal.</p>
+              <h3 className="delivery-step-title">3. Bureau de Poste ({allOffices.length} points cartographiés)</h3>
+              <p className="delivery-hint">Points de service officiellement cartographiés par La Poste Sénégal.</p>
             </div>
-            
-            <div className="flex items-center gap-3">
-              <button 
+
+            <div className="delivery-office-actions">
+              <button
                 type="button"
-                onClick={handleGeolocation} 
+                onClick={handleGeolocation}
                 disabled={locating}
-                className="text-xs text-[var(--gold)] flex items-center gap-1.5 hover:underline disabled:opacity-50 border border-[var(--gold)] bg-[var(--paper)] px-3 py-2 rounded-md font-medium"
+                className="delivery-geo-button"
               >
-                <Navigation size={14} /> 
+                <Navigation size={14} />
                 {locating ? 'Géolocalisation...' : 'Trouver le plus proche'}
               </button>
-              
-              <a 
+
+              <a
                 href="https://www.google.com/maps/d/viewer?mid=11FgBObnRyCpT006ykvUBXRvNtIX-G4qT"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-[var(--muted)] flex items-center gap-1 hover:text-[var(--gold)] underline"
+                className="delivery-map-link"
               >
                 Carte officielle <ExternalLink size={12} />
               </a>
             </div>
           </div>
 
-          <p className="text-[11px] text-[var(--muted)]">Votre position sert uniquement à trouver les bureaux de poste les plus proches.</p>
-          {geoError && <p className="text-xs text-red-500 font-medium">{geoError}</p>}
+          <p className="delivery-hint">Votre position sert uniquement à trouver les bureaux de poste les plus proches.</p>
+          {geoError && <p className="delivery-error-text">{geoError}</p>}
 
-          <div className="mb-3">
-            <input
-              type="text"
-              value={officeSearch}
-              onChange={(e) => setOfficeSearch(e.target.value)}
-              placeholder="Filtrer les bureaux de poste par nom..."
-              className="w-full border border-[var(--line)] bg-[var(--bg)] p-2.5 rounded-md text-xs"
-            />
-          </div>
-          
-          <div className="grid grid-cols-1 gap-3 max-h-80 overflow-y-auto pr-1">
+          <input
+            type="text"
+            value={officeSearch}
+            onChange={(e) => setOfficeSearch(e.target.value)}
+            placeholder="Filtrer les bureaux de poste par nom..."
+            className="delivery-text-input delivery-office-search"
+          />
+
+          <div className="delivery-office-list" role="radiogroup" aria-label="Bureau de poste">
             {displayedOffices.map(office => (
-              <label 
-                key={office.id} 
-                className={`office-card p-4 border rounded-xl cursor-pointer transition-all ${
-                  !isCustomOffice && selectedOffice?.id === office.id 
-                    ? 'border-[var(--gold)] bg-[var(--paper)]' 
-                    : 'border-[var(--line)] bg-[var(--bg)] hover:bg-[var(--paper)]/50'
-                }`}
+              <label
+                key={office.id}
+                className={`delivery-office-row ${!isCustomOffice && selectedOffice?.id === office.id ? 'is-selected' : ''}`}
               >
-                <div className="flex items-start gap-3">
-                  <input 
-                    type="radio" 
-                    name="office" 
-                    value={office.id}
-                    checked={!isCustomOffice && selectedOffice?.id === office.id}
-                    onChange={() => {
-                      setSelectedOffice(office);
-                      setIsCustomOffice(false);
-                    }}
-                    className="mt-1 accent-[var(--gold)]"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <strong className="block text-sm text-[var(--ink)]">{office.name}</strong>
-                      {office.region && (
-                        <span className="text-[10px] bg-[var(--line)]/50 text-[var(--muted)] px-2 py-0.5 rounded">
-                          {office.region}
-                        </span>
-                      )}
-                    </div>
-                    {office.address && (
-                      <span className="text-xs text-[var(--muted)] flex items-center gap-1 mt-1">
-                        <MapPin size={12} className="text-[var(--gold)]" /> {office.address}
-                      </span>
-                    )}
-                  </div>
-                  {office.distanceKm !== undefined && (
-                    <span className="text-xs font-semibold text-[var(--gold)] bg-white border border-[var(--line)] px-2.5 py-1 rounded-full shadow-sm">
-                      ≈ {office.distanceKm.toFixed(1)} km
+                <input
+                  type="radio"
+                  name="office"
+                  value={office.id}
+                  checked={!isCustomOffice && selectedOffice?.id === office.id}
+                  onChange={() => {
+                    setSelectedOffice(office);
+                    setIsCustomOffice(false);
+                  }}
+                  className="delivery-radio-input"
+                />
+                <span className="delivery-office-copy">
+                  <span className="delivery-office-name-row">
+                    <strong>{office.name}</strong>
+                    {office.region && <span className="delivery-office-region">{office.region}</span>}
+                  </span>
+                  {office.address && (
+                    <span className="delivery-office-address">
+                      <MapPin size={12} aria-hidden="true" /> {office.address}
                     </span>
                   )}
-                </div>
+                </span>
+                {office.distanceKm !== undefined && (
+                  <span className="delivery-office-distance">≈ {office.distanceKm.toFixed(1)} km</span>
+                )}
               </label>
             ))}
 
             {/* Saisie Manuelle Bureau Si non trouvé */}
-            <label 
-              className={`office-card p-4 border rounded-xl cursor-pointer transition-all ${
-                isCustomOffice ? 'border-[var(--gold)] bg-[var(--paper)]' : 'border-[var(--line)] bg-[var(--bg)] hover:bg-[var(--paper)]/50'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <input 
-                  type="radio" 
-                  name="office" 
-                  value="custom"
-                  checked={isCustomOffice}
-                  onChange={() => {
-                    setIsCustomOffice(true);
-                    setSelectedOffice(null);
-                  }}
-                  className="mt-1 accent-[var(--gold)]"
-                />
-                <div className="flex-1">
-                  <strong className="block text-sm text-[var(--gold)]">+ Je ne trouve pas mon bureau (saisie manuelle)</strong>
-                  <p className="text-xs text-[var(--muted)] mt-0.5">Indiquez le nom de l’agence La Poste la plus proche de chez vous.</p>
-                </div>
-              </div>
+            <label className={`delivery-office-row ${isCustomOffice ? 'is-selected' : ''}`}>
+              <input
+                type="radio"
+                name="office"
+                value="custom"
+                checked={isCustomOffice}
+                onChange={() => {
+                  setIsCustomOffice(true);
+                  setSelectedOffice(null);
+                }}
+                className="delivery-radio-input"
+              />
+              <span className="delivery-office-copy">
+                <strong className="delivery-office-custom-label">+ Je ne trouve pas mon bureau (saisie manuelle)</strong>
+                <span className="delivery-office-address">Indiquez le nom de l&apos;agence La Poste la plus proche de chez vous.</span>
+              </span>
             </label>
           </div>
 
           {isCustomOffice && (
-            <div className="bg-[var(--paper)] p-4 rounded-lg border border-[var(--gold)] animate-in fade-in">
-              <label className="block text-xs uppercase tracking-widest text-[var(--gold)] mb-2 font-semibold">Nom du bureau de poste</label>
-              <input 
-                type="text" 
+            <div className="delivery-inline-note">
+              <label className="delivery-field-label">Nom du bureau de poste</label>
+              <input
+                type="text"
                 value={customOfficeInput}
                 onChange={(e) => setCustomOfficeInput(e.target.value)}
                 placeholder="Ex: Bureau de Poste de Linguère, Agence Keur Massar..."
-                className="w-full border border-[var(--line)] bg-[var(--bg)] p-3 rounded-md text-sm"
+                className="delivery-text-input"
               />
             </div>
+          )}
+
+          {(selectedOffice || isCustomOffice) && postalEstimate && (
+            <PostalFeeNote estimate={postalEstimate} weightG={cartWeightG} />
           )}
         </div>
       )}
 
-      <div className="pt-6">
-        <button 
+      <div className="delivery-submit-row">
+        <button
           type="button"
           onClick={handleNext}
           disabled={!isFormValid}
-          className="button button-dark w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed text-sm py-4 px-8 flex items-center justify-center gap-2"
+          className="button button-dark delivery-submit-button"
         >
           Continuer vers la vérification <ChevronRight size={18} />
         </button>

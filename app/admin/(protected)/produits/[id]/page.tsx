@@ -73,6 +73,7 @@ async function getProduct(id: string) {
     compareAtPrice: data.compare_at_price?.toString() || '',
     availability: dbAvailabilityToUi(data.availability),
     stockQuantity: data.stock_quantity?.toString() || '',
+    weightG: (data as any).weight_g?.toString() || '',
     shortDescription: data.short_description || '',
     description: data.description || '',
     language: data.language || 'Français',
