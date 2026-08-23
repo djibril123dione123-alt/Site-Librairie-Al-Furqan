@@ -101,14 +101,14 @@
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { 
-  margin: 0; 
-  background: var(--paper); 
-  color: var(--ink); 
-  font-family: var(--font-sans), -apple-system, sans-serif; 
-  font-size: 15px; 
-  line-height: 1.6; 
-  -webkit-font-smoothing: antialiased; 
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans), -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 a { color: inherit; text-decoration: none; transition: color 0.2s; }
 button, input, select, textarea { font: inherit; }
@@ -192,7 +192,10 @@ h1, h2 { font-weight: 500; }
    never a three-book decorative composition. Copy ~42%, book stage ~58%.
    Full-width surface wrapper carries the deliberate --paper background;
    .hero itself stays the centered max-width composition. */
-.home-hero-surface { background: var(--paper); }
+/* --bg (near-white), not --paper: the hero book is a real photograph with
+   its own near-white background, so a warm cream stage behind it read as
+   "a book inside two nested rectangles" rather than a book in space. */
+.home-hero-surface { background: var(--bg); }
 .hero { max-width: 1280px; min-height: 600px; margin: auto; padding: 72px 32px; display: grid; grid-template-columns: 0.75fr 1fr; align-items: center; gap: 56px; }
 .hero h1 { font-size: clamp(44px, 5.5vw, 72px); margin: 22px 0; max-width: 580px; }
 .hero h1 em, h2 em, .collection-hero h1 em { color: var(--gold); font-style: italic; }
@@ -320,8 +323,13 @@ main { overflow: hidden; }
 .cover:after { content: ''; position: absolute; inset: 8px; border: 1px solid color-mix(in srgb, var(--cover-ink) 35%, transparent); pointer-events: none; }
 /* Couverture réelle (photo produit) : hérite des mêmes dimensions que `.cover` (voir book-stage.tsx)
    mais sans les décorations de la couverture illustrée (fond couleur, cadre). Aucun cadre/rayon
-   artificiel n'est ajouté à la photo elle-même — seule une ombre de contact la fait "reposer". */
-.cover-real { background: var(--cream); padding: 0; box-shadow: var(--shadow-book-sm); display: flex; align-items: center; justify-content: center; border-radius: 2px; }
+   artificiel n'est ajouté à la photo elle-même — seule une ombre de contact la fait "reposer".
+   Transparent, not --cream: a real photo already carries its own (usually
+   near-white) background, so a solid --cream box behind it created a
+   visible beige-band / white-rectangle / beige-band sandwich instead of
+   one physical object. Letting the page surface show through merges the
+   photo into its surroundings instead of framing it. */
+.cover-real { background: transparent; padding: 0; box-shadow: var(--shadow-book-sm); display: flex; align-items: center; justify-content: center; border-radius: 2px; }
 .cover-real:after { display: none; }
 @media (hover: hover) and (pointer: fine) {
   .book-stage:hover .book-object { transform: translateY(-4px); box-shadow: var(--shadow-book-lg); }
