@@ -5,7 +5,7 @@ import { MapPin, Navigation, Building, Truck, ChevronRight, ExternalLink } from 
 import { createBrowserClient } from '@/lib/supabase/client';
 import { SearchableCombobox, ComboboxOption } from '@/components/ui/searchable-combobox';
 import { formatPrice } from '@/lib/al-furqan-data';
-import { estimatePostalFee, LA_POSTE_SIMULATOR_URL, type PostalEstimateResult } from '@/lib/delivery/postal-pricing';
+import { estimatePostalFee, selectPostalService, POSTAL_SERVICE_LABELS, LA_POSTE_SIMULATOR_URL, type PostalEstimateResult } from '@/lib/delivery/postal-pricing';
 
 export type DeliveryMethod = 'standard' | 'la_poste';
 
@@ -70,7 +70,7 @@ function PostalFeeNote({ estimate, weightG }: { estimate: PostalEstimateResult; 
           </div>
           {weightG != null && (
             <p className="postal-fee-basis">
-              {(weightG / 1000).toFixed(2).replace('.', ',')} kg · tarif courrier/paquet national
+              {(weightG / 1000).toFixed(2).replace('.', ',')} kg · tarif {POSTAL_SERVICE_LABELS[estimate.service]}
             </p>
           )}
         </>
@@ -318,7 +318,7 @@ export function DeliveryForm({ onValidSubmit, initialData, cartWeightG }: Delive
   );
 
   const postalEstimate = method === 'la_poste'
-    ? estimatePostalFee({ weightG: cartWeightG ?? null, service: 'colis_national' })
+    ? estimatePostalFee({ weightG: cartWeightG ?? null, service: selectPostalService(cartWeightG ?? null) })
     : null;
 
   const handleNext = () => {

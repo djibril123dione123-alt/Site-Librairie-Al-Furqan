@@ -16,7 +16,37 @@
  * service et sa tranche de poids — jamais depuis un souvenir ou un blog tiers.
  */
 
-export type PostalService = 'colis_national';
+/**
+ * La Poste Sénégal distingue au moins deux familles de service national :
+ * - courrier_national : courrier/paquet, généralement 0–3 kg — le service
+ *   pertinent pour la plupart des commandes de livres.
+ * - colis_national : colis, généralement 1–30 kg — pour les commandes plus
+ *   lourdes.
+ * Ces bornes de poids sont indicatives (communication publique La Poste),
+ * PAS une grille tarifaire vérifiée — TARIFF_TABLE reste vide tant qu'une
+ * source officielle exacte n'est pas obtenue. L'objectif ici est seulement
+ * de ne pas forcer une commande de livres légère (<3 kg) dans le modèle
+ * "colis", plus cher, une fois que de vrais tarifs seront ajoutés.
+ */
+export type PostalService = 'courrier_national' | 'colis_national';
+
+export const POSTAL_SERVICE_LABELS: Record<PostalService, string> = {
+  courrier_national: 'courrier/paquet national',
+  colis_national: 'colis national',
+};
+
+const COURRIER_MAX_WEIGHT_G = 3000;
+
+/**
+ * Choisit le service La Poste pertinent selon le poids estimé. Un poids
+ * inconnu (null) retombe sur colis_national par prudence — MISSING_PRODUCT_WEIGHT
+ * empêche de toute façon un vrai tarif d'être renvoyé tant que TARIFF_TABLE
+ * est vide.
+ */
+export function selectPostalService(weightG: number | null): PostalService {
+  if (weightG !== null && weightG <= COURRIER_MAX_WEIGHT_G) return 'courrier_national';
+  return 'colis_national';
+}
 
 export type PostalEstimateStatus =
   | 'AVAILABLE'
@@ -61,8 +91,11 @@ const TARIFF_TABLE: TariffEntry[] = [];
 
 /**
  * Allocation de poids d'emballage (grammes), appliquée une fois par commande.
- * Valeur d'ingénierie interne d'Al Furqan (protection/calage du colis) — ce
- * n'est PAS une règle tarifaire La Poste.
+ * Hypothèse business/config interne à Al Furqan (protection/calage du colis)
+ * — ce n'est PAS une règle ou une valeur communiquée par La Poste, et elle
+ * n'a pas encore été mesurée sur un emballage réel. TODO avant d'activer de
+ * vrais tarifs La Poste : peser un emballage type réel et remplacer cette
+ * valeur par une mesure vérifiée (ou une grille par gabarit de colis).
  */
 export const PACKAGING_WEIGHT_G = 100;
 
@@ -115,7 +148,7 @@ export function calculateCartWeight(lines: CartWeightLine[]): CartWeightResult {
   };
 }
 
-const SUPPORTED_SERVICES: PostalService[] = ['colis_national'];
+const SUPPORTED_SERVICES: PostalService[] = ['courrier_national', 'colis_national'];
 
 /**
  * Estime les frais La Poste pour un poids et un service donnés. Ne fait aucun
@@ -153,4 +186,4 @@ export function estimatePostalFee(input: PostalEstimateInput): PostalEstimateRes
 }
 
 /** Lien vers le simulateur officiel, affiché quand aucune estimation interne n'existe. */
-export const LA_POSTE_SIMULATOR_URL = 'https://www.laposte.sn';
+export const LA_POSTE_SIMULATOR_URL = 'https://www.laposte.sn/simulateur-prix-envoi-colis-lettres/';

@@ -1021,7 +1021,7 @@ export function ProductForm({
                       <span style={{ position: 'absolute', right: 12, top: 8, fontSize: 12, color: 'var(--admin-text-muted)', fontWeight: 600 }}>g</span>
                     </div>
                     <span style={{ fontSize: 11, color: 'var(--admin-text-subtle)' }}>
-                      Poids réel de l&apos;ouvrage emballé. Utilisé uniquement pour estimer les frais La Poste au retrait — n&apos;affecte pas le prix. Laisser vide si inconnu.
+                      Poids réel de l&apos;ouvrage seul, sans emballage d&apos;expédition. Utilisé uniquement pour estimer les frais La Poste au retrait — n&apos;affecte pas le prix. Laisser vide si inconnu.
                     </span>
                   </div>
                 </div>

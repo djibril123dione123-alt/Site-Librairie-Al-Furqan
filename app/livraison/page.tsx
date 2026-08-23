@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { MessageCircle, ArrowLeft, ExternalLink } from 'lucide-react';
 import { formatPrice, generateOrderRef, buildWhatsAppUrl, getSiteUrl } from '@/lib/al-furqan-data';
@@ -9,7 +9,7 @@ import { DeliveryForm, DeliveryMethod, LocationData, PostOffice } from '@/compon
 import { useCartRevalidation } from '@/components/cart/use-cart-revalidation';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { EmptyState } from '@/components/ui/empty-state';
-import { calculateCartWeight, estimatePostalFee, LA_POSTE_SIMULATOR_URL } from '@/lib/delivery/postal-pricing';
+import { calculateCartWeight, estimatePostalFee, selectPostalService, LA_POSTE_SIMULATOR_URL } from '@/lib/delivery/postal-pricing';
 
 type Step = 'delivery' | 'verification';
 
@@ -43,20 +43,27 @@ export default function LivraisonPage() {
     }
   }
 
-  // Read synchronously (not via useEffect) so DeliveryForm's initial mount —
-  // which seeds its internal state from `initialData` exactly once — sees
-  // the draft on the very first client render instead of one render late.
-  let draftFromStorage: DeliveryChoice | undefined;
-  if (typeof window !== 'undefined') {
+  // DeliveryForm seeds its internal state from `initialData` exactly once,
+  // on mount — so the draft must be resolved BEFORE DeliveryForm mounts,
+  // not handed to it via a prop update. Reading sessionStorage directly
+  // during render would also read on the server (where it doesn't exist)
+  // and again on client hydration, a classic hydration-mismatch source.
+  // Instead: resolve the draft in an effect, keep DeliveryForm unmounted
+  // until that lookup finishes, then mount it once with the final value.
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftFromStorage, setDraftFromStorage] = useState<DeliveryChoice | undefined>(undefined);
+
+  useEffect(() => {
     const stored = sessionStorage.getItem(DRAFT_KEY);
     if (stored) {
       try {
-        draftFromStorage = JSON.parse(stored);
+        setDraftFromStorage(JSON.parse(stored));
       } catch {
         // Brouillon corrompu — ignoré silencieusement
       }
     }
-  }
+    setDraftReady(true);
+  }, []);
 
   const validLines = lines.filter((l) => l.status === 'VALID');
   const invalidLines = lines.filter((l) => l.status !== 'VALID');
@@ -70,7 +77,7 @@ export default function LivraisonPage() {
   );
 
   const postalEstimate = deliveryData?.method === 'la_poste'
-    ? estimatePostalFee({ weightG: cartWeight.totalWeightG, service: 'colis_national' })
+    ? estimatePostalFee({ weightG: cartWeight.totalWeightG, service: selectPostalService(cartWeight.totalWeightG) })
     : null;
 
   const estimatedBudgetTotal = postalEstimate?.status === 'AVAILABLE' && postalEstimate.estimatedFeeFcfa !== null
@@ -185,11 +192,15 @@ Référence commande : ${ref.current}`;
             <Link href="/panier" className="button button-dark">Retourner au panier</Link>
           </div>
         ) : step === 'delivery' ? (
-          <DeliveryForm
-            onValidSubmit={handleDeliverySubmit}
-            initialData={deliveryData || draftFromStorage}
-            cartWeightG={cartWeight.totalWeightG}
-          />
+          !draftReady ? (
+            <p className="delivery-loading">Chargement de vos préférences...</p>
+          ) : (
+            <DeliveryForm
+              onValidSubmit={handleDeliverySubmit}
+              initialData={deliveryData || draftFromStorage}
+              cartWeightG={cartWeight.totalWeightG}
+            />
+          )
         ) : (
           <div className="verification-step">
             <section className="review-section">
