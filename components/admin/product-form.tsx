@@ -1,24 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { 
-  ArrowLeft, 
-  Loader2, 
-  Upload, 
-  X, 
-  Plus, 
-  Trash2, 
-  Eye, 
-  Check, 
-  BookOpen, 
-  FileText, 
-  Tag as TagIcon, 
-  Image as ImageIcon, 
-  Layers, 
+import {
+  ArrowLeft,
+  Loader2,
+  Upload,
+  X,
+  Plus,
+  Trash2,
+  Eye,
+  Check,
+  BookOpen,
+  FileText,
+  Tag as TagIcon,
+  Image as ImageIcon,
+  Layers,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   AlertCircle
 } from 'lucide-react';
 import type { Availability } from '@/lib/types/ui';
@@ -65,6 +67,29 @@ export type ImageItem = {
   position?: number;
   uploading?: boolean;
 };
+
+const IMAGE_TYPE_LABELS: Record<ImageItem['type'], string> = {
+  cover: 'Couverture',
+  back: 'Quatrième',
+  spine: 'Dos',
+  inside: 'Intérieur',
+  toc: 'Sommaire',
+  other: 'Autre',
+};
+
+const IMAGE_TYPE_OPTIONS = Object.entries(IMAGE_TYPE_LABELS) as [ImageItem['type'], string][];
+
+// Normalise pour une comparaison tolérante (accents/casse/ponctuation) —
+// utilisé uniquement pour un avertissement non-bloquant, jamais pour
+// modifier automatiquement un champ.
+function normalizeForCompare(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
 
 export type VariantItem = {
   id: string;
@@ -172,12 +197,34 @@ export function ProductForm({
   const [newPublisherDesc, setNewPublisherDesc] = useState('');
 
   const [saving, setSaving] = useState(false);
+  // `saving` (React state) drives the disabled UI, but its DOM update isn't
+  // guaranteed to land before a second native click fires in the same tick
+  // (double-click, or a very fast repeat tap). This ref is a plain,
+  // synchronous mutation checked at the very top of the handler, so two
+  // overlapping submissions can never both pass the guard.
+  const isSubmittingRef = useRef(false);
   const [error, setError] = useState('');
   const [warning, setWarning] = useState('');
   const [success, setSuccess] = useState('');
   const [biblioOpen, setBiblioOpen] = useState(true);
   const [dragActive, setDragActive] = useState(false);
-  
+  // Repliée dès qu'une vraie photo de couverture existe — la photo réelle
+  // prime sur le fallback visuel (Phase G). Réagit quand la présence d'une
+  // couverture change réellement (ajout/suppression), mais ne referme pas
+  // la section sous l'opérateur s'il l'a rouverte manuellement entre-temps.
+  const [fallbackOpen, setFallbackOpen] = useState(
+    () => !(initialData?.images || []).some((img) => img.type === 'cover')
+  );
+  const hasCoverImage = images.some((img) => img.type === 'cover');
+  const hadCoverRef = useRef(hasCoverImage);
+  useEffect(() => {
+    if (hadCoverRef.current !== hasCoverImage) {
+      setFallbackOpen(!hasCoverImage);
+      hadCoverRef.current = hasCoverImage;
+    }
+  }, [hasCoverImage]);
+
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   // Charger les catégories de la DB si non transmises
@@ -220,6 +267,24 @@ export function ProductForm({
   const setField = (field: keyof FormData, value: any) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
+
+  // Avertissement UNIQUEMENT — ne bloque jamais l'enregistrement/publication,
+  // ne modifie jamais le titre automatiquement. Seuil de longueur pour éviter
+  // un faux positif bruyant sur un nom très court/générique (ex: "Al", "Ibn").
+  const MIN_ENTITY_NAME_LENGTH = 4;
+  const titleQualityWarning = useMemo(() => {
+    const title = normalizeForCompare(form.title);
+    if (!title) return null;
+    const authorNorm = normalizeForCompare(form.author);
+    const publisherNorm = normalizeForCompare(form.publisher);
+    if (authorNorm.length >= MIN_ENTITY_NAME_LENGTH && title.includes(authorNorm)) {
+      return "Le titre semble répéter l'auteur ou l'éditeur. Vérifiez que ce champ contient uniquement le titre de l'ouvrage.";
+    }
+    if (publisherNorm.length >= MIN_ENTITY_NAME_LENGTH && title.includes(publisherNorm)) {
+      return "Le titre semble répéter l'auteur ou l'éditeur. Vérifiez que ce champ contient uniquement le titre de l'ouvrage.";
+    }
+    return null;
+  }, [form.title, form.author, form.publisher]);
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedVal = e.target.value;
@@ -317,13 +382,28 @@ export function ProductForm({
     }
   };
 
-  const setPrimaryImage = (index: number) => {
+  // Changer le rôle d'une image. Choisir "Couverture" rétrograde en toute
+  // sécurité l'ancienne couverture (une seule couverture à la fois).
+  const setImageType = (index: number, type: ImageItem['type']) => {
     setImages((prev) =>
-      prev.map((img, i) => ({
-        ...img,
-        type: i === index ? 'cover' : (img.type === 'cover' ? 'inside' : img.type),
-      }))
+      prev.map((img, i) => {
+        if (i === index) return { ...img, type };
+        if (type === 'cover' && img.type === 'cover') return { ...img, type: 'inside' };
+        return img;
+      })
     );
+  };
+
+  // Réordonnancement simple (échange avec le voisin) — la position persistée
+  // suit directement l'ordre du tableau, pas besoin de glisser-déposer.
+  const moveImage = (index: number, direction: -1 | 1) => {
+    setImages((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
   };
 
   const handleQuickCreateAuthor = async () => {
@@ -391,9 +471,18 @@ export function ProductForm({
     );
   };
 
-  // Soumission globale avec validation différenciée Brouillon vs Publication
-  const handleFormSubmit = async (e: React.FormEvent, targetStatus?: 'draft' | 'published' | 'archived') => {
+  // Soumission globale avec validation différenciée Brouillon vs Publication.
+  // `addAnother` ne s'applique qu'à la création (pas de productId) : après
+  // succès confirmé du serveur, le formulaire est réinitialisé pour saisir
+  // le livre suivant sans revalider la page.
+  const handleFormSubmit = async (
+    e: React.FormEvent,
+    targetStatus?: 'draft' | 'published' | 'archived',
+    addAnother?: boolean
+  ) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+
     setError('');
     setWarning('');
     setSuccess('');
@@ -428,6 +517,7 @@ export function ProductForm({
       }
     }
 
+    isSubmittingRef.current = true;
     setSaving(true);
 
     try {
@@ -491,10 +581,29 @@ export function ProductForm({
         return;
       }
 
+      // Succès confirmé par le serveur — seul point à partir duquel il est
+      // sûr de réinitialiser le formulaire (jamais avant : voir critère
+      // d'acceptation Phase G §35, aucune perte en cas d'échec de l'API).
+      if (!productId && addAnother) {
+        setForm({ ...DEFAULT_FORM });
+        setVariants([]);
+        setImages([]);
+        setFallbackOpen(true);
+        setSuccess(
+          finalStatus === 'published'
+            ? 'Livre publié avec succès. Vous pouvez ajouter le suivant.'
+            : 'Brouillon enregistré. Vous pouvez ajouter le suivant.'
+        );
+        titleInputRef.current?.focus();
+        return;
+      }
+
       setSuccess(
-        productId 
-          ? `Fiche mise à jour (${finalStatus === 'published' ? 'Publiée' : 'Brouillon'}).` 
-          : `Livre enregistré avec succès.`
+        productId
+          ? `Fiche mise à jour (${finalStatus === 'published' ? 'Publiée' : 'Brouillon'}).`
+          : finalStatus === 'published'
+            ? 'Livre publié avec succès.'
+            : 'Brouillon enregistré.'
       );
 
       if (result.slug) {
@@ -502,13 +611,14 @@ export function ProductForm({
       }
 
       if (!productId && result.id) {
-        setTimeout(() => router.push(`/admin/produits/${result.id}`), 800);
+        router.push(`/admin/produits/${result.id}`);
       } else {
         router.refresh();
       }
     } catch {
       setError('Erreur réseau lors de la communication avec le serveur.');
     } finally {
+      isSubmittingRef.current = false;
       setSaving(false);
     }
   };
@@ -540,13 +650,23 @@ export function ProductForm({
             return (
               <>
                 {productId && form.status === 'published' && form.slug && (
-                  <Link 
-                    href={`/livres/${form.slug}`} 
-                    target="_blank" 
+                  <Link
+                    href={`/livres/${form.slug}`}
+                    target="_blank"
                     className="btn btn-secondary btn-sm"
                   >
                     <Eye size={14} />
                     <span>Voir sur le site</span>
+                  </Link>
+                )}
+
+                {/* Secondaire : reprendre une saisie rapide sans repasser par
+                    la liste — hiérarchie : action tertiaire (voir), action
+                    secondaire (ajouter suivant), action(s) primaire(s). */}
+                {productId && (
+                  <Link href="/admin/produits/nouveau" className="btn btn-secondary btn-sm">
+                    <Plus size={14} />
+                    <span>Ajouter un autre livre</span>
                   </Link>
                 )}
 
@@ -569,6 +689,18 @@ export function ProductForm({
                   {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={14} />}
                   <span>{isUploading ? 'Upload en cours...' : (productId ? 'Mettre à jour & Publier' : 'Publier le livre')}</span>
                 </button>
+
+                {!productId && (
+                  <button
+                    type="button"
+                    className="btn btn-gold"
+                    disabled={saving || isUploading}
+                    onClick={(e) => handleFormSubmit(e as any, 'published', true)}
+                  >
+                    {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={14} />}
+                    <span>{isUploading ? 'Upload en cours...' : 'Publier et ajouter un autre'}</span>
+                  </button>
+                )}
               </>
             );
           })()}
@@ -611,6 +743,7 @@ export function ProductForm({
                 Titre de l&apos;ouvrage <span style={{ color: 'var(--danger)' }}>*</span>
               </label>
               <input
+                ref={titleInputRef}
                 id="title"
                 type="text"
                 className="form-input"
@@ -619,6 +752,15 @@ export function ProductForm({
                 onChange={(e) => setField('title', e.target.value)}
                 required
               />
+              <span className="field-hint">
+                Saisissez uniquement le titre de l&apos;ouvrage. L&apos;auteur, l&apos;éditeur et les autres informations disposent de champs dédiés.
+              </span>
+              {titleQualityWarning && (
+                <span className="field-warning">
+                  <AlertCircle size={13} />
+                  <span>{titleQualityWarning}</span>
+                </span>
+              )}
             </div>
 
             <div className="form-group">
@@ -657,10 +799,13 @@ export function ProductForm({
                 id="description"
                 className="form-textarea"
                 rows={5}
-                placeholder="Présentation complète du livre, sommaire, utilité et contexte de l'auteur..."
+                placeholder="Présentation factuelle de l'ouvrage, contenu, thèmes abordés..."
                 value={form.description}
                 onChange={(e) => setField('description', e.target.value)}
               />
+              <span className="field-hint">
+                Utilisez uniquement une description vérifiée provenant du livre, de l&apos;éditeur ou d&apos;une source fiable. Évitez les affirmations non sourcées sur l&apos;auteur ou les qualités de l&apos;ouvrage.
+              </span>
             </div>
           </div>
 
@@ -859,25 +1004,53 @@ export function ProductForm({
                 <div className="image-preview-grid">
                   {images.map((img, i) => (
                     <div key={i} className="image-preview-card">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img.preview} alt={`Aperçu ${i + 1}`} />
-                      <button
-                        type="button"
-                        className="image-preview-remove"
-                        onClick={() => removeImage(i)}
-                        title="Supprimer la photo"
-                      >
-                        <X size={12} />
-                      </button>
-                      <div style={{ position: 'absolute', bottom: 4, left: 4, right: 4, display: 'flex', gap: 4 }}>
+                      <div className="image-preview-thumb">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={img.preview} alt={`Aperçu ${i + 1}`} />
+                        {img.type === 'cover' && (
+                          <span className="image-preview-cover-badge" title="Couverture actuelle">★</span>
+                        )}
                         <button
                           type="button"
-                          className="btn btn-secondary btn-sm"
-                          style={{ flex: 1, padding: '2px 4px', fontSize: 9 }}
-                          onClick={() => setPrimaryImage(i)}
+                          className="image-preview-remove"
+                          onClick={() => removeImage(i)}
+                          title="Supprimer la photo"
+                          aria-label={`Supprimer la photo ${i + 1}`}
                         >
-                          {img.type === 'cover' ? '★ Couverture' : 'Définir princ.'}
+                          <X size={12} />
                         </button>
+                      </div>
+                      <div className="image-preview-controls">
+                        <select
+                          className="image-preview-role-select"
+                          value={img.type}
+                          onChange={(e) => setImageType(i, e.target.value as ImageItem['type'])}
+                          aria-label={`Rôle de la photo ${i + 1}`}
+                        >
+                          {IMAGE_TYPE_OPTIONS.map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
+                        </select>
+                        <div className="image-preview-move">
+                          <button
+                            type="button"
+                            onClick={() => moveImage(i, -1)}
+                            disabled={i === 0}
+                            title="Déplacer vers la gauche"
+                            aria-label={`Déplacer la photo ${i + 1} vers la gauche`}
+                          >
+                            <ChevronLeft size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveImage(i, 1)}
+                            disabled={i === images.length - 1}
+                            title="Déplacer vers la droite"
+                            aria-label={`Déplacer la photo ${i + 1} vers la droite`}
+                          >
+                            <ChevronRight size={12} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -885,10 +1058,22 @@ export function ProductForm({
               )}
             </div>
 
-            {/* Couleur virtuelle de couverture */}
+            {/* Fallback 3D — secondaire dès qu'une vraie photo existe (Phase G) */}
             <div className="form-group" style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--admin-border)' }}>
-              <label className="form-label">Couleur de couverture virtuelle (Fallback 3D)</label>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="form-disclosure-toggle"
+                onClick={() => setFallbackOpen((o) => !o)}
+                aria-expanded={fallbackOpen}
+              >
+                <span>Fallback si aucune photo n&apos;est disponible</span>
+                {fallbackOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+              <span className="field-hint">
+                Couverture 3D générée à partir d&apos;une couleur — utilisée uniquement si aucune vraie photo de couverture n&apos;est fournie.
+              </span>
+              {fallbackOpen && (
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
                 {COVER_COLORS.map((c) => (
                   <label key={c.value} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12 }}>
                     <input
@@ -903,6 +1088,7 @@ export function ProductForm({
                   </label>
                 ))}
               </div>
+              )}
             </div>
           </div>
 
@@ -935,7 +1121,7 @@ export function ProductForm({
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label" htmlFor="isbn">ISBN / Code EAN</label>
+                    <label className="form-label" htmlFor="isbn">ISBN / Code EAN <span className="form-label-optional">facultatif</span></label>
                     <input
                       id="isbn"
                       type="text"
@@ -949,7 +1135,7 @@ export function ProductForm({
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label" htmlFor="pages">Nombre de pages</label>
+                    <label className="form-label" htmlFor="pages">Nombre de pages <span className="form-label-optional">facultatif</span></label>
                     <input
                       id="pages"
                       type="number"
@@ -962,7 +1148,7 @@ export function ProductForm({
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label" htmlFor="year">Année de publication</label>
+                    <label className="form-label" htmlFor="year">Année de publication <span className="form-label-optional">facultatif</span></label>
                     <input
                       id="year"
                       type="number"
@@ -978,7 +1164,7 @@ export function ProductForm({
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label" htmlFor="dimensions">Dimensions (Format)</label>
+                    <label className="form-label" htmlFor="dimensions">Dimensions (Format) <span className="form-label-optional">facultatif</span></label>
                     <input
                       id="dimensions"
                       type="text"
@@ -990,7 +1176,7 @@ export function ProductForm({
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label" htmlFor="binding">Type de reliure</label>
+                    <label className="form-label" htmlFor="binding">Type de reliure <span className="form-label-optional">facultatif</span></label>
                     <input
                       id="binding"
                       type="text"
@@ -1189,7 +1375,7 @@ export function ProductForm({
             </div>
 
             <div className="form-group">
-              <label className="form-label" htmlFor="themes">Mots-clés / Thèmes</label>
+              <label className="form-label" htmlFor="themes">Mots-clés / Thèmes <span className="form-label-optional">facultatif</span></label>
               <input
                 id="themes"
                 type="text"

@@ -249,10 +249,10 @@ export function ProductListTable({
               filteredProducts.map((product) => (
                 <tr key={product.id}>
                   <td>
-                    <div style={{ width: 36, height: 48, borderRadius: 4, overflow: 'hidden', flexShrink: 0, border: '1px solid var(--admin-border)' }}>
+                    <div style={{ width: 36, height: 48, borderRadius: 4, overflow: 'hidden', flexShrink: 0, border: '1px solid var(--admin-border)', backgroundColor: 'var(--admin-surface-muted)' }}>
                       {product.coverUrl ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={product.coverUrl} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={product.coverUrl} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                       ) : (
                         <Cover product={product as any} small />
                       )}
@@ -296,20 +296,22 @@ export function ProductListTable({
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', gap: 6 }}>
-                      <Link 
-                        href={`/admin/produits/${product.id}`} 
+                      <Link
+                        href={`/admin/produits/${product.id}`}
                         className="btn btn-secondary btn-sm"
                         title="Modifier la fiche"
+                        aria-label={`Modifier la fiche de ${product.title}`}
                       >
                         <Edit2 size={13} />
                       </Link>
 
                       {product.status === 'published' && (
-                        <Link 
-                          href={`/livres/${product.slug}`} 
-                          target="_blank" 
+                        <Link
+                          href={`/livres/${product.slug}`}
+                          target="_blank"
                           className="btn btn-secondary btn-sm"
                           title="Voir sur la boutique"
+                          aria-label={`Voir ${product.title} sur la boutique`}
                         >
                           <Eye size={13} />
                         </Link>
@@ -320,6 +322,7 @@ export function ProductListTable({
                         onClick={() => handleArchive(product.id, product.status)}
                         disabled={archivingId === product.id}
                         title={product.status === 'archived' ? 'Désarchiver' : 'Archiver'}
+                        aria-label={`${product.status === 'archived' ? 'Désarchiver' : 'Archiver'} ${product.title}`}
                       >
                         <Archive size={13} style={{ color: product.status === 'archived' ? 'var(--admin-gold)' : undefined }} />
                       </button>
