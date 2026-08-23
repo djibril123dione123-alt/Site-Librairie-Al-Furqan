@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { BookCard } from '../books/book-card';
-import { EditorialEmptyState } from './empty-state';
+import { EmptyState } from '@/components/ui/empty-state';
 import type { Product } from '@/lib/types/ui';
 
 const DISPLAY_LIMIT = 12;
@@ -26,12 +26,11 @@ export function EntityBooks({
 }) {
   if (products.length === 0) {
     return (
-      <EditorialEmptyState
-        title={emptyTitle}
-        body={emptyBody}
-        ctaLabel="Voir le catalogue"
-        ctaHref={catalogueHref}
-      />
+      <EmptyState title={emptyTitle} body={emptyBody}>
+        <Link href={catalogueHref} className="button button-dark">
+          Voir le catalogue
+        </Link>
+      </EmptyState>
     );
   }
 

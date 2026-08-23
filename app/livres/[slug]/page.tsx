@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   if (!product) return {};
 
   return {
-    title: `${product.title} — Librairie Al Furqan`,
+    title: product.title,
     description: product.description,
     alternates: {
       canonical: `/livres/${product.slug}`,

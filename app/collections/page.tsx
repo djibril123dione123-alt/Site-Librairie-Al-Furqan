@@ -1,8 +1,9 @@
 import { Metadata } from 'next';
+import Link from 'next/link';
 import { getCollections } from '@/lib/data/collections';
 import { getProducts } from '@/lib/data/products';
-import { EditorialBreadcrumb } from '@/components/editorial/breadcrumb';
-import { EditorialEmptyState } from '@/components/editorial/empty-state';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { EmptyState } from '@/components/ui/empty-state';
 import { CollectionFeatureBlock } from '@/components/editorial/collection-feature-block';
 
 export const metadata: Metadata = {
@@ -23,7 +24,7 @@ export default async function CollectionsPage() {
 
   return (
     <main className="entity-index-page collections-page">
-      <EditorialBreadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Collections' }]} />
+      <Breadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Collections' }]} />
       <header className="entity-index-header">
         <span className="eyebrow">Sélections éditoriales</span>
         <h1>Collections</h1>
@@ -31,12 +32,14 @@ export default async function CollectionsPage() {
       </header>
 
       {withProducts.length === 0 ? (
-        <EditorialEmptyState
+        <EmptyState
           title="Aucune collection publiée pour le moment"
           body="La librairie prépare ses premiers parcours de lecture. En attendant, tout le catalogue reste accessible."
-          ctaLabel="Explorer le catalogue"
-          ctaHref="/catalogue"
-        />
+        >
+          <Link href="/catalogue" className="button button-dark">
+            Explorer le catalogue
+          </Link>
+        </EmptyState>
       ) : (
         <div className="collections-list">
           {withProducts.map(({ collection, products }, i) => (

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { getPublisherBySlug } from '@/lib/data/entities';
 import { getProducts } from '@/lib/data/products';
-import { EditorialBreadcrumb } from '@/components/editorial/breadcrumb';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { EntityHeader } from '@/components/editorial/entity-header';
 import { EntityBooks } from '@/components/editorial/entity-books';
 
@@ -30,7 +30,7 @@ export default async function PublisherPage({ params }: { params: { slug: string
 
   return (
     <main className="entity-page">
-      <EditorialBreadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Éditeurs', href: '/editeurs' }, { label: publisher.name }]} />
+      <Breadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Éditeurs', href: '/editeurs' }, { label: publisher.name }]} />
       <EntityHeader eyebrow="Maison d'édition" title={publisher.name} meta={meta} description={publisher.description} />
       {products.length > 0 && (
         <Link href={`/catalogue?editeur=${encodeURIComponent(publisher.name)}`} className="text-link entity-catalogue-link">

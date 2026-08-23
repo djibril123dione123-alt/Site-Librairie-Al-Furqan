@@ -2,9 +2,9 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import { getPublishers } from '@/lib/data/entities';
 import { getProducts } from '@/lib/data/products';
-import { EditorialBreadcrumb } from '@/components/editorial/breadcrumb';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { PublisherDirectory } from '@/components/editorial/publisher-directory';
-import { EditorialEmptyState } from '@/components/editorial/empty-state';
+import { EmptyState } from '@/components/ui/empty-state';
 import type { Product } from '@/lib/types/ui';
 
 export const metadata: Metadata = {
@@ -26,7 +26,7 @@ export default async function PublishersIndexPage() {
 
   return (
     <main className="entity-index-page">
-      <EditorialBreadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Éditeurs' }]} />
+      <Breadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Éditeurs' }]} />
       <header className="entity-index-header">
         <span className="eyebrow">Éditeurs</span>
         <h1>Éditeurs</h1>
@@ -36,12 +36,14 @@ export default async function PublishersIndexPage() {
       {publishers.length > 0 ? (
         <PublisherDirectory publishers={publishers} productsByPublisherSlug={productsByPublisherSlug} />
       ) : (
-        <EditorialEmptyState
+        <EmptyState
           title="Aucun éditeur référencé pour le moment"
           body="Les fiches éditeurs seront disponibles au fur et à mesure de l'ajout des ouvrages au catalogue."
-          ctaLabel="Voir le catalogue"
-          ctaHref="/catalogue"
-        />
+        >
+          <Link href="/catalogue" className="button button-dark">
+            Voir le catalogue
+          </Link>
+        </EmptyState>
       )}
 
       <div className="entity-cross-links">

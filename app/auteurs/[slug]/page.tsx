@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getAuthorBySlug } from '@/lib/data/entities';
 import { getProducts } from '@/lib/data/products';
-import { EditorialBreadcrumb } from '@/components/editorial/breadcrumb';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { EntityHeader } from '@/components/editorial/entity-header';
 import { EntityBooks } from '@/components/editorial/entity-books';
 import Link from 'next/link';
@@ -30,7 +30,7 @@ export default async function AuthorPage({ params }: { params: { slug: string } 
 
   return (
     <main className="entity-page">
-      <EditorialBreadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Auteurs', href: '/auteurs' }, { label: author.name }]} />
+      <Breadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Auteurs', href: '/auteurs' }, { label: author.name }]} />
       <EntityHeader eyebrow="Auteur" title={author.name} meta={meta} description={author.bio} />
       {products.length > 0 && (
         <Link href={`/catalogue?auteur=${encodeURIComponent(author.name)}`} className="text-link entity-catalogue-link">

@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import { getCategories } from '@/lib/data/categories';
 import { getCatalogueFacets } from '@/lib/data/facets';
-import { EditorialBreadcrumb } from '@/components/editorial/breadcrumb';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { CategoryDirectory } from '@/components/editorial/category-directory';
 
 export const metadata: Metadata = {
@@ -18,7 +18,7 @@ export default async function CategoriesIndexPage() {
 
   return (
     <main className="entity-index-page">
-      <EditorialBreadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Catégories' }]} />
+      <Breadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Catégories' }]} />
       <header className="entity-index-header">
         <span className="eyebrow">Taxonomie</span>
         <h1>Catégories</h1>

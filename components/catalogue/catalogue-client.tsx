@@ -11,6 +11,8 @@ import type { CatalogueFacets } from '@/lib/data/facets';
 import { BookCard } from '@/components/books/book-card';
 import { Filters, FilterKey } from '@/components/catalogue/filters';
 import { CatalogueEditorialBreak } from '@/components/catalogue/catalogue-editorial-break';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { EmptyState } from '@/components/ui/empty-state';
 
 /** Minimum breadth before an editorial pause is worth the vertical space it costs. */
 const EDITORIAL_BREAK_MIN_PRODUCTS = 8;
@@ -161,11 +163,7 @@ export function CatalogueClient({
 
   return (
     <main className="catalogue-page">
-      <div className="pdp-breadcrumb">
-        <Link href="/">Accueil</Link>
-        <ChevronDown size={12} />
-        <span>Catalogue</span>
-      </div>
+      <Breadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Catalogue' }]} />
       <div className="catalogue-heading">
         <div>
           <span className="eyebrow">{eyebrow}</span>
@@ -250,35 +248,34 @@ export function CatalogueClient({
               )}
             </>
           ) : (
-            <div className="no-results">
-              <span className="no-results-mark">⌕</span>
-              <h2>Aucun résultat</h2>
-              <p>
-                {searchParam
-                  ? <>Aucun ouvrage ne correspond à « {searchParam} ».</>
-                  : 'Aucun ouvrage ne correspond à cette combinaison de filtres.'}
-              </p>
-              <div className="no-results-actions">
-                {hasActive && (
-                  <button className="button button-cream" onClick={clearAll}>
-                    Réinitialiser les filtres
-                  </button>
+            <EmptyState
+              mark="⌕"
+              title="Aucun résultat"
+              body={
+                searchParam
+                  ? `Aucun ouvrage ne correspond à « ${searchParam} ».`
+                  : 'Aucun ouvrage ne correspond à cette combinaison de filtres.'
+              }
+            >
+              {hasActive && (
+                <button className="button button-cream" onClick={clearAll}>
+                  Réinitialiser les filtres
+                </button>
+              )}
+              <a
+                className="button button-dark"
+                onClick={() => handleNoResultsWhatsApp(searchParam || active.category || 'catalogue-no-results')}
+                href={buildWhatsAppUrl(
+                  `Assalāmu ʿalaykum,\nje recherche l’ouvrage « ${
+                    searchParam || active.category || 'particulier'
+                  } ».\nL’avez-vous actuellement ou pouvez-vous l’obtenir ?`
                 )}
-                <a
-                  className="button button-dark"
-                  onClick={() => handleNoResultsWhatsApp(searchParam || active.category || 'catalogue-no-results')}
-                  href={buildWhatsAppUrl(
-                    `Assalāmu ʿalaykum,\nje recherche l’ouvrage « ${
-                      searchParam || active.category || 'particulier'
-                    } ».\nL’avez-vous actuellement ou pouvez-vous l’obtenir ?`
-                  )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <MessageCircle size={17} /> Demander cet ouvrage sur WhatsApp
-                </a>
-              </div>
-            </div>
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <MessageCircle size={17} /> Demander cet ouvrage sur WhatsApp
+              </a>
+            </EmptyState>
           )}
         </div>
       </div>

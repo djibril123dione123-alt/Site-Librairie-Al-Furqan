@@ -1,8 +1,15 @@
 import { Suspense } from 'react';
+import { Metadata } from 'next';
 import { getProductsPaginated } from '@/lib/data/products';
 import { getCatalogueFacets } from '@/lib/data/facets';
 import { getCollections } from '@/lib/data/collections';
 import { CatalogueClient } from '@/components/catalogue/catalogue-client';
+
+export const metadata: Metadata = {
+  title: 'Catalogue',
+  description: 'Le catalogue complet de la Librairie Al Furqan — Corans, tafsirs, ouvrages de croyance, spiritualité, langue arabe et littérature islamique.',
+  alternates: { canonical: '/catalogue' },
+};
 
 export default async function CataloguePage({
   searchParams,

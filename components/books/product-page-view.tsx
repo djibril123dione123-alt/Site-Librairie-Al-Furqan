@@ -2,8 +2,9 @@
 
 import { useRef } from 'react';
 import Link from 'next/link';
-import { ChevronRight, Video } from 'lucide-react';
+import { Video } from 'lucide-react';
 import { getEmbeddableVideoUrl } from '@/lib/utils/video-utils';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { ProductActions } from './product-actions';
 import { RecentlyViewed } from './recently-viewed';
 import { SectionTitle } from '@/components/ui/section-title';
@@ -37,13 +38,13 @@ export function ProductPageView({ product, related }: { product: Product; relate
     <main className="pdp">
       <ProductViewTracker productId={product.id} />
 
-      <nav className="pdp-breadcrumb" aria-label="Fil d'Ariane">
-        <Link href="/">Accueil</Link>
-        <ChevronRight size={12} />
-        <Link href={`/categories/${categorySlug}`}>{product.category}</Link>
-        <ChevronRight size={12} />
-        <span className="pdp-breadcrumb-current">{product.title}</span>
-      </nav>
+      <Breadcrumb
+        items={[
+          { label: 'Accueil', href: '/' },
+          { label: product.category, href: `/categories/${categorySlug}` },
+          { label: product.title },
+        ]}
+      />
 
       <div className="pdp-overture">
         <div className="pdp-gallery-col">

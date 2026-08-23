@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getCategoryBySlug } from '@/lib/data/entities';
 import { getProducts } from '@/lib/data/products';
-import { EditorialBreadcrumb } from '@/components/editorial/breadcrumb';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { EntityHeader } from '@/components/editorial/entity-header';
 import { EntityBooks } from '@/components/editorial/entity-books';
 import Link from 'next/link';
@@ -30,7 +30,7 @@ export default async function CategoryPage({ params }: { params: { slug: string 
 
   return (
     <main className="entity-page">
-      <EditorialBreadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Catégories', href: '/categories' }, { label: category.name }]} />
+      <Breadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Catégories', href: '/categories' }, { label: category.name }]} />
       <EntityHeader eyebrow="Rayon éditorial" title={category.name} meta={meta} description={category.description} />
       {products.length > 0 && (
         <Link href={`/catalogue?categorie=${encodeURIComponent(category.name)}`} className="text-link entity-catalogue-link">

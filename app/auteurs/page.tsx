@@ -1,9 +1,9 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { getAuthors } from '@/lib/data/entities';
-import { EditorialBreadcrumb } from '@/components/editorial/breadcrumb';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { AuthorDirectory } from '@/components/editorial/author-directory';
-import { EditorialEmptyState } from '@/components/editorial/empty-state';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export const metadata: Metadata = {
   title: 'Auteurs',
@@ -16,7 +16,7 @@ export default async function AuthorsIndexPage() {
 
   return (
     <main className="entity-index-page">
-      <EditorialBreadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Auteurs' }]} />
+      <Breadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Auteurs' }]} />
       <header className="entity-index-header">
         <span className="eyebrow">Auteurs</span>
         <h1>Auteurs</h1>
@@ -26,12 +26,14 @@ export default async function AuthorsIndexPage() {
       {authors.length > 0 ? (
         <AuthorDirectory authors={authors} />
       ) : (
-        <EditorialEmptyState
+        <EmptyState
           title="Aucun auteur référencé pour le moment"
           body="Les fiches auteurs seront disponibles au fur et à mesure de l'ajout des ouvrages au catalogue."
-          ctaLabel="Voir le catalogue"
-          ctaHref="/catalogue"
-        />
+        >
+          <Link href="/catalogue" className="button button-dark">
+            Voir le catalogue
+          </Link>
+        </EmptyState>
       )}
 
       <div className="entity-cross-links">

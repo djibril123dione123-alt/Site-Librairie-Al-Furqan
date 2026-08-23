@@ -7,8 +7,8 @@ import { getCollectionBySlug } from '@/lib/data/collections';
 import { getProducts } from '@/lib/data/products';
 import { Cover } from '@/components/books/cover';
 import { BookCard } from '@/components/books/book-card';
-import { EditorialBreadcrumb } from '@/components/editorial/breadcrumb';
-import { EditorialEmptyState } from '@/components/editorial/empty-state';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const collection = await getCollectionBySlug(params.slug);
@@ -35,7 +35,7 @@ export default async function CollectionPage({ params }: { params: { slug: strin
 
   return (
     <main className="collection-detail-page">
-      <EditorialBreadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Collections', href: '/collections' }, { label: collection.title }]} />
+      <Breadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Collections', href: '/collections' }, { label: collection.title }]} />
 
       <section className="collection-detail-hero">
         <div className="collection-detail-copy">
@@ -67,12 +67,11 @@ export default async function CollectionPage({ params }: { params: { slug: strin
             ))}
           </div>
         ) : (
-          <EditorialEmptyState
-            title="Sélection en préparation"
-            body="Aucun ouvrage n'est actuellement assigné à cette collection."
-            ctaLabel="Voir le catalogue"
-            ctaHref="/catalogue"
-          />
+          <EmptyState title="Sélection en préparation" body="Aucun ouvrage n'est actuellement assigné à cette collection.">
+            <Link href="/catalogue" className="button button-dark">
+              Voir le catalogue
+            </Link>
+          </EmptyState>
         )}
       </section>
 

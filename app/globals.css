@@ -36,6 +36,12 @@
   --warning: #b98a2e;
   --danger: #a1483c;
 
+  /* Text on --deep surfaces (e.g. the homepage Trust band) — two tiers,
+     not one token per legacy hex. Body copy uses --muted-on-deep; a
+     quieter trailing link/caption uses --subtle-on-deep. */
+  --muted-on-deep: #c5cbc2;
+  --subtle-on-deep: #9fb0a8;
+
   /* Radius scale */
   --radius-sm: 6px;
   --radius: 12px;
@@ -179,7 +185,10 @@ h1, h2 { font-weight: 500; }
 .text-link:hover { color: var(--gold); }
 
 /* Hero — "nature morte asymétrique": one real book, generously scaled,
-   never a three-book decorative composition. Copy ~42%, book stage ~58%. */
+   never a three-book decorative composition. Copy ~42%, book stage ~58%.
+   Full-width surface wrapper carries the deliberate --paper background;
+   .hero itself stays the centered max-width composition. */
+.home-hero-surface { background: var(--paper); }
 .hero { max-width: 1280px; min-height: 600px; margin: auto; padding: 72px 32px; display: grid; grid-template-columns: 0.75fr 1fr; align-items: center; gap: 56px; }
 .hero h1 { font-size: clamp(44px, 5.5vw, 72px); margin: 22px 0; max-width: 580px; }
 .hero h1 em, h2 em, .collection-hero h1 em { color: var(--gold); font-style: italic; }
@@ -216,9 +225,14 @@ main { overflow: hidden; }
 
 /* Homepage rhythm — full-bleed background bands with centred content,
    same technique as .editorial-band/.footer: padding carries both the
-   edge-to-edge colour and the ~1216px content measure, no extra wrapper. */
-.home-band { padding: 88px max(32px, calc((100vw - 1216px) / 2)); }
-.home-band-alt { background: var(--surface-alt); }
+   edge-to-edge colour and the ~1216px content measure, no extra wrapper.
+   Background alternates --paper/--surface so each section reads distinct
+   from its immediate neighbour (Hero paper → Discovery surface → Quran
+   paper → Categories surface → Trust deep) without inventing new colour —
+   Hero and Quran share a tone, and so do Discovery and Categories, but
+   since neither pair is adjacent the alternation still reads clearly. */
+.home-band { padding: 88px max(32px, calc((100vw - 1216px) / 2)); background: var(--surface); }
+.home-band-alt { background: var(--surface); }
 .home-band .section-title { max-width: 1216px; margin: 0 auto 32px; }
 .home-band .discovery-rail, .home-band .category-tile-grid { max-width: 1216px; margin: 0 auto; }
 
@@ -257,18 +271,18 @@ main { overflow: hidden; }
 .home-band-deep { background: var(--deep); color: var(--paper); }
 .trust-band { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px 64px; max-width: 1216px; margin: 0 auto; }
 .trust-copy h2 { font-size: clamp(32px, 4vw, 44px); margin: 16px 0; color: var(--paper); }
-.trust-copy p { color: #c5cbc2; font-size: 14px; line-height: 1.7; max-width: 420px; margin-bottom: 18px; }
+.trust-copy p { color: var(--muted-on-deep); font-size: 14px; line-height: 1.7; max-width: 420px; margin-bottom: 18px; }
 .trust-copy .text-link { color: var(--paper); }
 .trust-copy .text-link::after { background: rgba(244,239,229,.3); }
 .trust-copy .text-link:hover { color: var(--gold); }
 .trust-facts { display: flex; flex-direction: column; gap: 14px; justify-content: center; border-left: 1px solid rgba(244,239,229,.16); padding-left: 32px; }
-.trust-facts span { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #d7dcd3; }
+.trust-facts span { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted-on-deep); }
 .trust-facts svg { color: var(--gold); flex-shrink: 0; }
 .trust-whatsapp { grid-column: 1 / -1; border-top: 1px solid rgba(244,239,229,.16); margin-top: 12px; padding-top: 32px; display: flex; align-items: center; justify-content: space-between; gap: 30px; flex-wrap: wrap; }
-.trust-whatsapp p { color: #c5cbc2; font-size: 13px; max-width: 460px; margin: 6px 0 0; }
+.trust-whatsapp p { color: var(--muted-on-deep); font-size: 13px; max-width: 460px; margin: 6px 0 0; }
 .trust-whatsapp .button-light { border-color: rgba(244,239,229,.35); color: var(--paper); }
 .trust-whatsapp .button-light:hover { border-color: var(--gold); color: var(--gold); }
-.trust-about-link { grid-column: 1 / -1; color: #9fb0a8; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; margin-top: 22px; width: fit-content; }
+.trust-about-link { grid-column: 1 / -1; color: var(--subtle-on-deep); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; margin-top: 22px; width: fit-content; }
 .trust-about-link:hover { color: var(--gold); }
 
 /* Immersive collection feature — real book covers only, never a
@@ -425,11 +439,30 @@ main { overflow: hidden; }
 .breadcrumb { max-width: 1280px; margin: auto; padding: 28px 32px 0; display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 11px; }
 .breadcrumb a:hover { color: var(--gold); }
 
-/* PDP breadcrumb — deliberately quieter than the shared .breadcrumb above so
-   it never steals presence from the object overture underneath it. */
-.pdp-breadcrumb { max-width: 1280px; margin: auto; padding: 18px 32px 0; display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 10px; }
-.pdp-breadcrumb a:hover { color: var(--gold); }
-.pdp-breadcrumb-current { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Canonical storefront breadcrumb (components/ui/breadcrumb.tsx) — one
+   visual family for PDP, Catalogue, Selection, Collections, Categories,
+   Auteurs, Éditeurs and About. Cart/Delivery/Contact keep the legacy
+   .breadcrumb above until Phase F. */
+.storefront-breadcrumb { max-width: 1280px; margin: auto; padding: 24px 32px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
+.storefront-breadcrumb-item { display: inline-flex; align-items: center; gap: 6px; }
+.storefront-breadcrumb-item svg { color: var(--muted); }
+.storefront-breadcrumb a:hover { color: var(--gold); }
+.storefront-breadcrumb-current { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 600; }
+/* About's own content column is a narrower 900px reading measure (see
+   .about-page) — the breadcrumb aligns to it instead of the canonical
+   1280px shell used everywhere else. */
+.storefront-breadcrumb-narrow { max-width: 900px; }
+
+/* Shared quiet empty state (components/ui/empty-state.tsx) — whitespace,
+   a small mark, a heading, one sentence; recovery actions are children so
+   each context (Catalogue reset+WhatsApp, Collections/Selection a single
+   catalogue link, etc) keeps its own conversion path. Admin and Cart keep
+   their own bordered .empty-state until Phase F. */
+.storefront-empty { max-width: 460px; margin: 40px auto; padding: 40px 20px; text-align: center; }
+.storefront-empty-mark { display: flex; justify-content: center; font-size: 22px; color: var(--gold); margin-bottom: 14px; }
+.storefront-empty h2 { font-size: 22px; margin: 0 0 10px; }
+.storefront-empty p { color: var(--muted); font-size: 14px; line-height: 1.7; margin: 0 0 24px; }
+.storefront-empty-actions { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
 
 /* Catalogue */
 .catalogue-page, .product-page, .collection-page, .cart-page { min-height: 600px; }
@@ -437,6 +470,9 @@ main { overflow: hidden; }
 .catalogue-page { overflow: visible; }
 
 .catalogue-heading { max-width: 1280px; margin: auto; padding: 40px 32px 24px; display: flex; align-items: flex-end; justify-content: space-between; gap: 25px; }
+/* /selection reuses the catalogue page shell; its own product grid gets
+   the same canonical 1280px measure instead of an inline 1216px value. */
+.selection-grid { max-width: 1280px; margin: 0 auto; padding: 0 32px 100px; }
 .catalogue-heading h1 { font-size: clamp(32px, 4vw, 46px); margin: 10px 0 8px; }
 .cart-heading h1 { font-size: clamp(38px, 5vw, 58px); margin: 14px 0 10px; }
 .catalogue-heading p { color: var(--muted); font-size: 13px; margin: 0; }
@@ -488,12 +524,6 @@ main { overflow: hidden; }
 .pagination-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
 .pagination-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .pagination-status { font-size: 13px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
-
-.no-results { text-align: center; background: var(--cream); padding: 70px 20px; border-radius: var(--radius); }
-.no-results-mark { font-size: 44px; color: var(--gold); }
-.no-results h2 { font-size: 28px; margin: 12px 0 8px; }
-.no-results p { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
-.no-results-actions { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
 
 /* ====== Product page — object overture + sticky gallery + editorial column ====== */
 /* `main { overflow: hidden }` (global, used elsewhere to clip decorative
@@ -611,23 +641,13 @@ main { overflow: hidden; }
    éditeurs / à propos). Shared shell first, then per-entity treatments.
    ==================================================================== */
 
-/* Shared breadcrumb — quieter language than the legacy inline-styled
-   breadcrumbs it replaces across every entity page. */
-.editorial-breadcrumb { max-width: 1216px; margin: auto; padding: 28px 32px 0; display: flex; flex-wrap: wrap; gap: 6px; color: var(--muted); font-size: 11px; }
-.editorial-breadcrumb-item { display: inline-flex; align-items: center; gap: 6px; }
-.editorial-breadcrumb a:hover { color: var(--gold); }
-.editorial-breadcrumb-current { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 600; }
-
-/* Shared quiet empty state — replaces the bordered white "SaaS card"
-   pattern repeated across every legacy entity page. */
-.editorial-empty { max-width: 460px; margin: 40px auto; padding: 40px 20px; text-align: center; }
-.editorial-empty-mark { display: block; font-size: 22px; color: var(--gold); margin-bottom: 14px; }
-.editorial-empty h2 { font-size: 22px; margin: 0 0 10px; }
-.editorial-empty p { color: var(--muted); font-size: 14px; line-height: 1.7; margin: 0 0 24px; }
+/* Breadcrumb and empty-state are now the canonical storefront-wide
+   components (see "Breadcrumb" and "Shared quiet empty state" near the
+   top of this file) — no editorial-only versions remain. */
 
 /* Entity detail pages (category / author / publisher) — dense, compact,
    books start soon. Not another Catalogue clone. */
-.entity-page { max-width: 1216px; margin: auto; padding: 28px 32px 96px; }
+.entity-page { max-width: 1280px; margin: auto; padding: 28px 32px 96px; }
 .entity-header { padding: 24px 0 8px; max-width: 720px; }
 .entity-header h1 { font-size: clamp(30px, 4.4vw, 46px); margin: 10px 0 8px; text-wrap: balance; }
 .entity-header-meta { display: block; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; margin-bottom: 12px; }
@@ -640,7 +660,7 @@ main { overflow: hidden; }
 .entity-books-more { margin-top: 28px; }
 
 /* Entity index pages (categories / auteurs / éditeurs) */
-.entity-index-page { max-width: 1216px; margin: auto; padding: 28px 32px 96px; }
+.entity-index-page { max-width: 1280px; margin: auto; padding: 28px 32px 96px; }
 .entity-index-header { padding: 24px 0 40px; max-width: 640px; }
 .entity-index-header h1 { font-size: clamp(32px, 4.6vw, 50px); margin: 10px 0 10px; }
 .entity-index-header p { color: var(--muted); font-size: 15px; line-height: 1.6; }
@@ -694,7 +714,7 @@ main { overflow: hidden; }
 
 /* Collection detail — a short digital editorial feature, not a filtered
    product grid. Media is a controlled, non-overlapping small shelf. */
-.collection-detail-page { max-width: 1216px; margin: auto; padding: 0 32px 96px; }
+.collection-detail-page { max-width: 1280px; margin: auto; padding: 0 32px 96px; }
 .collection-detail-hero { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 60px; align-items: center; padding: 40px 0 64px; }
 .collection-detail-copy h1 { font-size: clamp(34px, 4.6vw, 54px); margin: 14px 0; text-wrap: balance; }
 .collection-detail-copy p { color: var(--muted); font-size: 16px; line-height: 1.75; max-width: 500px; }
@@ -937,7 +957,7 @@ main { overflow: hidden; }
   .pdp-story-modules { margin-top: 40px; gap: 36px; }
   .related { padding-left: 20px; padding-right: 20px; }
   /* Editorial ecosystem — entity/index/collections/about at mobile */
-  .editorial-breadcrumb, .entity-page, .entity-index-page, .collection-detail-page { padding-left: 20px; padding-right: 20px; }
+  .storefront-breadcrumb, .entity-page, .entity-index-page, .collection-detail-page { padding-left: 20px; padding-right: 20px; }
   .about-page { padding-left: 20px; padding-right: 20px; }
   .entity-book-grid { grid-template-columns: repeat(2, 1fr); gap: 18px 14px; }
   .category-directory { grid-template-columns: repeat(2, 1fr); }

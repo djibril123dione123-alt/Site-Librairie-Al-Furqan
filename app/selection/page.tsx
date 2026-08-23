@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ChevronDown, Heart, ArrowRight } from 'lucide-react';
+import { Heart, ArrowRight } from 'lucide-react';
 import { useStore } from '@/components/providers';
 import { BookCard } from '@/components/books/book-card';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { dbProductToUi } from '@/lib/types/mappers';
 import type { Product } from '@/lib/types/ui';
 import { seedProducts } from '@/lib/dev/seed-products';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default function SelectionPage() {
   const { wishlist } = useStore();
@@ -60,11 +62,7 @@ export default function SelectionPage() {
   
   return (
     <main className="catalogue-page">
-      <div className="breadcrumb">
-        <Link href="/">Accueil</Link>
-        <ChevronDown size={14} />
-        <span>Ma sélection</span>
-      </div>
+      <Breadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'Ma sélection' }]} />
       <div className="catalogue-heading">
         <div>
           <span className="eyebrow">POUR PLUS TARD</span>
@@ -73,20 +71,17 @@ export default function SelectionPage() {
         </div>
       </div>
       {products.length ? (
-        <div className="book-grid" style={{ maxWidth: 1216, margin: '0 auto', padding: '0 32px 100px' }}>
+        <div className="book-grid selection-grid">
           {products.map((item) => (
             <BookCard key={item.id} product={item} />
           ))}
         </div>
       ) : (
-        <div className="empty-state">
-          <Heart size={34} />
-          <h2>Votre sélection est vide.</h2>
-          <p>Mettez de côté les ouvrages qui vous intéressent.</p>
+        <EmptyState mark={<Heart size={22} />} title="Votre sélection est vide." body="Mettez de côté les ouvrages qui vous intéressent.">
           <Link href="/catalogue" className="button button-dark">
             Découvrir le catalogue <ArrowRight size={17} />
           </Link>
-        </div>
+        </EmptyState>
       )}
     </main>
   );

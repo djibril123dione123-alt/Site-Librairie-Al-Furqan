@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { MessageCircle, ArrowRight, Truck } from 'lucide-react';
 import { buildWhatsAppUrl, siteConfig } from '@/lib/al-furqan-data';
 import { getCategories } from '@/lib/data/categories';
-import { EditorialBreadcrumb } from '@/components/editorial/breadcrumb';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export const metadata: Metadata = {
   title: 'À propos',
@@ -22,7 +22,7 @@ export default async function AboutPage() {
 
   return (
     <main className="about-page">
-      <EditorialBreadcrumb items={[{ label: 'Accueil', href: '/' }, { label: 'À propos' }]} />
+      <Breadcrumb className="storefront-breadcrumb-narrow" items={[{ label: 'Accueil', href: '/' }, { label: 'À propos' }]} />
 
       <section className="about-hero">
         <span className="eyebrow">Librairie Al Furqan</span>
