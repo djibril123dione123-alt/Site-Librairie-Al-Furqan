@@ -643,6 +643,41 @@ main { overflow: hidden; }
   .gallery-crossfade-layer, .gallery-image-button:hover .gallery-crossfade-layer.is-visible { transition: opacity 240ms linear; transform: none; }
 }
 
+/* Hover magnifier ("loupe") — desktop/mouse only, gated in JS to
+   hover:hover + pointer:fine + a minimum viewport width; this media
+   query is a defensive second guard so a stale state can never show it
+   on touch. Uses the original unprocessed image as background — most
+   catalogue photos are 800-1500px on the long side, sharp enough at
+   this zoom factor; the on-screen stage image stays the resized
+   next/image version. */
+.gallery-zoom-lens {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  margin-left: -70px;
+  margin-top: -70px;
+  border: 2px solid var(--gold);
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 5;
+}
+.gallery-zoom-result {
+  position: fixed;
+  width: 420px;
+  background-repeat: no-repeat;
+  background-size: 220%;
+  background-color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-premium);
+  pointer-events: none;
+  z-index: 60;
+}
+@media (max-width: 1199px), (hover: none), (pointer: coarse) {
+  .gallery-zoom-lens, .gallery-zoom-result { display: none; }
+}
+
 .gallery-main .cover { width: 230px; height: 370px; }
 .gallery-caption { position: absolute; bottom: 18px; left: 22px; color: #8e9289; text-transform: uppercase; font-size: 9px; letter-spacing: .1em; z-index: 10; }
 .floating-feuilleter { position: absolute; bottom: 20px; right: 20px; z-index: 10; padding: 10px 18px; font-size: 13px; font-weight: 600; box-shadow: var(--shadow-premium); }

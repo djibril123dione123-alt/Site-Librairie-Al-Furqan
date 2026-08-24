@@ -49,6 +49,43 @@ export const ProductGallery = forwardRef<ProductGalleryHandle, { product: Produc
   const previouslyFocused = useRef<HTMLElement | null>(null);
   const touchStartX = useRef<number | null>(null);
 
+  // Desktop-only hover magnifier — mirrors the classic e-commerce "loupe".
+  // Gated on real hover + a fine pointer (never touch) and a minimum
+  // viewport width (so the result panel always has room beside the
+  // gallery, instead of overlapping the purchase column). The lightbox
+  // remains the zoom mechanism everywhere else, including mobile.
+  const [zoomEnabled, setZoomEnabled] = useState(false);
+  const [zoomActive, setZoomActive] = useState(false);
+  const [zoomPos, setZoomPos] = useState({ x: 50, y: 50 });
+  const [zoomPanel, setZoomPanel] = useState({ top: 0, left: 0, height: 0 });
+
+  useEffect(() => {
+    const hoverMq = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const check = () => setZoomEnabled(hoverMq.matches && window.innerWidth >= 1200);
+    check();
+    hoverMq.addEventListener('change', check);
+    window.addEventListener('resize', check);
+    return () => {
+      hoverMq.removeEventListener('change', check);
+      window.removeEventListener('resize', check);
+    };
+  }, []);
+
+  const handleZoomMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!zoomEnabled) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setZoomPos({ x: Math.min(100, Math.max(0, x)), y: Math.min(100, Math.max(0, y)) });
+    setZoomPanel({
+      top: rect.top,
+      left: Math.min(rect.right + 20, window.innerWidth - 420 - 16),
+      height: rect.height,
+    });
+    setZoomActive(true);
+  };
+  const handleZoomLeave = () => setZoomActive(false);
+
   const activeImages = feuilleterMode ? leafableImages : images;
 
   const closeLightbox = useCallback(() => {
@@ -170,6 +207,8 @@ export const ProductGallery = forwardRef<ProductGalleryHandle, { product: Produc
           onClick={() => openLightbox(activeIdx)}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
+          onMouseMove={handleZoomMove}
+          onMouseLeave={handleZoomLeave}
           aria-label={`Agrandir l'image — ${typeLabel(activeImg.type)}`}
         >
           <span className={`gallery-crossfade-layer ${showA ? 'is-visible' : ''}`}>
@@ -207,6 +246,23 @@ export const ProductGallery = forwardRef<ProductGalleryHandle, { product: Produc
           <button type="button" className="button button-cream btn-sm floating-feuilleter" onClick={openFeuilleter}>
             <BookOpen size={16} className="icon-feuilleter" /> Feuilleter l&apos;édition
           </button>
+        )}
+
+        {zoomEnabled && zoomActive && activeImg.url && (
+          <>
+            <div className="gallery-zoom-lens" style={{ left: `${zoomPos.x}%`, top: `${zoomPos.y}%` }} aria-hidden="true" />
+            <div
+              className="gallery-zoom-result"
+              style={{
+                top: zoomPanel.top,
+                left: zoomPanel.left,
+                height: zoomPanel.height,
+                backgroundImage: `url(${activeImg.url})`,
+                backgroundPosition: `${zoomPos.x}% ${zoomPos.y}%`,
+              }}
+              aria-hidden="true"
+            />
+          </>
         )}
       </div>
 
