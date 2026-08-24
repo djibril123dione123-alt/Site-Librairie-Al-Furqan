@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { BookOpen, X, MessageCircle, Search, Heart, ShoppingBag } from 'lucide-react';
 import { buildWhatsAppUrl } from '@/lib/al-furqan-data';
@@ -11,7 +11,49 @@ import { seedCategories } from '@/lib/dev/seed-products';
 export function MobileMenu() {
   const { menuOpen, setMenuOpen, setSearchOpen, cartCount, wishlistCount } = useStore();
   const [categories, setCategories] = useState<string[]>([]);
-  
+
+  const panelRef = useRef<HTMLElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
+
+  // Same dialog semantics as CartDrawer: focus in on open, trap Tab,
+  // Escape closes, focus restores to whatever opened it, background
+  // scroll locked. This overlay had none of that until now.
+  useEffect(() => {
+    if (!menuOpen) return;
+    previouslyFocused.current = document.activeElement as HTMLElement;
+    const scrollBarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    if (scrollBarWidth > 0) document.body.style.paddingRight = `${scrollBarWidth}px`;
+    panelRef.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMenuOpen(false);
+      } else if (e.key === 'Tab' && panelRef.current) {
+        const focusables = panelRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+      previouslyFocused.current?.focus();
+    };
+  }, [menuOpen, setMenuOpen]);
+
   useEffect(() => {
     async function fetchCats() {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -36,7 +78,14 @@ export function MobileMenu() {
 
   return (
     <div className="mobile-menu-overlay" onClick={() => setMenuOpen(false)}>
-      <aside className="mobile-menu-panel" onClick={(e) => e.stopPropagation()}>
+      <aside
+        className="mobile-menu-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Menu"
+        ref={panelRef}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mobile-menu-header">
           <Link href="/" onClick={() => setMenuOpen(false)} className="brand">
             <span className="brand-symbol">
@@ -46,7 +95,7 @@ export function MobileMenu() {
               <strong>Al Furqan</strong>
             </span>
           </Link>
-          <button onClick={() => setMenuOpen(false)} aria-label="Fermer le menu">
+          <button onClick={() => setMenuOpen(false)} aria-label="Fermer le menu" data-autofocus>
             <X size={22} />
           </button>
         </div>
@@ -88,7 +137,12 @@ export function MobileMenu() {
             </Link>
           ))}
         </div>
-        <a className="button button-dark mobile-menu-whatsapp" href={buildWhatsAppUrl('Assalāmu ʿalaykum, je souhaite vous contacter.')}>
+        <a
+          className="button button-dark mobile-menu-whatsapp"
+          href={buildWhatsAppUrl('Assalāmu ʿalaykum, je souhaite vous contacter.')}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           <MessageCircle size={18} /> WhatsApp
         </a>
       </aside>

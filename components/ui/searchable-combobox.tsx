@@ -41,6 +41,13 @@ export function SearchableCombobox({
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const close = () => {
+    setIsOpen(false);
+    setSearch('');
+    triggerRef.current?.focus();
+  };
 
   const normalizedOptions: ComboboxOption[] = useMemo(() => {
     return options.map(opt => {
@@ -70,6 +77,19 @@ export function SearchableCombobox({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // A keyboard-only user had no way to dismiss the dropdown short of
+  // selecting an option — Escape now closes it and returns focus to the
+  // trigger, the same as every other overlay in the app.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setSearch(val);
@@ -84,6 +104,7 @@ export function SearchableCombobox({
     <div className="relative w-full" ref={containerRef}>
       <button
         type="button"
+        ref={triggerRef}
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex items-center justify-between border border-[var(--line)] bg-[var(--bg)] p-3 rounded-md text-sm text-left disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-[var(--gold)]"
@@ -131,8 +152,7 @@ export function SearchableCombobox({
                   type="button"
                   onClick={() => {
                     onChange(opt.value);
-                    setIsOpen(false);
-                    setSearch('');
+                    close();
                   }}
                   className={`w-full flex items-center justify-between p-2.5 rounded text-xs text-left transition-colors ${
                     value === opt.value ? 'bg-[var(--gold)] text-white font-medium' : 'hover:bg-[var(--paper)] text-[var(--ink)]'
@@ -152,8 +172,7 @@ export function SearchableCombobox({
                 type="button"
                 onClick={() => {
                   onChange(customFallbackOption);
-                  setIsOpen(false);
-                  setSearch('');
+                  close();
                 }}
                 className="w-full mt-1 border-t border-[var(--line)] p-2.5 text-xs text-[var(--gold)] font-semibold text-left hover:bg-[var(--paper)]"
               >

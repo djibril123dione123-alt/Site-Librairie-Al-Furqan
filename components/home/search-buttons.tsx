@@ -7,7 +7,7 @@ export function HomeSearchButton() {
   const { setSearchOpen } = useStore();
   
   return (
-    <button className="hero-search" onClick={() => setSearchOpen(true)} aria-label="Ouvrir la recherche">
+    <button className="hero-search" onClick={() => setSearchOpen(true)}>
       <Search size={18} />
       <span>Quel livre recherchez-vous ?</span>
       <span className="search-key">⌘ K</span>

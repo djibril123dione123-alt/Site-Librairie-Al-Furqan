@@ -21,6 +21,13 @@
   --deep: #091e24;
   --gold: #b28a52;
   --gold-hover: #9c7743;
+  /* --gold and --gold-hover read fine as accents, icons, and hover states,
+     but neither clears 4.5:1 on our light surfaces at small/normal text
+     sizes (~3.0-4.1:1) — fine for decoration, not for text that carries
+     real information. This darker tint is for exactly those contexts:
+     functional form labels and checkout money callouts, not a sitewide
+     replacement for --gold. */
+  --gold-text: #7a5c2e;
   --sage: #dbe4df;
   --muted: #64736f;
   --line: #e3dcd1;
@@ -154,7 +161,7 @@ input::placeholder, textarea::placeholder { color: #a19a8d; }
    roles (no serif on buttons/prices/labels, no sans on a page title). */
 h1, h2, h3, h4, .serif { font-family: var(--font-serif), Georgia, serif; font-weight: 400; letter-spacing: -0.02em; line-height: 1.1; }
 h1, h2 { font-weight: 500; }
-.eyebrow { color: var(--gold); font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
+.eyebrow { color: var(--gold-text); font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
 
 /* Type-scale utility classes for new/reconstructed components. Existing
    h1–h4 element defaults above are unchanged. */
@@ -201,10 +208,10 @@ h1, h2 { font-weight: 500; }
 .hero h1 em, h2 em, .collection-hero h1 em { color: var(--gold); font-style: italic; }
 .hero-copy > p { color: var(--muted); max-width: 440px; font-size: 16px; line-height: 1.7; }
 .hero-actions { display: flex; gap: 12px; margin: 30px 0 22px; flex-wrap: wrap; }
-.hero-search { margin-top: 8px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); display: flex; align-items: center; gap: 12px; padding: 14px 16px; width: min(100%, 460px); color: #8a918c; text-align: left; font-size: 13px; transition: border-color .2s, box-shadow .2s; }
+.hero-search { margin-top: 8px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); display: flex; align-items: center; gap: 12px; padding: 14px 16px; width: min(100%, 460px); color: #5c635e; text-align: left; font-size: 13px; transition: border-color .2s, box-shadow .2s; }
 .hero-search:hover { border-color: var(--gold); box-shadow: var(--shadow-md); }
 .hero-search svg { color: var(--gold); }
-.hero-search .search-key { margin-left: auto; border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; font-size: 10px; color: #99a09a; }
+.hero-search .search-key { margin-left: auto; border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; font-size: 10px; color: #565d58; }
 
 .hero-copy { animation: hero-copy-in var(--motion-editorial) var(--ease-premium) both; }
 .hero-stage { animation: hero-stage-in var(--motion-editorial) var(--ease-premium) 80ms both; min-height: 460px; display: flex; align-items: center; justify-content: center; }
@@ -896,7 +903,7 @@ main { overflow: hidden; }
 .delivery-progress { max-width: 800px; margin: 18px auto 0; padding: 0 32px; display: flex; align-items: center; gap: 10px; list-style: none; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .delivery-progress li { padding-bottom: 6px; border-bottom: 2px solid transparent; }
 .delivery-progress li.is-done { color: var(--ink); border-color: var(--line); }
-.delivery-progress li.is-current { color: var(--gold); font-weight: 700; border-color: var(--gold); }
+.delivery-progress li.is-current { color: var(--gold-text); font-weight: 700; border-color: var(--gold); }
 .delivery-heading { max-width: 800px; margin: auto; padding: 20px 32px 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .delivery-back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--gold); border: 0; background: none; padding: 0; min-height: 44px; margin-bottom: 6px; }
 .delivery-back-link:hover { text-decoration: underline; }
@@ -931,7 +938,7 @@ main { overflow: hidden; }
 .delivery-field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .delivery-field-grid-tight { padding-top: 4px; }
 .delivery-field { display: flex; flex-direction: column; gap: 6px; }
-.delivery-field-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; color: var(--gold); }
+.delivery-field-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; color: var(--gold-text); }
 .delivery-field-optional { color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 4px; }
 .delivery-text-input { width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 11px 13px; font-size: 13px; min-height: 44px; }
 .delivery-inline-note { background: var(--paper); border-left: 2px solid var(--gold); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
@@ -949,7 +956,7 @@ main { overflow: hidden; }
 .delivery-office-copy { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
 .delivery-office-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .delivery-office-name-row strong { font-size: 13.5px; color: var(--ink); }
-.delivery-office-custom-label { color: var(--gold); font-size: 13.5px; }
+.delivery-office-custom-label { color: var(--gold-text); font-size: 13.5px; }
 .delivery-office-region { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); background: var(--surface-alt); padding: 2px 8px; border-radius: 99px; }
 .delivery-office-address { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
 .delivery-office-address svg { color: var(--gold); flex-shrink: 0; }
@@ -957,9 +964,9 @@ main { overflow: hidden; }
 
 /* Postal fee — always visually distinct from the book subtotal */
 .postal-fee-note { margin-top: 4px; padding: 16px 18px; background: var(--surface-alt); border-radius: var(--radius-sm); display: flex; flex-direction: column; gap: 6px; }
-.postal-fee-heading { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; color: var(--gold); }
+.postal-fee-heading { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; color: var(--gold-text); }
 .postal-fee-range { margin: 0; font-size: 15px; color: var(--ink); line-height: 1.5; }
-.postal-fee-range strong { color: var(--gold); }
+.postal-fee-range strong { color: var(--gold-text); }
 .postal-fee-note-line { margin: 0; font-size: 12.5px; color: var(--ink); }
 .postal-fee-disclaimer { margin: 4px 0 0; font-size: 11px; color: var(--muted); line-height: 1.6; }
 .postal-fee-disclaimer a { color: var(--gold); display: inline-flex; align-items: center; gap: 3px; }
@@ -980,12 +987,12 @@ main { overflow: hidden; }
 .review-line-title { font-weight: 600; color: var(--ink); }
 .review-line-copy small { color: var(--muted); font-size: 11.5px; }
 .review-total-row { display: flex; justify-content: space-between; align-items: baseline; padding-top: 12px; border-top: 1px solid var(--line); font-size: 15px; }
-.review-total-row strong { color: var(--gold); }
+.review-total-row strong { color: var(--gold-text); }
 .review-detail-list { display: flex; flex-direction: column; gap: 6px; }
 .review-detail-list p { margin: 0; font-size: 13px; color: var(--ink); display: flex; gap: 8px; }
 .review-detail-list p span { color: var(--muted); min-width: 90px; flex-shrink: 0; }
 .review-postal-range { margin: 0; font-size: 15px; color: var(--ink); }
-.review-postal-range strong { color: var(--gold); }
+.review-postal-range strong { color: var(--gold-text); }
 .review-postal-note { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
 .review-postal-note a { color: var(--gold); display: inline-flex; align-items: center; gap: 3px; }
 .review-postal-disclaimer { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.6; }
