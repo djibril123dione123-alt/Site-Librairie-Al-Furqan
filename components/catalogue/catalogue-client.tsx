@@ -184,7 +184,7 @@ export function CatalogueClient({
             Filtrer {activeCount > 0 && <span>{activeCount}</span>}
           </button>
           <label className="sort-select">
-            Trier par{' '}
+            <span className="sort-select-text">Trier par</span>
             <select value={sortParam} onChange={(e) => setSort(e.target.value)} aria-label="Trier">
               <option>Sélection Al Furqan</option>
               <option>Nouveautés</option>

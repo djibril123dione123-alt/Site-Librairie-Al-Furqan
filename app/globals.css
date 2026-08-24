@@ -1055,7 +1055,10 @@ main { overflow: hidden; }
   .desktop-nav, .header-action span { display: none; }
   .header-actions { margin-left: auto; gap: 14px; }
   .mobile-menu { display: block; }
-  .header-action { padding: 4px; }
+  /* Icon is 18px; padding alone gave a 26x26 tap target, below the 44px
+     minimum touch target — center it in a 44x44 box instead so the visual
+     icon size is unchanged but the hit area is accessible. */
+  .header-action { min-width: 44px; min-height: 44px; justify-content: center; padding: 0; }
   .cart-link-desktop { display: none; }
   .cart-link-mobile { display: inline-flex; }
   .floating-whatsapp { display: flex; }
@@ -1188,6 +1191,12 @@ main { overflow: hidden; }
   .entity-book-grid {
     grid-template-columns: 1fr;
   }
+
+  /* At 320px "Filtrer" + "Trier par" + the select (sized to its longest
+     option) no longer fit — the select already has its own aria-label,
+     so the redundant visible text can hide without losing functionality
+     or accessibility. */
+  .sort-select-text { display: none; }
 }
 
 /* Responsive — small mobile */

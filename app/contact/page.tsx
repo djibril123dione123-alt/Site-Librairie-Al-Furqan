@@ -30,6 +30,8 @@ export default function ContactPage() {
             <a
               className="button button-dark"
               href={buildWhatsAppUrl('Assalāmu ʿalaykum, je souhaite vous contacter.')}
+              target="_blank"
+              rel="noopener noreferrer"
             >
               <MessageCircle size={18} /> Ouvrir WhatsApp
             </a>

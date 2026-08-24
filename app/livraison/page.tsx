@@ -115,7 +115,7 @@ je souhaite finaliser ma commande Al Furqan.
 
 *COMMANDE AL FURQAN*
 ${validLines
-  .map(({ line, product, matchedVariant, unitPrice }, index) => {
+  .map(({ line, product, matchedVariant, unitPrice }) => {
     const lineTotal = unitPrice !== null ? unitPrice * line.quantity : 0;
     const skuVal = matchedVariant?.sku;
     const skuStr = skuVal ? ` (SKU: ${skuVal})` : '';
@@ -123,7 +123,7 @@ ${validLines
       ? `\n  ↳ ${matchedVariant.attributes.map((a) => `${a.label} : ${a.value}`).join(' · ')}${skuStr}`
       : '';
     const productUrl = `${baseUrl}/livres/${product!.slug}`;
-    return `${index + 1} × ${product!.title}${variantStr}\n  Prix : ${formatPrice(lineTotal)}\n  Lien : ${productUrl}`;
+    return `${line.quantity} × ${product!.title}${variantStr}\n  Prix : ${formatPrice(lineTotal)}\n  Lien : ${productUrl}`;
   })
   .join('\n\n')}
 
