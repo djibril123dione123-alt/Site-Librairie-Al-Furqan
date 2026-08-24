@@ -99,6 +99,9 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
   const [communeOptions, setCommuneOptions] = useState<ComboboxOption[]>([]);
   const [communeSearchLoading, setCommuneSearchLoading] = useState(false);
   const [communeSearchAvailable, setCommuneSearchAvailable] = useState(true);
+  const [departmentOptions, setDepartmentOptions] = useState<ComboboxOption[]>([]);
+  const [departmentSearchLoading, setDepartmentSearchLoading] = useState(false);
+  const [departmentSearchAvailable, setDepartmentSearchAvailable] = useState(true);
 
   const [selectedRegion, setSelectedRegion] = useState(initialData?.location?.region || '');
   const [selectedDept, setSelectedDept] = useState(initialData?.location?.department || '');
@@ -155,27 +158,75 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
     fetchRegions();
   }, [supabase]);
 
-  // 2. Fetch Departments via RPC
+  // 2. Fetch Departments via RPC. Region-scoped list once a region is
+  // known, unchanged from before. Ref guard against out-of-order responses.
+  const departmentsRequestId = useRef(0);
   useEffect(() => {
     if (!selectedRegion) {
       setDepartments([]);
       setSelectedDept('');
       return;
     }
+    const requestId = ++departmentsRequestId.current;
     async function fetchDepts() {
       try {
         const { data, error } = await supabase.rpc('get_senegal_departments', { p_region: selectedRegion });
+        if (requestId !== departmentsRequestId.current) return;
         if (!error && data) {
           setDepartments(data.map((d: any) => d.department).filter(Boolean));
         } else {
           setDepartments([]);
         }
       } catch (err) {
+        if (requestId !== departmentsRequestId.current) return;
         setDepartments([]);
       }
     }
     fetchDepts();
   }, [selectedRegion, supabase]);
+
+  // 2b. Global department search — for a customer who knows "Mbour" or
+  // "Thiès" but not the region. Only usable while no region is selected yet.
+  // Depends on search_senegal_departments (migration 011); degrades
+  // silently to "unavailable" (the prior region-first behaviour) if that
+  // RPC hasn't been deployed, exactly like the commune search below.
+  const departmentSearchRequestId = useRef(0);
+  const searchDepartmentsServer = useCallback(async (queryText: string) => {
+    if (selectedRegion) return;
+    const requestId = ++departmentSearchRequestId.current;
+    setDepartmentSearchLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('search_senegal_departments', {
+        p_query: queryText || null,
+        p_region: null,
+        p_limit: 50,
+      });
+      if (requestId !== departmentSearchRequestId.current) return;
+      if (error) {
+        setDepartmentSearchAvailable(false);
+        setDepartmentOptions([]);
+        return;
+      }
+      const opts: ComboboxOption[] = (data || []).map((item: any) => ({
+        value: `${item.region}|||${item.department}`,
+        label: item.department,
+        sublabel: item.region || undefined,
+      }));
+      setDepartmentOptions(opts);
+    } catch {
+      if (requestId !== departmentSearchRequestId.current) return;
+      setDepartmentSearchAvailable(false);
+      setDepartmentOptions([]);
+    } finally {
+      if (requestId === departmentSearchRequestId.current) setDepartmentSearchLoading(false);
+    }
+  }, [selectedRegion, supabase]);
+
+  useEffect(() => {
+    if (!selectedRegion && departmentSearchAvailable) {
+      searchDepartmentsServer('');
+    }
+  }, [selectedRegion, departmentSearchAvailable, searchDepartmentsServer]);
 
   // 3. Fetch Communes via RPC. When a region is already known, the
   // original region-scoped RPC is used directly (unchanged behaviour). Ref
@@ -474,20 +525,39 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
               />
             </div>
 
-            {/* Département */}
+            {/* Département — region-scoped list once a region is known; a
+                global search (real ANSD ancestry) while it isn't, so
+                "Mbour" or "Thiès" resolves its own Region without asking
+                for it first. */}
             <div className="delivery-field">
               <label className="delivery-field-label">Département <span className="delivery-field-optional">facultatif</span></label>
               <SearchableCombobox
-                options={departments}
+                options={selectedRegion ? departments : departmentOptions}
                 value={selectedDept}
-                disabled={!selectedRegion || departments.length === 0}
+                disabled={selectedRegion ? departments.length === 0 : !departmentSearchAvailable}
+                loading={!selectedRegion && departmentSearchLoading}
                 onChange={(val) => {
-                  setSelectedDept(val);
+                  if (selectedRegion) {
+                    setSelectedDept(val);
+                  } else {
+                    // val is "region|||department" from the global search —
+                    // the exact factual ancestry for that row.
+                    const [region, department] = val.split('|||');
+                    setSelectedRegion(region);
+                    setSelectedDept(department);
+                  }
                   setSelectedCommune('');
                   setSelectedLocalityId('');
-      setSelectedLocalityLabel('');
+                  setSelectedLocalityLabel('');
                 }}
-                placeholder={!selectedRegion ? "Choisissez une région d'abord" : "Sélectionner un département..."}
+                onSearchChange={!selectedRegion ? (q) => searchDepartmentsServer(q) : undefined}
+                placeholder={
+                  selectedRegion
+                    ? 'Sélectionner un département...'
+                    : departmentSearchAvailable
+                      ? 'Rechercher un département (ex : Mbour)...'
+                      : "Choisissez une région d'abord"
+                }
                 searchPlaceholder="Rechercher un département..."
               />
             </div>
