@@ -194,22 +194,22 @@ export default async function AdminDashboardPage() {
           <h2 className="admin-card-title">Activité 7 derniers jours (Catalogue)</h2>
           <span style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>Métriques anonymes</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
-          <div style={{ background: 'var(--admin-bg)', padding: '12px 16px', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-muted)' }}>Vues produits</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--admin-petrol)', marginTop: 4 }}>{stats.analytics?.productViews ?? 0}</div>
+        <div className="admin-analytics-grid">
+          <div className="admin-analytics-item">
+            <div className="admin-analytics-label">Vues produits</div>
+            <div className="admin-analytics-value" style={{ color: 'var(--admin-petrol)' }}>{stats.analytics?.productViews ?? 0}</div>
           </div>
-          <div style={{ background: 'var(--admin-bg)', padding: '12px 16px', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-muted)' }}>Ajouts au panier</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--admin-petrol)', marginTop: 4 }}>{stats.analytics?.cartAdds ?? 0}</div>
+          <div className="admin-analytics-item">
+            <div className="admin-analytics-label">Ajouts au panier</div>
+            <div className="admin-analytics-value" style={{ color: 'var(--admin-petrol)' }}>{stats.analytics?.cartAdds ?? 0}</div>
           </div>
-          <div style={{ background: 'var(--admin-bg)', padding: '12px 16px', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-muted)' }}>Clics WhatsApp</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--admin-success-text)', marginTop: 4 }}>{stats.analytics?.whatsappClicks ?? 0}</div>
+          <div className="admin-analytics-item">
+            <div className="admin-analytics-label">Clics WhatsApp</div>
+            <div className="admin-analytics-value" style={{ color: 'var(--admin-success-text)' }}>{stats.analytics?.whatsappClicks ?? 0}</div>
           </div>
-          <div style={{ background: 'var(--admin-bg)', padding: '12px 16px', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-muted)' }}>Intérêts réappro.</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--admin-warning-text)', marginTop: 4 }}>{stats.analytics?.restockInterests ?? 0}</div>
+          <div className="admin-analytics-item">
+            <div className="admin-analytics-label">Intérêts réappro.</div>
+            <div className="admin-analytics-value" style={{ color: 'var(--admin-warning-text)' }}>{stats.analytics?.restockInterests ?? 0}</div>
           </div>
         </div>
       </div>

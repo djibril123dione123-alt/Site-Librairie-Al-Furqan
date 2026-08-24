@@ -525,6 +525,32 @@
   text-decoration: underline;
 }
 
+.admin-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.admin-analytics-item {
+  background-color: var(--admin-bg);
+  padding: 12px 16px;
+  border-radius: var(--admin-radius-sm);
+  border: 1px solid var(--admin-border);
+}
+
+.admin-analytics-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--admin-text-muted);
+}
+
+.admin-analytics-value {
+  font-size: 24px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
 /* ============================================================
    ALERTES & BANNÈRES
    ============================================================ */
@@ -1285,5 +1311,56 @@
     flex-shrink: 0;
     min-height: 44px;
     white-space: nowrap;
+  }
+
+  /* Dashboard overview — the top KPI cards and the 7-day activity
+     sub-metrics are short label+number pairs, not detailed content, so a
+     single full-width stack per card wastes screen height and reads as a
+     long scroll instead of a dashboard. Both grids switch to 2 columns;
+     grid's default row stretch keeps the two cards in a row the same
+     height even when one label wraps to more lines than the other, and
+     each card's own flex column + space-between still pins its footer/
+     value to a consistent position. Detailed list sections (Derniers
+     livres modifiés, Attention requise, raccourcis) are untouched and
+     stay full width. */
+  .admin-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .admin-stat-card {
+    padding: 12px 14px;
+  }
+
+  .admin-stat-label {
+    font-size: 10.5px;
+  }
+
+  .admin-stat-value {
+    font-size: 22px;
+    margin: 4px 0;
+  }
+
+  .admin-stat-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .admin-analytics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .admin-analytics-item {
+    padding: 10px 12px;
+  }
+
+  .admin-analytics-label {
+    font-size: 10px;
+  }
+
+  .admin-analytics-value {
+    font-size: 20px;
   }
 }
