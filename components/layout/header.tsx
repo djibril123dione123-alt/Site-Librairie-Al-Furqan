@@ -4,8 +4,9 @@ import { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { Search, Heart, ShoppingBag, Menu, BookOpen } from 'lucide-react';
+import { Search, Heart, ShoppingBag, Menu, BookOpen, CircleUser } from 'lucide-react';
 import { useStore } from '../providers';
+import { useCustomerSession } from '../auth/customer-session-provider';
 
 function NavLinks() {
   const pathname = usePathname();
@@ -48,6 +49,14 @@ function NavLinksFallback() {
 
 export function Header() {
   const { cartCount, wishlistCount, setSearchOpen, setCartOpen, setMenuOpen } = useStore();
+  // Defaults to the guest destination until the session is known, so the
+  // action never visibly flips from "Mon compte" back to "Se connecter" —
+  // only the reverse (rare, and harmless) could ever happen.
+  const { isAuthenticated, authReady } = useCustomerSession();
+  const pathname = usePathname();
+  const accountHref =
+    authReady && isAuthenticated ? '/compte' : `/connexion?next=${encodeURIComponent(pathname || '/')}`;
+  const accountLabel = authReady && isAuthenticated ? 'Mon compte' : 'Se connecter';
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
@@ -96,6 +105,10 @@ export function Header() {
             <Heart size={18} />
             <span>Ma sélection</span>
             {wishlistCount > 0 && <i>{wishlistCount}</i>}
+          </Link>
+          <Link href={accountHref} className="header-action account-link" aria-label={accountLabel}>
+            <CircleUser size={18} />
+            <span>{accountLabel}</span>
           </Link>
           <button onClick={() => setCartOpen(true)} className="header-action cart-link cart-link-desktop" aria-label="Panier">
             <ShoppingBag size={18} />

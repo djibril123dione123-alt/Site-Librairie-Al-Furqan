@@ -3,6 +3,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { siteConfig, getSiteUrl } from '@/lib/al-furqan-data';
 import { StoreProvider } from '@/components/providers';
+import { CustomerSessionProvider } from '@/components/auth/customer-session-provider';
 import { StorefrontLayout } from '@/components/layout/storefront-layout';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
@@ -64,11 +65,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
       </head>
       <body>
-        <StoreProvider>
-          <StorefrontLayout>
-            {children}
-          </StorefrontLayout>
-        </StoreProvider>
+        <CustomerSessionProvider>
+          <StoreProvider>
+            <StorefrontLayout>
+              {children}
+            </StorefrontLayout>
+          </StoreProvider>
+        </CustomerSessionProvider>
       </body>
     </html>
   );

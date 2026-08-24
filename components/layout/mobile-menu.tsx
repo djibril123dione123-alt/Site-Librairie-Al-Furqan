@@ -2,14 +2,21 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { BookOpen, X, MessageCircle, Search, Heart, ShoppingBag } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { BookOpen, X, MessageCircle, Search, Heart, ShoppingBag, CircleUser } from 'lucide-react';
 import { buildWhatsAppUrl } from '@/lib/al-furqan-data';
 import { useStore } from '../providers';
+import { useCustomerSession } from '../auth/customer-session-provider';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { seedCategories } from '@/lib/dev/seed-products';
 
 export function MobileMenu() {
   const { menuOpen, setMenuOpen, setSearchOpen, cartCount, wishlistCount } = useStore();
+  const { isAuthenticated, authReady } = useCustomerSession();
+  const pathname = usePathname();
+  const accountHref =
+    authReady && isAuthenticated ? '/compte' : `/connexion?next=${encodeURIComponent(pathname || '/')}`;
+  const accountLabel = authReady && isAuthenticated ? 'Mon compte' : 'Se connecter';
   const [categories, setCategories] = useState<string[]>([]);
 
   const panelRef = useRef<HTMLElement>(null);
@@ -127,6 +134,9 @@ export function MobileMenu() {
           </Link>
           <Link href="/panier" onClick={() => setMenuOpen(false)}>
             <ShoppingBag size={18} /> Panier {cartCount > 0 && <i>{cartCount}</i>}
+          </Link>
+          <Link href={accountHref} onClick={() => setMenuOpen(false)}>
+            <CircleUser size={18} /> {accountLabel}
           </Link>
         </div>
         <div className="mobile-menu-categories">

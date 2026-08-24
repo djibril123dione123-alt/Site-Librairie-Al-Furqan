@@ -5,16 +5,34 @@ import Link from 'next/link';
 import { MessageCircle, ArrowLeft } from 'lucide-react';
 import { formatPrice, generateOrderRef, buildWhatsAppUrl, getSiteUrl } from '@/lib/al-furqan-data';
 import { useStore } from '@/components/providers';
+import { useCustomerSession } from '@/components/auth/customer-session-provider';
+import { createBrowserClient } from '@/lib/supabase/client';
+import {
+  fetchCustomerPreferences,
+  resolveSavedPostOffice,
+  saveDeliveryPreference,
+  saveContactPreference,
+} from '@/lib/supabase/customer';
 import { DeliveryForm, DeliveryMethod, LocationData, PostOffice } from '@/components/delivery/delivery-form';
 import { useCartRevalidation } from '@/components/cart/use-cart-revalidation';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { EmptyState } from '@/components/ui/empty-state';
+import { AccountNudge } from '@/components/account/account-nudge';
 import { LA_POSTE_SMALL_SHIPMENT_GUIDANCE } from '@/lib/delivery/postal-pricing';
 
 type Step = 'delivery' | 'verification';
 
 type DeliveryChoice = {
   method: DeliveryMethod;
+  location: LocationData;
+  postOffice?: PostOffice;
+};
+
+// A saved account preference may be missing a method (never explicitly
+// chosen yet) — unlike DeliveryChoice, which only ever represents a fully
+// completed, submitted form.
+type PartialDeliveryChoice = {
+  method?: DeliveryMethod;
   location: LocationData;
   postOffice?: PostOffice;
 };
@@ -35,11 +53,16 @@ export default function LivraisonPage() {
   const { loading, resolution } = useCartRevalidation();
   const lines = resolution.lines;
 
+  const { user, isAuthenticated, authReady } = useCustomerSession();
+
   const [step, setStep] = useState<Step>('delivery');
   const [deliveryData, setDeliveryData] = useState<DeliveryChoice | null>(null);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [saveDestination, setSaveDestination] = useState(false);
+  const [rememberContact, setRememberContact] = useState(false);
+  const [contactPrefilled, setContactPrefilled] = useState(false);
 
   const ref = useRef<string | null>(null);
   if (!ref.current && typeof window !== 'undefined') {
@@ -75,6 +98,92 @@ export default function LivraisonPage() {
     setDraftReady(true);
   }, []);
 
+  // Same "resolve before mount" reasoning as the session draft above, one
+  // tier lower in precedence: a saved account preference must never
+  // overwrite a newer in-progress draft (Phase J §47). A saved post office
+  // id is re-checked against the live table rather than trusted forever —
+  // if it no longer exists, the geography still prefills but the office
+  // does not, and the customer picks a new one (§48).
+  const [preferencesReady, setPreferencesReady] = useState(false);
+  const [preferenceInitialData, setPreferenceInitialData] = useState<PartialDeliveryChoice | undefined>(undefined);
+
+  useEffect(() => {
+    if (!authReady) return;
+    if (!isAuthenticated || !user) {
+      setPreferencesReady(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createBrowserClient();
+      const prefs = await fetchCustomerPreferences(supabase, user.id);
+      if (cancelled) return;
+
+      if (prefs?.rememberContactDetails) {
+        setRememberContact(true);
+        if (prefs.contactName || prefs.contactPhone) {
+          setContactPrefilled(true);
+          if (prefs.contactName) setName(prefs.contactName);
+          if (prefs.contactPhone) setPhone(prefs.contactPhone);
+        }
+      }
+
+      if (prefs?.region) {
+        let postOffice: PostOffice | undefined;
+        if (prefs.preferredPostOfficeId) {
+          const office = await resolveSavedPostOffice(supabase, prefs.preferredPostOfficeId);
+          if (office) {
+            postOffice = {
+              id: office.id,
+              name: office.name,
+              address: office.address,
+              region: office.region,
+              locality: office.locality,
+              latitude: office.latitude,
+              longitude: office.longitude,
+            };
+          }
+          // Office no longer exists: geography still prefills below, office
+          // stays unset — the customer is asked to pick a new one, nothing
+          // blocks the flow.
+        } else if (prefs.preferredCustomOfficeName) {
+          postOffice = {
+            id: 'custom',
+            name: prefs.preferredCustomOfficeName,
+            address: null,
+            region: prefs.region,
+            locality: null,
+            latitude: 0,
+            longitude: 0,
+            isCustomOffice: true,
+          };
+        }
+
+        if (!cancelled) {
+          setPreferenceInitialData({
+            method: prefs.preferredDeliveryMethod || undefined,
+            location: {
+              region: prefs.region,
+              department: prefs.department || undefined,
+              commune: prefs.commune || undefined,
+              locality: prefs.locality || '',
+              localityId: prefs.localityId || undefined,
+              isCustomLocality: prefs.isCustomLocality,
+              quartier: prefs.quartier || undefined,
+              repere: prefs.repere || undefined,
+            },
+            postOffice,
+          });
+        }
+      }
+      if (!cancelled) setPreferencesReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authReady, isAuthenticated, user?.id]);
+
   const validLines = lines.filter((l) => l.status === 'VALID');
   const invalidLines = lines.filter((l) => l.status !== 'VALID');
   const cartIsEmpty = !loading && lines.length === 0;
@@ -91,10 +200,46 @@ export default function LivraisonPage() {
     setStep('verification');
   };
 
-  const handleFinalSubmit = () => {
+  const handleFinalSubmit = async () => {
     if (!deliveryData || !name.trim() || !isPhoneValid || cartHasInvalidLines) return;
 
     import('@/lib/data/analytics').then((m) => m.trackCatalogEvent('whatsapp_click'));
+
+    // Deliberate, per-order opt-in only — never silently written. Awaited
+    // (briefly) before the WhatsApp handoff below, since navigating away
+    // would otherwise cancel the request mid-flight.
+    if (isAuthenticated && user && (saveDestination || rememberContact)) {
+      const supabase = createBrowserClient();
+      const saves: Promise<boolean>[] = [];
+      if (saveDestination) {
+        const isCustomOffice = deliveryData.postOffice?.isCustomOffice;
+        saves.push(
+          saveDeliveryPreference(supabase, user.id, {
+            preferredDeliveryMethod: deliveryData.method,
+            region: deliveryData.location.region,
+            department: deliveryData.location.department || null,
+            commune: deliveryData.location.commune || null,
+            locality: deliveryData.location.locality,
+            localityId: deliveryData.location.localityId || null,
+            isCustomLocality: !!deliveryData.location.isCustomLocality,
+            preferredPostOfficeId: deliveryData.postOffice && !isCustomOffice ? deliveryData.postOffice.id : null,
+            preferredCustomOfficeName: isCustomOffice ? deliveryData.postOffice!.name : null,
+          })
+        );
+      }
+      if (rememberContact) {
+        saves.push(
+          saveContactPreference(supabase, user.id, {
+            rememberContactDetails: true,
+            contactName: name.trim(),
+            contactPhone: phone.trim(),
+            quartier: deliveryData.location.quartier || null,
+            repere: deliveryData.location.repere || null,
+          })
+        );
+      }
+      await Promise.all(saves);
+    }
 
     const baseUrl = getSiteUrl();
 
@@ -184,12 +329,12 @@ Référence commande : ${ref.current}`;
             <Link href="/panier" className="button button-dark">Retourner au panier</Link>
           </div>
         ) : step === 'delivery' ? (
-          !draftReady ? (
+          !draftReady || !preferencesReady ? (
             <p className="delivery-loading">Chargement de vos préférences...</p>
           ) : (
             <DeliveryForm
               onValidSubmit={handleDeliverySubmit}
-              initialData={deliveryData || draftFromStorage}
+              initialData={deliveryData || draftFromStorage || preferenceInitialData}
             />
           )
         ) : (
@@ -238,6 +383,23 @@ Référence commande : ${ref.current}`;
               </div>
             </section>
 
+            <AccountNudge
+              title="Mémorisez cette destination"
+              body="Retrouvez cette destination lors de votre prochaine commande."
+              ctaLabel="Se connecter pour la mémoriser"
+            />
+
+            {isAuthenticated && (
+              <label className="delivery-remember-row">
+                <input
+                  type="checkbox"
+                  checked={saveDestination}
+                  onChange={(e) => setSaveDestination(e.target.checked)}
+                />
+                Enregistrer cette destination pour la prochaine fois
+              </label>
+            )}
+
             {deliveryData?.method === 'la_poste' && (
               <section className="review-section">
                 <h3 className="review-section-title">Frais postaux</h3>
@@ -253,6 +415,9 @@ Référence commande : ${ref.current}`;
 
             <section className="review-section">
               <h3 className="review-section-title">Vos coordonnées</h3>
+              {contactPrefilled && (
+                <p className="delivery-hint">Coordonnées enregistrées sur votre compte — modifiables ci-dessous.</p>
+              )}
               <div className="review-contact-grid">
                 <div className="delivery-field">
                   <label className="delivery-field-label" htmlFor="customer-name">Prénom &amp; nom</label>
@@ -277,6 +442,16 @@ Référence commande : ${ref.current}`;
                   />
                 </div>
               </div>
+              {isAuthenticated && (
+                <label className="delivery-remember-row">
+                  <input
+                    type="checkbox"
+                    checked={rememberContact}
+                    onChange={(e) => setRememberContact(e.target.checked)}
+                  />
+                  Mémoriser mes coordonnées pour mes prochaines commandes
+                </label>
+              )}
             </section>
 
             <button

@@ -11,6 +11,7 @@ import type { Product } from '@/lib/types/ui';
 import { seedProducts } from '@/lib/dev/seed-products';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { EmptyState } from '@/components/ui/empty-state';
+import { AccountNudge } from '@/components/account/account-nudge';
 
 export default function SelectionPage() {
   const { wishlist } = useStore();
@@ -70,6 +71,14 @@ export default function SelectionPage() {
           <p>Les ouvrages que vous souhaitez retrouver plus tard.</p>
         </div>
       </div>
+      {products.length > 0 && (
+        <AccountNudge
+          title="Retrouvez vos favoris plus tard"
+          body="Créez ou ouvrez votre compte pour conserver cette sélection sur tous vos appareils."
+          ctaLabel="Sauvegarder ma sélection"
+          secondaryLabel="Continuer sans compte"
+        />
+      )}
       {products.length ? (
         <div className="book-grid selection-grid">
           {products.map((item) => (

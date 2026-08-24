@@ -9,6 +9,7 @@ import { CartLinesSkeleton } from '@/components/cart/cart-line-skeleton';
 import { CartSummary } from '@/components/cart/cart-summary';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { EmptyState } from '@/components/ui/empty-state';
+import { AccountNudge } from '@/components/account/account-nudge';
 
 export default function CartPage() {
   const { cart, updateQuantity, removeFromCart } = useStore();
@@ -73,6 +74,11 @@ export default function CartPage() {
                 onRemove={() => removeFromCart(resolved.cartIndex)}
               />
             ))}
+            <AccountNudge
+              title="Gardez votre panier pour plus tard"
+              body="Connectez-vous pour le retrouver sur un autre appareil."
+              ctaLabel="Sauvegarder mon panier"
+            />
           </div>
           <CartSummary subtotal={subtotal} hasInvalidLines={hasInvalidLines} />
         </div>

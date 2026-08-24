@@ -17,6 +17,11 @@ export interface LocationData {
   quartier?: string;
   repere?: string;
   isCustomLocality?: boolean;
+  // Real ANSD senegal_locations.id, when the selection came from the
+  // search/combobox (never fabricated). Lets an account preference restore
+  // the exact row later without re-searching by name — see identity note
+  // at the selectedLocalityId/selectedLocalityLabel split below.
+  localityId?: string;
 }
 
 export interface PostOffice {
@@ -112,7 +117,9 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
   // so the option's `value` is the locality's real database id — never the
   // display name. `selectedLocalityLabel` is the actual human-readable name
   // and is the only one ever sent onward (LocationData.locality, WhatsApp).
-  const [selectedLocalityId, setSelectedLocalityId] = useState(initialData?.location?.locality || '');
+  const [selectedLocalityId, setSelectedLocalityId] = useState(
+    initialData?.location?.localityId || initialData?.location?.locality || ''
+  );
   const [selectedLocalityLabel, setSelectedLocalityLabel] = useState(initialData?.location?.locality || '');
 
   const [customLocalityInput, setCustomLocalityInput] = useState('');
@@ -431,6 +438,10 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
   }, [allOffices, selectedRegion, officeSearch]);
 
   const finalLocality = selectedLocalityId === "Je ne trouve pas ma localité" ? customLocalityInput : selectedLocalityLabel;
+  // Only a genuine ANSD row id (a real UUID picked from the search/combobox)
+  // is ever forwarded — the legacy "label used as id" restore path and the
+  // custom-locality sentinel must never be mistaken for one.
+  const isRealLocalityId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selectedLocalityId);
 
   const isFormValid = Boolean(
     method &&
@@ -451,7 +462,8 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
         locality: finalLocality,
         quartier,
         repere,
-        isCustomLocality: selectedLocalityId === "Je ne trouve pas ma localité"
+        isCustomLocality: selectedLocalityId === "Je ne trouve pas ma localité",
+        localityId: isRealLocalityId ? selectedLocalityId : undefined
       },
       postOffice: method === 'la_poste' ? (
         isCustomOffice

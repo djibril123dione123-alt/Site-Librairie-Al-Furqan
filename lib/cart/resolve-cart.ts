@@ -3,6 +3,7 @@ import type { Product } from '@/lib/types/ui';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { dbProductToUi } from '@/lib/types/mappers';
 import { seedProducts } from '@/lib/dev/seed-products';
+import { getVariantId } from './identity';
 import type { CartLineStatus, CartResolution, ResolvedCartLine } from './types';
 
 const WARNINGS: Record<Exclude<CartLineStatus, 'VALID' | 'QUANTITY_EXCEEDS_STOCK'>, string> = {
@@ -29,8 +30,13 @@ function resolveLine(cartIndex: number, line: CartLine, product: Product | undef
 
   const isPublishedAvailable = product.availability !== 'Indisponible temporairement';
 
-  if (line.variant) {
-    const matchedVariant = product.variants?.find((v) => v.id === line.variant!.id) ?? null;
+  // Cloud-restored lines (Phase J) only ever carry `variantId`, never a full
+  // `variant` snapshot — the cloud store keeps intent only, never a price/
+  // stock snapshot. Checking `line.variant` alone would wrongly treat such
+  // a line as a base product.
+  const variantId = getVariantId(line);
+  if (variantId) {
+    const matchedVariant = product.variants?.find((v) => v.id === variantId) ?? null;
     if (!matchedVariant) {
       return {
         cartIndex,

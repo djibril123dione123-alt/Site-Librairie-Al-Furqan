@@ -1010,8 +1010,12 @@ main { overflow: hidden; }
 .delivery-field-optional { color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 4px; }
 .delivery-text-input { width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 11px 13px; font-size: 13px; min-height: 44px; }
 .delivery-inline-note { background: var(--paper); border-left: 2px solid var(--gold); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.account-nudge-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 4px; }
+.account-nudge-actions .button { padding: 10px 18px; font-size: 12px; min-height: 44px; }
 .delivery-hint { color: var(--muted); font-size: 11.5px; margin: 0; }
 .delivery-error-text { color: var(--danger); font-size: 12px; font-weight: 600; margin: 0; }
+.delivery-remember-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink); margin-top: 14px; cursor: pointer; }
+.delivery-remember-row input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--gold); }
 
 /* La Poste office selection */
 .delivery-office-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
@@ -1097,6 +1101,15 @@ main { overflow: hidden; }
 .info-block ol { color: var(--muted); line-height: 2; font-size: 14px; padding-left: 20px; }
 .info-cta { border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
 .info-cta p { margin: 0; color: var(--ink); font-size: 14px; }
+
+/* Compte (Phase J) — same calm editorial rows as .info-cta, stacked with a
+   little vertical rhythm instead of one flush divider. */
+.account-sections { display: flex; flex-direction: column; }
+.account-row { padding: 24px 0; }
+.account-row:first-child { border-top: none; padding-top: 0; }
+.account-row strong { display: block; font-family: var(--font-serif); font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+.account-row p { color: var(--muted); font-size: 13px; }
+.account-signout { padding: 32px 0 0; }
 .delivery-destinations { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
 .delivery-destinations > div { padding: 18px; background: var(--cream); border-radius: var(--radius); }
 .delivery-destinations strong { display: block; font-family: var(--font-serif); font-size: 18px; font-weight: 500; margin-bottom: 6px; }
@@ -1171,6 +1184,9 @@ main { overflow: hidden; }
   .header-action { min-width: 44px; min-height: 44px; justify-content: center; padding: 0; }
   .cart-link-desktop { display: none; }
   .cart-link-mobile { display: inline-flex; }
+  /* Account entry moves into MobileMenu instead of adding a 5th icon to an
+     already-full mobile topbar (search/selection/cart/hamburger). */
+  .account-link { display: none; }
   .floating-whatsapp { display: flex; }
   /* Defensive: the drawer is a desktop-only surface (see §34) — nothing
      should trigger cartOpen on mobile anymore, but this keeps it from
