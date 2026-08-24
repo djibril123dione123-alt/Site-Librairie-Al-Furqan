@@ -313,7 +313,7 @@ export function ProductListTable({
         )}
       </div>
 
-      <div className="admin-table-wrap">
+      <div className="admin-table-wrap product-admin-desktop-table">
         <table className="admin-table">
           <thead>
             <tr>

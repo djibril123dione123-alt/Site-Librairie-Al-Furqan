@@ -19,16 +19,28 @@ export function CategoryManager({ categories: initial }: { categories: Category[
   const [adding, setAdding] = useState(false);
 
   const updateCategory = async (id: string, changes: Partial<Category>) => {
+    const previous = categories.find((c) => c.id === id);
     setSaving(id);
     try {
-      await fetch(`/api/admin/categories/${id}`, {
+      const res = await fetch(`/api/admin/categories/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(changes),
       });
+      if (!res.ok) {
+        // The fetch previously never checked this — a failed PATCH still
+        // applied the change locally, showing a toggle/reorder as
+        // successful when the database still had the old value.
+        if (previous) setCategories((prev) => prev.map((c) => (c.id === id ? previous : c)));
+        alert('Erreur lors de la mise à jour de la catégorie.');
+        return;
+      }
       setCategories((prev) =>
         prev.map((c) => (c.id === id ? { ...c, ...changes } : c))
       );
+    } catch {
+      if (previous) setCategories((prev) => prev.map((c) => (c.id === id ? previous : c)));
+      alert('Erreur réseau lors de la mise à jour de la catégorie.');
     } finally {
       setSaving(null);
     }
@@ -76,13 +88,17 @@ export function CategoryManager({ categories: initial }: { categories: Category[
         body: JSON.stringify({ name: newName.trim(), slug, position: categories.length }),
       });
       const result = await response.json();
-      if (result.id) {
+      if (response.ok && result.id) {
         setCategories((prev) => [
           ...prev,
           { id: result.id, name: newName.trim(), slug, position: prev.length, isVisible: true },
         ]);
         setNewName('');
+      } else {
+        alert(result.error || 'Erreur lors de la création de la catégorie.');
       }
+    } catch {
+      alert('Erreur réseau lors de la création de la catégorie.');
     } finally {
       setAdding(false);
     }
@@ -92,7 +108,9 @@ export function CategoryManager({ categories: initial }: { categories: Category[
     <>
       <div className="admin-card">
         <h2 className="admin-card-title">Catégories ({categories.length})</h2>
-        <div className="admin-table-wrap">
+
+        {/* Tablet/desktop: dense table, unchanged. */}
+        <div className="admin-table-wrap generic-desktop-table">
           <table className="admin-table">
             <thead>
               <tr>
@@ -140,11 +158,51 @@ export function CategoryManager({ categories: initial }: { categories: Category[
             </tbody>
           </table>
         </div>
+
+        {/* Phone: compact list, same data/handlers as the table above. */}
+        <div className="admin-mobile-list generic-mobile-list">
+          {categories.map((cat, index) => (
+            <div key={cat.id} className="admin-mobile-card" style={{ opacity: cat.isVisible ? 1 : 0.6 }}>
+              <div className="admin-mobile-card-row">
+                <div>
+                  <strong>{cat.name}</strong>
+                  <div style={{ fontSize: 11, color: 'var(--admin-text-subtle)' }}>/{cat.slug} · Ordre {index + 1}</div>
+                </div>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => toggleVisibility(cat)}
+                  disabled={saving === cat.id}
+                  aria-label={cat.isVisible ? `Masquer ${cat.name}` : `Afficher ${cat.name}`}
+                >
+                  {saving === cat.id ? <Loader2 size={13} /> : cat.isVisible ? <Eye size={13} /> : <EyeOff size={13} />}
+                </button>
+              </div>
+              <div className="generic-mobile-actions">
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => moveUp(index)}
+                  disabled={index === 0}
+                  aria-label={`Monter ${cat.name}`}
+                >
+                  <ChevronUp size={13} /> Monter
+                </button>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => moveDown(index)}
+                  disabled={index === categories.length - 1}
+                  aria-label={`Descendre ${cat.name}`}
+                >
+                  <ChevronDown size={13} /> Descendre
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="admin-card">
         <h2 className="admin-card-title">Ajouter une catégorie</h2>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div className="generic-add-row" style={{ display: 'flex', gap: 10 }}>
           <input
             type="text"
             value={newName}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
@@ -35,11 +35,53 @@ export function AdminNav() {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
 
   // Fermer le drawer mobile lors de la navigation
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  // Same dialog semantics as the public MobileMenu/CartDrawer: focus in on
+  // open, trap Tab, Escape closes, focus restores to the hamburger button,
+  // background scroll locked. The drawer previously had none of this.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    previouslyFocused.current = document.activeElement as HTMLElement;
+    const scrollBarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    if (scrollBarWidth > 0) document.body.style.paddingRight = `${scrollBarWidth}px`;
+    sidebarRef.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMobileOpen(false);
+      } else if (e.key === 'Tab' && sidebarRef.current) {
+        const focusables = sidebarRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+      previouslyFocused.current?.focus();
+    };
+  }, [mobileOpen]);
 
   const handleSignOut = async () => {
     try {
@@ -64,31 +106,53 @@ export function AdminNav() {
     return 'Administration';
   };
 
+  // "+ Ajouter" always meant "Ajouter un livre" (it links to
+  // /admin/produits/nouveau), which is misleading on every non-product
+  // page — Categories/Authors/Publishers/Collections/Demandes already have
+  // their own contextual creation controls and don't need a second,
+  // wrongly-labelled one in the topbar.
+  const showTopbarAddProduct = pathname.startsWith('/admin/produits') && pathname !== '/admin/produits/nouveau';
+
   return (
     <>
       {/* Topbar Mobile (visibles uniquement < 1024px) */}
       <header className="admin-topbar-mobile">
-        <button 
-          className="admin-menu-toggle" 
+        <button
+          ref={menuToggleRef}
+          className="admin-menu-toggle"
           onClick={() => setMobileOpen(!mobileOpen)}
-          aria-label="Ouvrir le menu d'administration"
+          aria-label={mobileOpen ? "Fermer le menu d'administration" : "Ouvrir le menu d'administration"}
+          aria-expanded={mobileOpen}
         >
           {mobileOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
         <span className="admin-topbar-title">{getPageTitle()}</span>
-        <Link href="/admin/produits/nouveau" className="btn btn-gold btn-sm">
-          <Plus size={14} /> Ajouter
-        </Link>
+        {showTopbarAddProduct ? (
+          <Link href="/admin/produits/nouveau" className="btn btn-gold btn-sm">
+            <Plus size={14} /> Ajouter
+          </Link>
+        ) : (
+          <span aria-hidden="true" />
+        )}
       </header>
 
-      {/* Overlay Backdrop Mobile */}
-      <div 
-        className={`admin-drawer-overlay ${mobileOpen ? 'open' : ''}`}
+      {/* Overlay Backdrop Mobile — dims the page behind the drawer only;
+          never above the drawer itself (see the layer scale note in
+          admin.css — this was the P0 bug where every tap on a nav link
+          actually hit this backdrop's close handler instead). */}
+      <div
+        className={`admin-nav-backdrop ${mobileOpen ? 'open' : ''}`}
         onClick={() => setMobileOpen(false)}
       />
 
       {/* Sidebar Desktop / Mobile Drawer */}
-      <aside className={`admin-sidebar ${mobileOpen ? 'open' : ''}`}>
+      <aside
+        className={`admin-sidebar ${mobileOpen ? 'open' : ''}`}
+        ref={sidebarRef}
+        role={mobileOpen ? 'dialog' : undefined}
+        aria-modal={mobileOpen ? true : undefined}
+        aria-label={mobileOpen ? 'Navigation administration' : undefined}
+      >
         <div className="admin-sidebar-header">
           <Link href="/admin" className="admin-sidebar-logo">
             <div className="admin-sidebar-logo-icon">AF</div>
@@ -97,6 +161,15 @@ export function AdminNav() {
               <small>Back-Office</small>
             </div>
           </Link>
+          <button
+            type="button"
+            className="admin-sidebar-close"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Fermer le menu"
+            data-autofocus
+          >
+            <X size={20} />
+          </button>
         </div>
 
         <nav className="admin-sidebar-nav">

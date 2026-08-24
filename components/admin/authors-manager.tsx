@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, Plus, Search, Edit2, Trash2, BookOpen, X, Check, Loader2 } from 'lucide-react';
+import { Users, Plus, Search, Edit2, Trash2, BookOpen, Check, Loader2 } from 'lucide-react';
+import { AdminModal } from './admin-modal';
 
 export type AdminAuthor = {
   id: string;
@@ -15,6 +16,14 @@ export type AdminAuthor = {
 
 export function AuthorsManager({ initialAuthors }: { initialAuthors: AdminAuthor[] }) {
   const [authors, setAuthors] = useState<AdminAuthor[]>(initialAuthors);
+  // useState(initialAuthors) only seeds state on mount — after
+  // router.refresh() re-renders the parent Server Component with fresh
+  // props, this component would otherwise keep showing whatever it had at
+  // mount, forever. A newly-created author (or an edit) never appeared
+  // without a manual reload until this effect kept local state in sync.
+  useEffect(() => {
+    setAuthors(initialAuthors);
+  }, [initialAuthors]);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingAuthor, setEditingAuthor] = useState<AdminAuthor | null>(null);
@@ -100,118 +109,131 @@ export function AuthorsManager({ initialAuthors }: { initialAuthors: AdminAuthor
         </button>
       </div>
 
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Auteur / Érudit</th>
-              <th>Bio</th>
-              <th>Livres associés</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={4} style={{ padding: 0 }}>
-                  <div className="empty-state">
-                    <div className="empty-state-icon">
-                      <Users size={24} />
-                    </div>
-                    <h3 className="empty-state-title">Aucun auteur trouvé</h3>
-                    <p className="empty-state-text">
-                      {authors.length === 0 
-                        ? 'Aucun auteur n\'est actuellement enregistré.' 
-                        : 'Aucun auteur ne correspond à votre recherche.'}
-                    </p>
-                    <button className="btn btn-primary btn-sm" onClick={openCreateModal}>
-                      <Plus size={14} /> Créer le premier auteur
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              filtered.map((author) => (
-                <tr key={author.id}>
-                  <td style={{ fontWeight: 600 }}>
-                    <div>{author.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--admin-text-subtle)', fontWeight: 400 }}>/{author.slug}</div>
-                  </td>
-                  <td style={{ color: 'var(--admin-text-muted)', fontSize: 12, maxWidth: 360 }}>
-                    {author.bio ? author.bio : '—'}
-                  </td>
-                  <td>
-                    <span className="btn btn-secondary btn-sm" style={{ pointerEvents: 'none' }}>
-                      <BookOpen size={12} /> {author.bookCount} livre(s)
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button 
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => openEditModal(author)}
-                    >
-                      <Edit2 size={13} /> Modifier
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {showModal && (
-        <div className="admin-drawer-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="admin-card" style={{ maxWidth: 480, width: '100%', margin: 'auto', backgroundColor: 'var(--admin-surface)', position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-                {editingAuthor ? 'Modifier l\'auteur' : 'Créer un nouvel auteur'}
-              </h3>
-              <button style={{ background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => setShowModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            {error && <div className="admin-alert admin-alert-error" style={{ marginBottom: 16 }}>{error}</div>}
-
-            <form onSubmit={handleSave}>
-              <div className="form-group">
-                <label className="form-label">Nom complet de l&apos;auteur *</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Ex: Cheikh Ibn 'Uthaymin"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Biographie / Notice biographique</label>
-                <textarea
-                  className="form-textarea"
-                  rows={4}
-                  placeholder="Grand savant sunnite contemporain né à Unayzah en Arabie Saoudite..."
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
-                  Annuler
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={14} />}
-                  <span>{editingAuthor ? 'Mettre à jour' : 'Créer l\'auteur'}</span>
-                </button>
-              </div>
-            </form>
+      {filtered.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">
+            <Users size={24} />
           </div>
+          <h3 className="empty-state-title">Aucun auteur trouvé</h3>
+          <p className="empty-state-text">
+            {authors.length === 0
+              ? 'Aucun auteur n\'est actuellement enregistré.'
+              : 'Aucun auteur ne correspond à votre recherche.'}
+          </p>
+          <button className="btn btn-primary btn-sm" onClick={openCreateModal}>
+            <Plus size={14} /> Créer le premier auteur
+          </button>
         </div>
+      ) : (
+        <>
+          <div className="admin-table-wrap generic-desktop-table">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Auteur / Érudit</th>
+                  <th>Bio</th>
+                  <th>Livres associés</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((author) => (
+                  <tr key={author.id}>
+                    <td style={{ fontWeight: 600 }}>
+                      <div>{author.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--admin-text-subtle)', fontWeight: 400 }}>/{author.slug}</div>
+                    </td>
+                    <td style={{ color: 'var(--admin-text-muted)', fontSize: 12, maxWidth: 360 }}>
+                      {author.bio ? author.bio : '—'}
+                    </td>
+                    <td>
+                      <span className="btn btn-secondary btn-sm" style={{ pointerEvents: 'none' }}>
+                        <BookOpen size={12} /> {author.bookCount} livre(s)
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => openEditModal(author)}
+                      >
+                        <Edit2 size={13} /> Modifier
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="admin-mobile-list generic-mobile-list">
+            {filtered.map((author) => (
+              <div key={author.id} className="admin-mobile-card">
+                <div>
+                  <strong>{author.name}</strong>
+                  <div style={{ fontSize: 11, color: 'var(--admin-text-subtle)' }}>/{author.slug}</div>
+                </div>
+                {author.bio && (
+                  <p style={{ fontSize: 12, color: 'var(--admin-text-muted)', margin: 0 }}>
+                    {author.bio.length > 120 ? `${author.bio.slice(0, 120)}…` : author.bio}
+                  </p>
+                )}
+                <div className="admin-mobile-card-row">
+                  <span className="btn btn-secondary btn-sm" style={{ pointerEvents: 'none' }}>
+                    <BookOpen size={12} /> {author.bookCount} livre(s)
+                  </span>
+                  <button className="btn btn-secondary btn-sm" onClick={() => openEditModal(author)}>
+                    <Edit2 size={13} /> Modifier
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
+
+      <AdminModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        title={editingAuthor ? "Modifier l'auteur" : 'Créer un nouvel auteur'}
+      >
+        {error && <div className="admin-alert admin-alert-error" style={{ marginBottom: 16 }}>{error}</div>}
+
+        <form onSubmit={handleSave}>
+          <div className="form-group">
+            <label className="form-label">Nom complet de l&apos;auteur *</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Ex: Cheikh Ibn 'Uthaymin"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              data-autofocus
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Biographie / Notice biographique</label>
+            <textarea
+              className="form-textarea"
+              rows={4}
+              placeholder="Grand savant sunnite contemporain né à Unayzah en Arabie Saoudite..."
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
+              Annuler
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={14} />}
+              <span>{editingAuthor ? 'Mettre à jour' : 'Créer l\'auteur'}</span>
+            </button>
+          </div>
+        </form>
+      </AdminModal>
     </>
   );
 }

@@ -68,6 +68,22 @@
    DESKTOP SIDEBAR NAVIGATION
    ============================================================ */
 
+/* Admin layer scale — kept in one place so nav and modal stacking can
+   never collide again:
+     20  form-actions-sticky     (per-page sticky top toolbar)
+     30  admin-topbar-mobile, form-actions-mobile-bar
+         (mobile topbar and the product editor's fixed bottom bar — never
+         spatially overlap, sharing a tier is fine)
+     40  admin-nav-backdrop      (dims the page behind the open nav drawer —
+         this also correctly dims the bottom action bar while the drawer is
+         open, since both sit below it)
+     50  admin-sidebar           (the drawer itself — must clear its own
+         backdrop, which was the P0 bug this scale exists to prevent
+         repeating: the backdrop used to be *above* the sidebar, so every
+         tap on a nav link actually hit the backdrop's close handler instead)
+     60  admin-modal-backdrop + its dialog (author/publisher/CSV/confirm) —
+         always above navigation, so a modal can never end up trapped under
+         the drawer no matter how nav z-index changes later */
 .admin-sidebar {
   width: var(--admin-sidebar-width);
   background-color: var(--admin-petrol-dark);
@@ -78,7 +94,7 @@
   top: 0;
   bottom: 0;
   left: 0;
-  z-index: 40;
+  z-index: 50;
   border-right: 1px solid rgba(255, 255, 255, 0.05);
 }
 
@@ -87,9 +103,27 @@
   padding: 0 20px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
+
+/* Visible close affordance inside the drawer itself — desktop never shows
+   the drawer open, so this stays hidden there. */
+.admin-sidebar-close {
+  display: none;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: rgba(248, 250, 252, 0.8);
+  cursor: pointer;
+  border-radius: var(--admin-radius-sm);
+}
+.admin-sidebar-close:hover { background-color: rgba(255, 255, 255, 0.08); color: #FFFFFF; }
 
 .admin-sidebar-logo {
   display: flex;
@@ -246,18 +280,65 @@
   border-radius: var(--admin-radius-sm);
 }
 
-.admin-drawer-overlay {
+.admin-nav-backdrop {
   display: none;
   position: fixed;
   inset: 0;
   background-color: rgba(15, 23, 42, 0.6);
   backdrop-filter: blur(2px);
-  z-index: 45;
+  z-index: 40;
 }
 
-.admin-drawer-overlay.open {
+.admin-nav-backdrop.open {
   display: block;
 }
+
+/* Modal backdrop — separate concept from the nav backdrop above, and
+   deliberately a higher tier (see the layer scale note by .admin-sidebar)
+   so a modal is never accidentally trapped under the drawer. Used by the
+   author/publisher quick-create modals and the CSV import modal. */
+.admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.admin-modal-dialog {
+  width: 100%;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  background-color: var(--admin-surface);
+  border-radius: var(--admin-radius);
+  padding: 20px;
+  position: relative;
+}
+.admin-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.admin-modal-title { margin: 0; font-size: 16px; font-weight: 700; }
+.admin-modal-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--admin-text-muted);
+  border-radius: var(--admin-radius-sm);
+}
+.admin-modal-close:hover { background-color: var(--admin-bg); color: var(--admin-text); }
 
 .admin-page-content {
   padding: 28px 32px 60px;
@@ -907,6 +988,22 @@
   gap: 8px;
 }
 
+/* Discreet technical reference (product id) — desktop only. This used to
+   be the page's entire subtitle, a full UUID rendered under the title;
+   the id is unchanged in business logic, it's just no longer prominent
+   UI, and hidden outright on mobile (see the phone breakpoint) where a
+   multi-line UUID had squeezed the actual title. */
+.product-form-id-ref {
+  font-size: 10.5px;
+  color: var(--admin-text-subtle);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px dashed var(--admin-border);
+  white-space: nowrap;
+}
+.product-form-id-ref:hover { color: var(--admin-text-muted); border-color: var(--admin-text-subtle); }
+
 /* Phone bottom action bar — hidden on desktop/tablet, where
    .form-actions-buttons above (in the top sticky bar) is used instead.
    See the phone @media block for the swap. */
@@ -970,6 +1067,14 @@
     transition: transform 0.25s ease;
   }
 
+  .admin-sidebar-close {
+    display: flex;
+  }
+
+  .admin-nav-item {
+    min-height: 44px;
+  }
+
   .admin-sidebar.open {
     transform: translateX(0);
   }
@@ -1000,7 +1105,14 @@
    with a horizontal scrollbar. Tablets (768px+) keep the table.
    ============================================================ */
 @media (max-width: 680px) {
-  .admin-table-wrap { display: none; }
+  /* Scoped to the Product list's own desktop table only — `.admin-table-wrap`
+     itself is shared by Categories/Authors/Publishers/Collections/Demandes,
+     none of which have a mobile list yet at the time this rule was first
+     written; a bare `.admin-table-wrap { display: none }` here hid every one
+     of those pages' data entirely at phone widths (a real regression, not a
+     product-only effect). Each of those gets its own mobile representation
+     below, following the same product-admin-desktop-table pattern. */
+  .product-admin-desktop-table { display: none; }
   .admin-mobile-list { display: flex; flex-direction: column; gap: 10px; }
 
   .admin-mobile-card {
@@ -1102,11 +1214,38 @@
   .admin-toolbar-filters { flex: 1 1 100%; }
   .admin-toolbar-filters select { flex: 1 1 140px; }
 
+  /* Generic mobile representation for Categories/Authors/Publishers —
+     reuses .admin-mobile-list/.admin-mobile-card (already scoped to this
+     breakpoint above) but NOT .admin-mobile-card-actions, whose last-child
+     rule assumes a single icon-only action (Product's Archive button) and
+     would squeeze a two-button text row like "Monter"/"Descendre". */
+  .generic-desktop-table { display: none; }
+  .generic-mobile-list { display: flex; flex-direction: column; gap: 10px; }
+  .generic-mobile-actions {
+    display: flex;
+    gap: 8px;
+    padding-top: 4px;
+    border-top: 1px solid var(--admin-border);
+    margin-top: 2px;
+  }
+  .generic-mobile-actions .btn { flex: 1; justify-content: center; min-height: 44px; }
+
+  /* "Ajouter une catégorie" — stack instead of letting the button squeeze
+     the input. */
+  .generic-add-row { flex-direction: column; }
+  .generic-add-row .form-input { width: 100%; }
+  .generic-add-row .btn { width: 100%; justify-content: center; min-height: 44px; }
+
+  /* CSV modal's two action buttons (template download / upload) — full
+     width and easily reachable with a virtual keyboard open. */
+  .csv-modal-actions .btn { flex: 1 1 100%; justify-content: center; min-height: 44px; }
+
   /* Product editor — top bar keeps identity only (back-link, title,
      status); the action buttons that used to overflow that same row move
      to a real bottom sticky bar instead. */
   .form-actions-sticky { flex-wrap: wrap; row-gap: 10px; }
   .form-actions-buttons { display: none; }
+  .product-form-id-ref { display: none; }
 
   .product-form-root {
     /* Reserve room so the fixed bottom bar never covers the last field —

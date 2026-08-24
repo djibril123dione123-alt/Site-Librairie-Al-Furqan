@@ -21,9 +21,11 @@ import {
   ChevronUp,
   ChevronLeft,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  Copy
 } from 'lucide-react';
 import type { Availability } from '@/lib/types/ui';
+import { AdminModal } from './admin-modal';
 
 const DEFAULT_CATEGORIES = [
   { id: '1', name: 'Coran', slug: 'coran' },
@@ -175,10 +177,12 @@ export function ProductForm({
   initialData,
   productId,
   categories: externalCategories,
+  duplicateHref,
 }: {
   initialData?: Partial<FormData>;
   productId?: string;
   categories?: { id: string; name: string; slug: string }[];
+  duplicateHref?: string;
 }) {
   const [form, setForm] = useState<FormData>({ ...DEFAULT_FORM, ...initialData });
   const [categoriesList, setCategoriesList] = useState<{ id: string; name: string; slug: string }[]>(
@@ -645,6 +649,20 @@ export function ProductForm({
             <span className={`status-badge ${form.status === 'published' ? 'status-published' : 'status-draft'}`}>
               {form.status === 'published' ? 'Publié' : 'Brouillon'}
             </span>
+            {/* Discreet technical reference — desktop only (see the mobile
+                breakpoint rule hiding it). Previously this was the page's
+                entire subtitle, rendered as a full-width multi-line UUID
+                directly under the title on mobile; the id itself is
+                unchanged in business logic, just no longer prominent UI. */}
+            {productId && (
+              <span
+                className="product-form-id-ref"
+                title={productId}
+                onClick={() => navigator.clipboard?.writeText(productId)}
+              >
+                Réf. {productId.slice(0, 8)}…
+              </span>
+            )}
           </div>
         </div>
 
@@ -657,6 +675,13 @@ export function ProductForm({
             >
               <Eye size={14} />
               <span>Voir sur le site</span>
+            </Link>
+          )}
+
+          {duplicateHref && (
+            <Link href={duplicateHref} className="btn btn-secondary btn-sm">
+              <Copy size={14} />
+              <span>Dupliquer</span>
             </Link>
           )}
 
@@ -746,6 +771,12 @@ export function ProductForm({
             <Link href={`/livres/${form.slug}`} target="_blank" className="btn btn-secondary btn-sm">
               <Eye size={13} />
               <span>Voir sur le site</span>
+            </Link>
+          )}
+          {duplicateHref && (
+            <Link href={duplicateHref} className="btn btn-secondary btn-sm">
+              <Copy size={13} />
+              <span>Dupliquer</span>
             </Link>
           )}
           {productId && (
@@ -1465,80 +1496,70 @@ export function ProductForm({
       </form>
 
       {/* Modal Auteur */}
-      {showAuthorModal && (
-        <div className="admin-drawer-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="admin-card" style={{ maxWidth: 450, width: '100%', margin: 'auto', backgroundColor: 'var(--admin-surface)', position: 'relative' }}>
-            <h3 style={{ marginTop: 0, fontSize: 16, fontWeight: 700 }}>Créer un nouvel auteur</h3>
-            <div className="form-group">
-              <label className="form-label">Nom de l&apos;auteur *</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="Ex: Cheikh Ibn Baz"
-                value={newAuthorName}
-                onChange={(e) => setNewAuthorName(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Biographie succincte</label>
-              <textarea
-                className="form-textarea"
-                rows={3}
-                placeholder="Érudit musulman né à Riyad..."
-                value={newAuthorBio}
-                onChange={(e) => setNewAuthorBio(e.target.value)}
-              />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowAuthorModal(false)}>
-                Annuler
-              </button>
-              <button type="button" className="btn btn-primary btn-sm" onClick={handleQuickCreateAuthor}>
-                Enregistrer l&apos;auteur
-              </button>
-            </div>
-          </div>
+      <AdminModal open={showAuthorModal} onClose={() => setShowAuthorModal(false)} title="Créer un nouvel auteur">
+        <div className="form-group">
+          <label className="form-label">Nom de l&apos;auteur *</label>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Ex: Cheikh Ibn Baz"
+            value={newAuthorName}
+            onChange={(e) => setNewAuthorName(e.target.value)}
+            data-autofocus
+          />
         </div>
-      )}
+        <div className="form-group">
+          <label className="form-label">Biographie succincte</label>
+          <textarea
+            className="form-textarea"
+            rows={3}
+            placeholder="Érudit musulman né à Riyad..."
+            value={newAuthorBio}
+            onChange={(e) => setNewAuthorBio(e.target.value)}
+          />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowAuthorModal(false)}>
+            Annuler
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={handleQuickCreateAuthor}>
+            Enregistrer l&apos;auteur
+          </button>
+        </div>
+      </AdminModal>
 
       {/* Modal Éditeur */}
-      {showPublisherModal && (
-        <div className="admin-drawer-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="admin-card" style={{ maxWidth: 450, width: '100%', margin: 'auto', backgroundColor: 'var(--admin-surface)', position: 'relative' }}>
-            <h3 style={{ marginTop: 0, fontSize: 16, fontWeight: 700 }}>Créer un éditeur</h3>
-            <div className="form-group">
-              <label className="form-label">Nom de la maison d&apos;édition *</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="Ex: Éditions Darussalam"
-                value={newPublisherName}
-                onChange={(e) => setNewPublisherName(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Présentation</label>
-              <textarea
-                className="form-textarea"
-                rows={3}
-                placeholder="Maison d'édition spécialisée..."
-                value={newPublisherDesc}
-                onChange={(e) => setNewPublisherDesc(e.target.value)}
-              />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowPublisherModal(false)}>
-                Annuler
-              </button>
-              <button type="button" className="btn btn-primary btn-sm" onClick={handleQuickCreatePublisher}>
-                Enregistrer l&apos;éditeur
-              </button>
-            </div>
-          </div>
+      <AdminModal open={showPublisherModal} onClose={() => setShowPublisherModal(false)} title="Créer un éditeur">
+        <div className="form-group">
+          <label className="form-label">Nom de la maison d&apos;édition *</label>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Ex: Éditions Darussalam"
+            value={newPublisherName}
+            onChange={(e) => setNewPublisherName(e.target.value)}
+            data-autofocus
+          />
         </div>
-      )}
+        <div className="form-group">
+          <label className="form-label">Présentation</label>
+          <textarea
+            className="form-textarea"
+            rows={3}
+            placeholder="Maison d'édition spécialisée..."
+            value={newPublisherDesc}
+            onChange={(e) => setNewPublisherDesc(e.target.value)}
+          />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowPublisherModal(false)}>
+            Annuler
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={handleQuickCreatePublisher}>
+            Enregistrer l&apos;éditeur
+          </button>
+        </div>
+      </AdminModal>
     </div>
   );
 }

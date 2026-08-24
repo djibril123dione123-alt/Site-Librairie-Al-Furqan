@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, Upload, X, Check, Loader2, FileSpreadsheet } from 'lucide-react';
+import { Download, Upload, Check, Loader2, FileSpreadsheet } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { AdminModal } from './admin-modal';
 
 export function CsvImportModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [file, setFile] = useState<File | null>(null);
@@ -11,8 +12,6 @@ export function CsvImportModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const router = useRouter();
-
-  if (!isOpen) return null;
 
   const downloadTemplate = () => {
     const csvContent =
@@ -116,61 +115,49 @@ export function CsvImportModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
   };
 
   return (
-    <div className="admin-drawer-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div className="admin-card" style={{ maxWidth: 650, width: '100%', backgroundColor: 'var(--admin-surface)', position: 'relative', borderRadius: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FileSpreadsheet size={20} className="text-[var(--admin-petrol)]" />
-            Importation CSV du Catalogue (Brouillons)
-          </h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-            <X size={20} />
-          </button>
-        </div>
+    <AdminModal open={isOpen} onClose={onClose} title="Importation CSV du Catalogue (Brouillons)" maxWidth={650}>
+      <p style={{ fontSize: 13, color: 'var(--admin-text-muted)', marginBottom: 20 }}>
+        Téléchargez le modèle CSV, remplissez vos fiches livres puis téléversez le fichier. Tous les livres seront créés en <strong>Brouillon (Draft)</strong>.
+      </p>
 
-        <p style={{ fontSize: 13, color: 'var(--admin-text-muted)', marginBottom: 20 }}>
-          Téléchargez le modèle CSV, remplissez vos fiches livres puis téléversez le fichier. Tous les livres seront créés en <strong>Brouillon (Draft)</strong>.
-        </p>
+      {error && <div className="admin-alert admin-alert-error" style={{ marginBottom: 16 }}>{error}</div>}
+      {message && <div className="admin-alert admin-alert-success" style={{ marginBottom: 16 }}>{message}</div>}
 
-        {error && <div className="admin-alert admin-alert-error" style={{ marginBottom: 16 }}>{error}</div>}
-        {message && <div className="admin-alert admin-alert-success" style={{ marginBottom: 16 }}>{message}</div>}
+      <div className="csv-modal-actions" style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={downloadTemplate}>
+          <Download size={14} /> Télécharger le modèle CSV
+        </button>
 
-        <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={downloadTemplate}>
-            <Download size={14} /> Télécharger le modèle CSV
-          </button>
-
-          <label className="btn btn-primary btn-sm" style={{ cursor: 'pointer' }}>
-            <Upload size={14} /> Téléverser un fichier CSV
-            <input type="file" accept=".csv" onChange={handleFileChange} style={{ display: 'none' }} />
-          </label>
-        </div>
-
-        {parsedRows.length > 0 && (
-          <div style={{ marginTop: 16, borderTop: '1px solid var(--admin-border)', paddingTop: 16 }}>
-            <h4 style={{ fontSize: 14, margin: '0 0 12px', fontWeight: 600 }}>
-              Aperçu des fiches détectées ({parsedRows.length} livres)
-            </h4>
-            <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--admin-border)', borderRadius: 6, padding: 8, fontSize: 12 }}>
-              {parsedRows.map((r, i) => (
-                <div key={i} style={{ padding: '4px 0', borderBottom: i < parsedRows.length - 1 ? '1px solid var(--admin-border)' : 'none' }}>
-                  <strong>{r.title}</strong> — {r.author || 'Auteur non renseigné'} ({r.category || 'Catégorie non renseignée'})
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={importing}>
-                Annuler
-              </button>
-              <button type="button" className="btn btn-primary btn-sm" onClick={executeImport} disabled={importing}>
-                {importing ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                <span>Importer les {parsedRows.length} brouillons</span>
-              </button>
-            </div>
-          </div>
-        )}
+        <label className="btn btn-primary btn-sm" style={{ cursor: 'pointer' }}>
+          <Upload size={14} /> Téléverser un fichier CSV
+          <input type="file" accept=".csv" onChange={handleFileChange} style={{ display: 'none' }} />
+        </label>
       </div>
-    </div>
+
+      {parsedRows.length > 0 && (
+        <div style={{ marginTop: 16, borderTop: '1px solid var(--admin-border)', paddingTop: 16 }}>
+          <h4 style={{ fontSize: 14, margin: '0 0 12px', fontWeight: 600 }}>
+            Aperçu des fiches détectées ({parsedRows.length} livres)
+          </h4>
+          <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--admin-border)', borderRadius: 6, padding: 8, fontSize: 12 }}>
+            {parsedRows.map((r, i) => (
+              <div key={i} style={{ padding: '4px 0', borderBottom: i < parsedRows.length - 1 ? '1px solid var(--admin-border)' : 'none' }}>
+                <strong>{r.title}</strong> — {r.author || 'Auteur non renseigné'} ({r.category || 'Catégorie non renseignée'})
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={importing}>
+              Annuler
+            </button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={executeImport} disabled={importing}>
+              {importing ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+              <span>Importer les {parsedRows.length} brouillons</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </AdminModal>
   );
 }

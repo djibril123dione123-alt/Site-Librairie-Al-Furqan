@@ -41,35 +41,57 @@ export default async function DemandesPage() {
         {zeroResults.length === 0 ? (
           <p style={{ color: 'var(--admin-text-muted)', fontSize: 13 }}>Aucune recherche sans résultat enregistrée.</p>
         ) : (
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Recherche</th>
-                  <th style={{ width: 80, textAlign: 'right' }}>Occurrences</th>
-                  <th style={{ width: 140 }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {zeroResults.map((row) => (
-                  <tr key={row.query}>
-                    <td><strong>{row.query}</strong></td>
-                    <td style={{ textAlign: 'right', color: row.count >= 5 ? 'var(--admin-danger-text)' : 'var(--admin-text-muted)' }}>
-                      {row.count}
-                    </td>
-                    <td>
-                      <Link
-                        href={`/admin/produits/nouveau?prefill=${encodeURIComponent(row.query)}`}
-                        className="btn btn-secondary btn-sm"
-                      >
-                        <Plus size={12} /> Ajouter ce livre
-                      </Link>
-                    </td>
+          <>
+            <div className="admin-table-wrap generic-desktop-table">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Recherche</th>
+                    <th style={{ width: 80, textAlign: 'right' }}>Occurrences</th>
+                    <th style={{ width: 140 }}>Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {zeroResults.map((row) => (
+                    <tr key={row.query}>
+                      <td><strong>{row.query}</strong></td>
+                      <td style={{ textAlign: 'right', color: row.count >= 5 ? 'var(--admin-danger-text)' : 'var(--admin-text-muted)' }}>
+                        {row.count}
+                      </td>
+                      <td>
+                        <Link
+                          href={`/admin/produits/nouveau?prefill=${encodeURIComponent(row.query)}`}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          <Plus size={12} /> Ajouter ce livre
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="admin-mobile-list generic-mobile-list">
+              {zeroResults.map((row) => (
+                <div key={row.query} className="admin-mobile-card">
+                  <div className="admin-mobile-card-row">
+                    <strong>{row.query}</strong>
+                    <span style={{ color: row.count >= 5 ? 'var(--admin-danger-text)' : 'var(--admin-text-muted)', fontWeight: 600 }}>
+                      {row.count}×
+                    </span>
+                  </div>
+                  <Link
+                    href={`/admin/produits/nouveau?prefill=${encodeURIComponent(row.query)}`}
+                    className="btn btn-secondary btn-sm"
+                    style={{ justifyContent: 'center', minHeight: 44 }}
+                  >
+                    <Plus size={12} /> Ajouter ce livre
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
@@ -81,26 +103,40 @@ export default async function DemandesPage() {
         {bookRequests.length === 0 ? (
           <p style={{ color: 'var(--admin-text-muted)', fontSize: 13 }}>Aucune demande enregistrée.</p>
         ) : (
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Ouvrage demandé</th>
-                  <th>Source</th>
-                  <th style={{ width: 80, textAlign: 'right' }}>Demandes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bookRequests.map((row) => (
-                  <tr key={row.query}>
-                    <td><strong>{row.query}</strong></td>
-                    <td style={{ color: 'var(--admin-text-muted)', fontSize: 12 }}>{row.source}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{row.count}</td>
+          <>
+            <div className="admin-table-wrap generic-desktop-table">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Ouvrage demandé</th>
+                    <th>Source</th>
+                    <th style={{ width: 80, textAlign: 'right' }}>Demandes</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {bookRequests.map((row) => (
+                    <tr key={row.query}>
+                      <td><strong>{row.query}</strong></td>
+                      <td style={{ color: 'var(--admin-text-muted)', fontSize: 12 }}>{row.source}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{row.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="admin-mobile-list generic-mobile-list">
+              {bookRequests.map((row) => (
+                <div key={row.query} className="admin-mobile-card">
+                  <div className="admin-mobile-card-row">
+                    <strong>{row.query}</strong>
+                    <span style={{ fontWeight: 600 }}>{row.count}×</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--admin-text-muted)' }}>{row.source}</div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

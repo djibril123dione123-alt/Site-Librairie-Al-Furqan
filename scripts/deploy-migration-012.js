@@ -24,13 +24,6 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
-// IMPORTANT: never decodeURIComponent() the whole connection string. A
-// percent-encoded password is meant to stay encoded in a connection URI —
-// decoding the full URL can turn escaped reserved characters (%40 -> @,
-// %23 -> #, %2F -> /, %3A -> :) into real delimiters, which silently
-// reshapes host/user/password parsing and produces a false authentication
-// or host-resolution failure. Pass databaseUrl to pg exactly as stored.
-
 function extractProjectRef(rawDbUrl, rawSupabaseUrl) {
   let dbHost = null;
   let dbUser = null;
@@ -60,10 +53,10 @@ function extractProjectRef(rawDbUrl, rawSupabaseUrl) {
   return { ok: true, dbHost, dbRef, targetRef };
 }
 
-const sqlPath = path.join(__dirname, '..', 'supabase', 'migrations', '011_search_senegal_departments.sql');
+const sqlPath = path.join(__dirname, '..', 'supabase', 'migrations', '012_normalize_commune_search.sql');
 const sqlContent = fs.readFileSync(sqlPath, 'utf8');
 
-async function deploy011() {
+async function deploy012() {
   console.log('Resolving target database (hostname only — no credentials logged)...');
 
   const refCheck = extractProjectRef(databaseUrl, supabaseUrl);
@@ -88,7 +81,7 @@ async function deploy011() {
     console.log('  Project ref match confirmed.');
   }
 
-  console.log('Connecting to database via DATABASE_URL to deploy 011_search_senegal_departments.sql...');
+  console.log('Connecting to database via DATABASE_URL to deploy 012_normalize_commune_search.sql...');
 
   const client = new Client({
     connectionString: databaseUrl,
@@ -100,23 +93,10 @@ async function deploy011() {
     await client.connect();
     console.log('Database connection successful. Executing migration SQL...');
     await client.query(sqlContent);
-    console.log('SUCCESSFULLY DEPLOYED 011_search_senegal_departments.sql!');
+    console.log('SUCCESSFULLY DEPLOYED 012_normalize_commune_search.sql!');
 
-    console.log('\nVerifying public.search_senegal_departments exists...');
-    const fnRes = await client.query(
-      `select proname, pg_get_function_identity_arguments(oid) as args
-       from pg_proc
-       where proname = 'search_senegal_departments'`
-    );
-    if (fnRes.rows.length === 0) {
-      console.error('VERIFICATION FAILED: search_senegal_departments function not found after migration.');
-      process.exitCode = 1;
-      return;
-    }
-    console.log(`  Function found: ${fnRes.rows[0].proname}(${fnRes.rows[0].args})`);
-
-    const testRes = await client.query(`select * from public.search_senegal_departments('Mbour', NULL, 5)`);
-    console.log(`  Smoke test search_senegal_departments('Mbour') [no apostrophe, to prove normalization] returned ${testRes.rows.length} row(s):`, JSON.stringify(testRes.rows));
+    const testRes = await client.query(`select * from public.search_senegal_communes('Patte doie', NULL, 5)`);
+    console.log(`  Smoke test search_senegal_communes('Patte doie') [no apostrophe] returned ${testRes.rows.length} row(s):`, JSON.stringify(testRes.rows));
     console.log('\nVerification passed.');
   } catch (err) {
     console.error('Migration execution failed:', err.message);
@@ -126,4 +106,4 @@ async function deploy011() {
   }
 }
 
-deploy011();
+deploy012();

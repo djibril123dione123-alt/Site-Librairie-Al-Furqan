@@ -1,6 +1,4 @@
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { Copy, Eye } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { dbAvailabilityToUi } from '@/lib/types/mappers';
@@ -127,30 +125,18 @@ export default async function EditProductPage({ params }: { params: { id: string
 
   if (!product) notFound();
 
+  // The page-level header used to duplicate everything ProductForm's own
+  // top bar already shows (title, "Voir sur le site") plus render the raw
+  // UUID as a prominent subtitle — on mobile this meant the title appeared
+  // twice and got squeezed. ProductForm is now the single source of that
+  // identity block; only "Dupliquer" (a capability this page alone knew
+  // the route for) is passed through.
   return (
-    <div>
-      <div className="admin-page-header">
-        <div>
-          <h1 className="admin-page-title">{product.title}</h1>
-          <p className="admin-page-subtitle">Modifier la fiche produit (ID : {product.id})</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {product.status === 'published' && (
-            <Link href={`/livres/${product.slug}`} target="_blank" className="btn btn-secondary">
-              <Eye size={14} /> Voir sur le site
-            </Link>
-          )}
-          <Link href={`/admin/produits/${params.id}/dupliquer`} className="btn btn-secondary">
-            <Copy size={14} /> Dupliquer
-          </Link>
-        </div>
-      </div>
-
-      <ProductForm 
-        initialData={product} 
-        productId={params.id} 
-        categories={categories}
-      />
-    </div>
+    <ProductForm
+      initialData={product}
+      productId={params.id}
+      categories={categories}
+      duplicateHref={`/admin/produits/${params.id}/dupliquer`}
+    />
   );
 }
