@@ -1,11 +1,12 @@
-import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
+import { isSupabaseConfigured } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { PublishersManager } from '@/components/admin/publishers-manager';
 
 async function getPublishersData() {
   if (!isSupabaseConfigured()) {
     return [];
   }
-  const supabase = createServerClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('publishers')
     .select('id, name, slug, description, created_at, products(count)')

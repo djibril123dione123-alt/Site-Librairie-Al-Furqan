@@ -1,4 +1,5 @@
-import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
+import { isSupabaseConfigured } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { seedCategories } from '@/lib/dev/seed-products';
 import { CategoryManager } from '@/components/admin/category-manager';
 
@@ -13,7 +14,7 @@ async function getAdminCategories() {
     }));
   }
 
-  const supabase = createServerClient();
+  const supabase = createAdminClient();
   const { data } = await supabase
     .from('categories')
     .select('id, name, slug, position, is_visible')

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
-import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
+import { isSupabaseConfigured } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { dbAvailabilityToUi } from '@/lib/types/mappers';
 import { ProductListTable } from '@/components/admin/product-list-table';
 
@@ -9,7 +10,7 @@ async function getAdminProductsData() {
     return { products: [], categories: [] };
   }
 
-  const supabase = createServerClient();
+  const supabase = createAdminClient();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
   const [{ data: products }, { data: categories }] = await Promise.all([

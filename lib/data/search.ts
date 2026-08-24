@@ -3,6 +3,7 @@
  */
 
 import { isSupabaseConfigured, createServerClient, shouldUseSeedData } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { normalizeSeedQuery as normalizeQuery } from '@/lib/dev/seed-products';
 
 /**
@@ -48,7 +49,10 @@ export async function trackBookRequest(query: string, source = 'catalogue'): Pro
 export async function getZeroResultSearches(limit = 50) {
   if (shouldUseSeedData()) return [];
 
-  const supabase = createServerClient();
+  // Admin-only read — search_events accepts anonymous inserts (public
+  // tracking) but its RLS correctly denies anonymous select, so this must
+  // use the service-role client, unlike trackSearchEvent() above.
+  const supabase = createAdminClient();
   const { data } = await supabase
     .from('search_events')
     .select('normalized_query, query')
@@ -81,7 +85,8 @@ export async function getZeroResultSearches(limit = 50) {
 export async function getBookRequests(limit = 50) {
   if (shouldUseSeedData()) return [];
 
-  const supabase = createServerClient();
+  // Same reasoning as getZeroResultSearches above.
+  const supabase = createAdminClient();
   const { data } = await supabase
     .from('book_requests')
     .select('query, source, created_at')

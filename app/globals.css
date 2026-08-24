@@ -650,6 +650,25 @@ main { overflow: hidden; }
   .gallery-crossfade-layer, .gallery-image-button:hover .gallery-crossfade-layer.is-visible { transition: opacity 240ms linear; transform: none; }
 }
 
+/* ====== Route-loading skeletons — calm, no shimmer/gradient, opacity-only
+   pulse so it respects prefers-reduced-motion trivially. Uses the page's
+   own layout classes wherever possible so swapping in real content causes
+   no layout shift. ====== */
+.skeleton-block, .skeleton-line, .skeleton-circle {
+  background-color: var(--line);
+  border-radius: var(--radius-sm);
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+.skeleton-line { border-radius: 4px; height: 1em; }
+.skeleton-circle { border-radius: 50%; }
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block, .skeleton-line, .skeleton-circle { animation: none; opacity: 0.75; }
+}
+
 /* Hover magnifier ("loupe") — desktop/mouse only, gated in JS to
    hover:hover + pointer:fine + a minimum viewport width; this media
    query is a defensive second guard so a stale state can never show it
@@ -924,6 +943,55 @@ main { overflow: hidden; }
 
 /* Radio rows — quiet list language, not bordered cards */
 .delivery-method-list, .delivery-office-list { display: flex; flex-direction: column; }
+/* The 129-office list used to be part of the page's own vertical scroll,
+   so picking an office in the middle forced scrolling past the rest just
+   to reach Continue. It now scrolls independently, in its own box, with
+   the search/geolocation controls and the Continue button both outside it
+   (Phase I). overscroll-behavior:contain stops scroll from "leaking" into
+   the page once the list itself hits its own top/bottom. */
+.delivery-office-list {
+  max-height: 400px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0 12px;
+}
+
+.delivery-office-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin: 12px 0;
+}
+.delivery-office-summary-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.delivery-office-summary strong { font-size: 14px; }
+.delivery-office-summary .delivery-office-address { display: block; margin-top: 2px; }
+.delivery-office-summary-change {
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  min-height: 44px;
+  cursor: pointer;
+}
+.delivery-office-summary-change:hover { border-color: var(--gold); color: var(--gold-text); }
 .delivery-method-row, .delivery-office-row { display: flex; align-items: center; gap: 14px; min-height: 44px; padding: 16px 4px; border-top: 1px solid var(--line); cursor: pointer; transition: background var(--motion-fast) var(--ease-premium); }
 .delivery-method-list label:first-child, .delivery-office-list label:first-child { border-top: 0; }
 .delivery-method-row:hover, .delivery-office-row:hover { background: var(--surface-alt); }
@@ -1214,6 +1282,8 @@ main { overflow: hidden; }
   /* Delivery / review — one decision at a time, full-width controls,
      no compressed two-column fields (Phase F2). */
   .delivery-progress, .delivery-heading, .delivery-content { padding-left: 20px; padding-right: 20px; }
+  .delivery-office-list { max-height: 45vh; }
+  .delivery-office-list.is-collapsed { display: none; }
   .delivery-field-grid, .review-contact-grid { grid-template-columns: 1fr; gap: 16px; }
   .delivery-office-header { flex-direction: column; align-items: stretch; }
   .delivery-office-actions { justify-content: space-between; }

@@ -4,7 +4,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/supabase/auth';
 import { uiAvailabilityToDb } from '@/lib/types/mappers';
 import { z } from 'zod';
-import { revalidatePath } from 'next/cache';
+import { revalidateProductSurfaces } from '@/lib/data/revalidate-product';
 
 function generateSlug(title: string): string {
   return title
@@ -274,9 +274,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  revalidatePath(`/livres/${product.slug}`);
-  revalidatePath('/catalogue');
-  revalidatePath('/');
+  revalidateProductSurfaces(product.slug);
 
   return NextResponse.json({ success: true, id: product.id, slug: product.slug });
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MapPin, Navigation, Building, Truck, ChevronRight, ExternalLink } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { SearchableCombobox, ComboboxOption } from '@/components/ui/searchable-combobox';
@@ -87,6 +87,18 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
   const [communes, setCommunes] = useState<string[]>([]);
   const [localitiesOptions, setLocalitiesOptions] = useState<ComboboxOption[]>([]);
   const [localitiesLoading, setLocalitiesLoading] = useState(false);
+  // Full ANSD rows behind the current locality options — the combobox only
+  // needs {value,label,sublabel}, but reverse-fill needs each row's real
+  // region/department/commune, which ComboboxOption doesn't carry. Kept as
+  // a parallel lookup rather than changing the shared combobox's option
+  // shape (Phase H's identity architecture stays: value = real row id,
+  // label = human name, never a composite).
+  const [localitiesFullData, setLocalitiesFullData] = useState<
+    { id: string; region: string; department: string | null; commune: string | null; locality: string }[]
+  >([]);
+  const [communeOptions, setCommuneOptions] = useState<ComboboxOption[]>([]);
+  const [communeSearchLoading, setCommuneSearchLoading] = useState(false);
+  const [communeSearchAvailable, setCommuneSearchAvailable] = useState(true);
 
   const [selectedRegion, setSelectedRegion] = useState(initialData?.location?.region || '');
   const [selectedDept, setSelectedDept] = useState(initialData?.location?.department || '');
@@ -112,6 +124,12 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
   const [locating, setLocating] = useState(false);
   const [geoError, setGeoError] = useState('');
   const [officeSearch, setOfficeSearch] = useState('');
+  // Mobile-only: once a bureau is picked, collapse the 129-row list behind
+  // a compact "selected" summary instead of leaving it expanded under the
+  // form. Desktop ignores this (see the media query) — an already-expanded
+  // list with its own scroll reads fine there (Phase I §44).
+  const [officeListCollapsed, setOfficeListCollapsed] = useState(false);
+  const selectedOfficeRowRef = useRef<HTMLLabelElement>(null);
 
   // 1. Fetch Regions via RPC or Fallback
   useEffect(() => {
@@ -159,45 +177,108 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
     fetchDepts();
   }, [selectedRegion, supabase]);
 
-  // 3. Fetch Communes via RPC
+  // 3. Fetch Communes via RPC. When a region is already known, the
+  // original region-scoped RPC is used directly (unchanged behaviour). Ref
+  // guard against out-of-order responses (a slower earlier request must
+  // never overwrite a newer one's result).
+  const communesRequestId = useRef(0);
   useEffect(() => {
     if (!selectedRegion) {
       setCommunes([]);
       setSelectedCommune('');
       return;
     }
+    const requestId = ++communesRequestId.current;
     async function fetchCommunes() {
       try {
         const { data, error } = await supabase.rpc('get_senegal_communes', {
           p_region: selectedRegion,
           p_department: selectedDept || null
         });
+        if (requestId !== communesRequestId.current) return;
         if (!error && data) {
           setCommunes(data.map((c: any) => c.commune).filter(Boolean));
         } else {
           setCommunes([]);
         }
       } catch (err) {
+        if (requestId !== communesRequestId.current) return;
         setCommunes([]);
       }
     }
     fetchCommunes();
   }, [selectedRegion, selectedDept, supabase]);
 
-  // 4. Server-side Locality Search via RPC
+  // 3b. Global commune search — for a customer who knows "Ouakam" but not
+  // its region, per Phase I. Only usable while no region is selected yet
+  // (once one is, the region-scoped list above already covers it). Depends
+  // on the search_senegal_communes RPC (migration 010); degrades silently
+  // to "unavailable" if that RPC hasn't been deployed yet, so this is
+  // additive — it can never break the existing region-first flow.
+  const communeSearchRequestId = useRef(0);
+  const searchCommunesServer = useCallback(async (queryText: string) => {
+    if (selectedRegion) return;
+    const requestId = ++communeSearchRequestId.current;
+    setCommuneSearchLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('search_senegal_communes', {
+        p_query: queryText || null,
+        p_region: null,
+        p_limit: 50,
+      });
+      if (requestId !== communeSearchRequestId.current) return;
+      if (error) {
+        setCommuneSearchAvailable(false);
+        setCommuneOptions([]);
+        return;
+      }
+      const opts: ComboboxOption[] = (data || []).map((item: any) => ({
+        value: `${item.region}|||${item.department || ''}|||${item.commune}`,
+        label: item.commune,
+        sublabel: [item.department, item.region].filter(Boolean).join(' · '),
+      }));
+      setCommuneOptions(opts);
+    } catch {
+      if (requestId !== communeSearchRequestId.current) return;
+      setCommuneSearchAvailable(false);
+      setCommuneOptions([]);
+    } finally {
+      if (requestId === communeSearchRequestId.current) setCommuneSearchLoading(false);
+    }
+  }, [selectedRegion, supabase]);
+
+  useEffect(() => {
+    if (!selectedRegion && communeSearchAvailable) {
+      searchCommunesServer('');
+    }
+  }, [selectedRegion, communeSearchAvailable, searchCommunesServer]);
+
+  // 4. Server-side Locality Search via RPC — works with or without a
+  // region/department/commune already chosen (the RPC's filters are all
+  // optional), so a customer can search a village/quartier name directly.
+  // Ref guard against out-of-order responses, same reasoning as communes.
+  const localitiesRequestId = useRef(0);
   const searchLocalitiesServer = useCallback(async (queryText: string) => {
-    if (!selectedRegion) return;
+    const requestId = ++localitiesRequestId.current;
     setLocalitiesLoading(true);
     try {
       const { data, error } = await supabase.rpc('search_senegal_localities', {
-        p_region: selectedRegion,
+        p_region: selectedRegion || null,
         p_department: selectedDept || null,
         p_commune: selectedCommune || null,
         p_query: queryText || null,
         p_limit: 50
       });
 
+      if (requestId !== localitiesRequestId.current) return;
       if (!error && data) {
+        setLocalitiesFullData(data.map((item: any) => ({
+          id: item.id,
+          region: item.region,
+          department: item.department,
+          commune: item.commune,
+          locality: item.locality,
+        })));
         // item.id is the real senegal_locations row id (search_senegal_localities
         // RPC) — a stable unique identifier, not an invented one. The display
         // name (item.locality) is NOT unique across communes, so it must never
@@ -212,18 +293,16 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
     } catch (err) {
       console.error('Locality search error:', err);
     } finally {
-      setLocalitiesLoading(false);
+      if (requestId === localitiesRequestId.current) setLocalitiesLoading(false);
     }
   }, [selectedRegion, selectedDept, selectedCommune, supabase]);
 
   useEffect(() => {
-    if (selectedRegion) {
-      searchLocalitiesServer('');
-    } else {
-      setLocalitiesOptions([]);
-      setSelectedLocalityId('');
-      setSelectedLocalityLabel('');
-    }
+    // Always keep a live locality list — global when no ancestry is known
+    // yet, scoped once it is. Never gated behind selectedRegion (Phase I):
+    // a customer who knows the village name shouldn't have to pick a
+    // region first.
+    searchLocalitiesServer('');
   }, [selectedRegion, selectedDept, selectedCommune, searchLocalitiesServer]);
 
   // 5. Fetch ALL 129 Cartographed Post Offices
@@ -413,42 +492,74 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
               />
             </div>
 
-            {/* Commune */}
+            {/* Commune — region-scoped list once a region is known; a global
+                search (real ANSD ancestry, ids composited only as a UI key —
+                see Phase I §34) while it isn't, so "Ouakam" resolves its own
+                Region/Department without asking for them first. */}
             <div className="delivery-field">
               <label className="delivery-field-label">Commune / Arrondissement <span className="delivery-field-optional">facultatif</span></label>
               <SearchableCombobox
-                options={communes}
+                options={selectedRegion ? communes : communeOptions}
                 value={selectedCommune}
-                disabled={!selectedRegion || communes.length === 0}
+                disabled={selectedRegion ? communes.length === 0 : !communeSearchAvailable}
+                loading={!selectedRegion && communeSearchLoading}
                 onChange={(val) => {
-                  setSelectedCommune(val);
+                  if (selectedRegion) {
+                    setSelectedCommune(val);
+                  } else {
+                    // val is "region|||department|||commune" from the global
+                    // search — the exact factual ancestry for that row, never
+                    // guessed. Reverse-fill Region/Department, then store the
+                    // plain commune name (the field's real stored value).
+                    const [region, department, commune] = val.split('|||');
+                    setSelectedRegion(region);
+                    setSelectedDept(department || '');
+                    setSelectedCommune(commune);
+                  }
                   setSelectedLocalityId('');
-      setSelectedLocalityLabel('');
+                  setSelectedLocalityLabel('');
                 }}
-                placeholder={!selectedRegion ? "Choisissez une région d'abord" : "Sélectionner une commune..."}
+                onSearchChange={!selectedRegion ? (q) => searchCommunesServer(q) : undefined}
+                placeholder={
+                  selectedRegion
+                    ? 'Sélectionner une commune...'
+                    : communeSearchAvailable
+                      ? 'Rechercher une commune (ex : Ouakam)...'
+                      : "Choisissez une région d'abord"
+                }
                 searchPlaceholder="Rechercher une commune..."
               />
             </div>
 
-            {/* Localité / Quartier (Serveur Search Engine) */}
+            {/* Localité / Quartier (Serveur Search Engine) — never gated
+                behind a region: a customer who knows the village name can
+                search it directly, and the exact selected row's real
+                ancestry reverse-fills Region/Department/Commune. */}
             <div className="delivery-field">
               <label className="delivery-field-label">Localité / Quartier / Village</label>
               <SearchableCombobox
                 options={localitiesOptions}
                 value={selectedLocalityId}
-                disabled={!selectedRegion}
                 loading={localitiesLoading}
                 onChange={(val) => {
                   setSelectedLocalityId(val);
                   if (val === "Je ne trouve pas ma localité") {
                     setSelectedLocalityLabel('');
                   } else {
-                    const match = localitiesOptions.find((o) => o.value === val);
-                    setSelectedLocalityLabel(match ? match.label : val);
+                    const match = localitiesFullData.find((o) => o.id === val);
+                    if (match) {
+                      setSelectedLocalityLabel(match.locality);
+                      if (match.region) setSelectedRegion(match.region);
+                      if (match.department) setSelectedDept(match.department);
+                      if (match.commune) setSelectedCommune(match.commune);
+                    } else {
+                      const fallback = localitiesOptions.find((o) => o.value === val);
+                      setSelectedLocalityLabel(fallback ? fallback.label : val);
+                    }
                   }
                 }}
                 onSearchChange={(q) => searchLocalitiesServer(q)}
-                placeholder={!selectedRegion ? "Choisissez une région d'abord" : "Rechercher une localité..."}
+                placeholder="Rechercher une localité, un village, un quartier..."
                 searchPlaceholder="Tapez un nom de village, quartier..."
                 customFallbackOption="Je ne trouve pas ma localité"
               />
@@ -540,10 +651,40 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
             className="delivery-text-input delivery-office-search"
           />
 
-          <div className="delivery-office-list" role="radiogroup" aria-label="Bureau de poste">
+          {/* Outside the scrolling list on every viewport. On mobile it also
+              replaces the list once a real office is picked, so the customer
+              isn't left scrolling past 128 more rows to reach Continue. */}
+          {selectedOffice && !isCustomOffice && (
+            <div className="delivery-office-summary">
+              <div>
+                <span className="delivery-office-summary-label">Bureau sélectionné</span>
+                <strong>{selectedOffice.name}</strong>
+                {selectedOffice.address && <span className="delivery-office-address">{selectedOffice.address}</span>}
+              </div>
+              <button
+                type="button"
+                className="delivery-office-summary-change"
+                onClick={() => {
+                  setOfficeListCollapsed(false);
+                  requestAnimationFrame(() => {
+                    selectedOfficeRowRef.current?.scrollIntoView({ block: 'center' });
+                  });
+                }}
+              >
+                Changer
+              </button>
+            </div>
+          )}
+
+          <div
+            className={`delivery-office-list ${officeListCollapsed && selectedOffice && !isCustomOffice ? 'is-collapsed' : ''}`}
+            role="radiogroup"
+            aria-label="Bureau de poste"
+          >
             {displayedOffices.map(office => (
               <label
                 key={office.id}
+                ref={selectedOffice?.id === office.id ? selectedOfficeRowRef : undefined}
                 className={`delivery-office-row ${!isCustomOffice && selectedOffice?.id === office.id ? 'is-selected' : ''}`}
               >
                 <input
@@ -554,6 +695,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
                   onChange={() => {
                     setSelectedOffice(office);
                     setIsCustomOffice(false);
+                    setOfficeListCollapsed(true);
                   }}
                   className="delivery-radio-input"
                 />

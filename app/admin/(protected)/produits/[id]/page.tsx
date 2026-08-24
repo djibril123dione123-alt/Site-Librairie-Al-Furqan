@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Copy, Eye } from 'lucide-react';
-import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
+import { isSupabaseConfigured } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { dbAvailabilityToUi } from '@/lib/types/mappers';
 import { ProductForm } from '@/components/admin/product-form';
 
@@ -9,7 +10,7 @@ async function getAdminCategories() {
   if (!isSupabaseConfigured()) {
     return [];
   }
-  const supabase = createServerClient();
+  const supabase = createAdminClient();
   const { data } = await supabase
     .from('categories')
     .select('id, name, slug, position, is_visible')
@@ -30,7 +31,7 @@ async function getProduct(id: string) {
     return null;
   }
 
-  const supabase = createServerClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('products')
     .select(`

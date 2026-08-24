@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
-import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
+import { isSupabaseConfigured } from '@/lib/supabase/server';
 import { getZeroResultSearches, getBookRequests } from '@/lib/data/search';
 
 async function getDemandesData() {

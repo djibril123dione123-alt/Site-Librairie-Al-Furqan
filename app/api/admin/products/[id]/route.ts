@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfigured } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/supabase/auth';
 import { uiAvailabilityToDb } from '@/lib/types/mappers';
-import { revalidatePath } from 'next/cache';
+import { revalidateProductSurfaces } from '@/lib/data/revalidate-product';
 
 function generateSlug(title: string): string {
   return title
@@ -302,9 +302,7 @@ export async function PUT(
     }
   }
 
-  revalidatePath(`/livres/${targetSlug}`);
-  revalidatePath('/catalogue');
-  revalidatePath('/');
+  revalidateProductSurfaces(targetSlug);
 
   return NextResponse.json({ success: true, slug: targetSlug });
 }
@@ -326,6 +324,8 @@ export async function DELETE(
   const url = new URL(request.url);
   const hardDelete = url.searchParams.get('hard') === 'true';
 
+  const { data: targetProduct } = await supabase.from('products').select('slug').eq('id', params.id).single();
+
   if (hardDelete) {
     const { data: images } = await supabase.from('product_images').select('storage_path').eq('product_id', params.id);
     if (images && images.length > 0) {
@@ -339,8 +339,9 @@ export async function DELETE(
     await supabase.from('products').update({ status: 'archived' } as any).eq('id', params.id);
   }
 
-  revalidatePath('/catalogue');
-  revalidatePath('/admin/produits');
+  if (targetProduct?.slug) {
+    revalidateProductSurfaces(targetProduct.slug);
+  }
 
   return NextResponse.json({ success: true });
 }

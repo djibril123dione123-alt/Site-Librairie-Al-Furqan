@@ -13,7 +13,8 @@ import {
   MessageSquare,
   PackageX
 } from 'lucide-react';
-import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
+import { isSupabaseConfigured } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 async function getDashboardStats() {
   if (!isSupabaseConfigured()) {
@@ -32,7 +33,7 @@ async function getDashboardStats() {
     };
   }
 
-  const supabase = createServerClient();
+  const supabase = createAdminClient();
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 

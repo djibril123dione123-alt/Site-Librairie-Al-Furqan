@@ -627,9 +627,10 @@ export function ProductForm({
   };
 
   const isCoran = form.category === 'Coran' || form.title.toLowerCase().includes('coran');
+  const isUploading = images.some((img) => img.uploading);
 
   return (
-    <div>
+    <div className="product-form-root">
       {/* Barre d'actions sticky supérieure */}
       <div className="form-actions-sticky">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -647,66 +648,112 @@ export function ProductForm({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {(() => {
-            const isUploading = images.some(img => img.uploading);
-            return (
-              <>
-                {productId && form.status === 'published' && form.slug && (
-                  <Link
-                    href={`/livres/${form.slug}`}
-                    target="_blank"
-                    className="btn btn-secondary btn-sm"
-                  >
-                    <Eye size={14} />
-                    <span>Voir sur le site</span>
-                  </Link>
-                )}
+        <div className="form-actions-buttons">
+          {productId && form.status === 'published' && form.slug && (
+            <Link
+              href={`/livres/${form.slug}`}
+              target="_blank"
+              className="btn btn-secondary btn-sm"
+            >
+              <Eye size={14} />
+              <span>Voir sur le site</span>
+            </Link>
+          )}
 
-                {/* Secondaire : reprendre une saisie rapide sans repasser par
-                    la liste — hiérarchie : action tertiaire (voir), action
-                    secondaire (ajouter suivant), action(s) primaire(s). */}
-                {productId && (
-                  <Link href="/admin/produits/nouveau" className="btn btn-secondary btn-sm">
-                    <Plus size={14} />
-                    <span>Ajouter un autre livre</span>
-                  </Link>
-                )}
+          {/* Secondaire : reprendre une saisie rapide sans repasser par
+              la liste — hiérarchie : action tertiaire (voir), action
+              secondaire (ajouter suivant), action(s) primaire(s). */}
+          {productId && (
+            <Link href="/admin/produits/nouveau" className="btn btn-secondary btn-sm">
+              <Plus size={14} />
+              <span>Ajouter un autre livre</span>
+            </Link>
+          )}
 
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={saving || isUploading}
-                  onClick={(e) => handleFormSubmit(e as any, 'draft')}
-                >
-                  {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
-                  <span>{isUploading ? 'Upload en cours...' : 'Enregistrer brouillon'}</span>
-                </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={saving || isUploading}
+            onClick={(e) => handleFormSubmit(e as any, 'draft')}
+          >
+            {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+            <span>{isUploading ? 'Upload en cours...' : 'Enregistrer brouillon'}</span>
+          </button>
 
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={saving || isUploading}
-                  onClick={(e) => handleFormSubmit(e as any, 'published')}
-                >
-                  {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={14} />}
-                  <span>{isUploading ? 'Upload en cours...' : (productId ? 'Mettre à jour & Publier' : 'Publier le livre')}</span>
-                </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={saving || isUploading}
+            onClick={(e) => handleFormSubmit(e as any, 'published')}
+          >
+            {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={14} />}
+            <span>{isUploading ? 'Upload en cours...' : (productId ? 'Mettre à jour & Publier' : 'Publier le livre')}</span>
+          </button>
 
-                {!productId && (
-                  <button
-                    type="button"
-                    className="btn btn-gold"
-                    disabled={saving || isUploading}
-                    onClick={(e) => handleFormSubmit(e as any, 'published', true)}
-                  >
-                    {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={14} />}
-                    <span>{isUploading ? 'Upload en cours...' : 'Publier et ajouter un autre'}</span>
-                  </button>
-                )}
-              </>
-            );
-          })()}
+          {!productId && (
+            <button
+              type="button"
+              className="btn btn-gold"
+              disabled={saving || isUploading}
+              onClick={(e) => handleFormSubmit(e as any, 'published', true)}
+            >
+              {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={14} />}
+              <span>{isUploading ? 'Upload en cours...' : 'Publier et ajouter un autre'}</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Phone: the top bar above only shows identity (back-link, title,
+          status) via CSS at this breakpoint — the actions themselves move
+          to a real bottom sticky bar instead of clipping/overflowing a
+          horizontal toolbar. Same buttons, same handlers, just relocated;
+          this is the only reason they're rendered a second time. */}
+      <div className="form-actions-mobile-bar">
+        <div className="form-actions-mobile-primary">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={saving || isUploading}
+            onClick={(e) => handleFormSubmit(e as any, 'draft')}
+          >
+            {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+            <span>{isUploading ? 'Upload...' : 'Brouillon'}</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={saving || isUploading}
+            onClick={(e) => handleFormSubmit(e as any, 'published')}
+          >
+            {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={14} />}
+            <span>{isUploading ? 'Upload...' : (productId ? 'Publier' : 'Publier le livre')}</span>
+          </button>
+        </div>
+        <div className="form-actions-mobile-secondary">
+          {!productId && (
+            <button
+              type="button"
+              className="btn btn-gold btn-sm"
+              disabled={saving || isUploading}
+              onClick={(e) => handleFormSubmit(e as any, 'published', true)}
+            >
+              <Plus size={13} />
+              <span>Publier et ajouter un autre</span>
+            </button>
+          )}
+          {productId && form.status === 'published' && form.slug && (
+            <Link href={`/livres/${form.slug}`} target="_blank" className="btn btn-secondary btn-sm">
+              <Eye size={13} />
+              <span>Voir sur le site</span>
+            </Link>
+          )}
+          {productId && (
+            <Link href="/admin/produits/nouveau" className="btn btn-secondary btn-sm">
+              <Plus size={13} />
+              <span>Ajouter un autre</span>
+            </Link>
+          )}
         </div>
       </div>
 

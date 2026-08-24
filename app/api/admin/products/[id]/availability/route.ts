@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdmin } from '@/lib/supabase/auth';
 import { uiAvailabilityToDb } from '@/lib/types/mappers';
 import { z } from 'zod';
+import { revalidateProductSurfaces } from '@/lib/data/revalidate-product';
 
 const schema = z.object({
   availability: z.enum(['Disponible', 'Derniers exemplaires', 'De retour en stock', 'Indisponible temporairement']),
@@ -31,16 +32,22 @@ export async function PATCH(
     }
 
     const supabase = createAdminClient();
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('products')
       .update({
         availability: dbAvailability,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', params.id);
+      .eq('id', params.id)
+      .select('slug')
+      .single();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (updated?.slug) {
+      revalidateProductSurfaces(updated.slug);
     }
 
     return NextResponse.json({ success: true });

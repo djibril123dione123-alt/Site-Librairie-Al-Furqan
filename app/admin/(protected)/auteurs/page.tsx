@@ -1,4 +1,5 @@
-import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
+import { isSupabaseConfigured } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { Users, Plus, BookOpen, Trash2, Edit2 } from 'lucide-react';
 import Link from 'next/link';
 import { AuthorsManager } from '@/components/admin/authors-manager';
@@ -7,7 +8,7 @@ async function getAuthorsData() {
   if (!isSupabaseConfigured()) {
     return [];
   }
-  const supabase = createServerClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('authors')
     .select('id, name, slug, bio, created_at, products(count)')

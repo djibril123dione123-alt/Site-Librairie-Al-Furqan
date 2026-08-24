@@ -1,13 +1,14 @@
 import Link from 'next/link';
 import { Plus, Library } from 'lucide-react';
-import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
+import { isSupabaseConfigured } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 async function getAdminCollections() {
   if (!isSupabaseConfigured()) {
     return [];
   }
 
-  const supabase = createServerClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('collections')
     .select('id, slug, title, eyebrow, status, position, collection_products(count)')

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Edit2, Eye, Search, Plus, Archive, BookOpen, FileSpreadsheet } from 'lucide-react';
 import { Cover } from '@/components/books/cover';
 import { QuickStockEditor } from './quick-stock-editor';
@@ -62,6 +62,22 @@ export function ProductListTable({
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const router = useRouter();
 
+  // `revalidatePath` runs server-side inside our mutation route handlers
+  // (create/update/archive/quick-stock), which correctly busts the server
+  // caches — but a Route Handler has no way to tell an already-loaded
+  // client to drop its own Router Cache entry for this page (that signal
+  // only exists for Server Actions). Without this, returning here shortly
+  // after a mutation could still show the pre-mutation cached list. One
+  // guaranteed-fresh refetch per visit is a fine trade for an internal,
+  // low-traffic operational screen — this is the "fresh correctness over
+  // static caching" call for Admin.
+  const hasRefreshedRef = useRef(false);
+  useEffect(() => {
+    if (hasRefreshedRef.current) return;
+    hasRefreshedRef.current = true;
+    router.refresh();
+  }, [router]);
+
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       const query = search.toLowerCase().trim();
@@ -100,6 +116,8 @@ export function ProductListTable({
       });
       if (res.ok) {
         router.refresh();
+      } else {
+        alert('Erreur lors de la modification du statut.');
       }
     } catch {
       alert('Erreur lors de la modification du statut.');
@@ -158,7 +176,7 @@ export function ProductListTable({
           />
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="admin-toolbar-filters" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {categories.length > 0 && (
             <select
               className="form-select"
@@ -206,6 +224,92 @@ export function ProductListTable({
           >
             Réinitialiser les filtres
           </button>
+        )}
+      </div>
+
+      {/* Phone: a dedicated compact list, not the desktop table squeezed into
+          390px with a horizontal scrollbar (that tolerance is revoked — see
+          Phase I). Same `filteredProducts`, same `handleArchive`, same
+          QuickStockEditor as the table below; only the markup differs. */}
+      <div className="admin-mobile-list">
+        {filteredProducts.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <BookOpen size={24} />
+            </div>
+            <h3 className="empty-state-title">Aucun livre ne correspond</h3>
+            <p className="empty-state-text">
+              {products.length === 0
+                ? 'Le catalogue est actuellement vide. Ajoutez le premier livre d\'Al Furqan.'
+                : 'Modifiez vos critères de recherche ou réinitialisez les filtres.'}
+            </p>
+            {products.length === 0 && (
+              <Link href="/admin/produits/nouveau" className="btn btn-primary">
+                <Plus size={15} /> Ajouter un livre
+              </Link>
+            )}
+          </div>
+        ) : (
+          filteredProducts.map((product) => (
+            <div key={product.id} className="admin-mobile-card">
+              <div className="admin-mobile-card-head">
+                <div className="admin-mobile-cover">
+                  {product.coverUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={product.coverUrl} alt={product.title} />
+                  ) : (
+                    <Cover product={product as any} small />
+                  )}
+                </div>
+                <div className="admin-mobile-card-titleblock">
+                  <Link href={`/admin/produits/${product.id}`} className="admin-mobile-card-title">
+                    {product.title}
+                  </Link>
+                  <div className="admin-mobile-card-author">{product.author}</div>
+                </div>
+              </div>
+
+              <div className="admin-mobile-card-row">
+                <span className="admin-mobile-card-category">{product.category}</span>
+                <span className="admin-mobile-card-price">{formatPrice(product.price)}</span>
+              </div>
+
+              <div className="admin-mobile-card-row">
+                <StatusBadge status={product.status} />
+                <QuickStockEditor productId={product.id} currentAvailability={product.availability} />
+              </div>
+
+              <div className="admin-mobile-card-date">Modifié le {formatDate(product.updatedAt)}</div>
+
+              <div className="admin-mobile-card-actions">
+                <Link
+                  href={`/admin/produits/${product.id}`}
+                  className="btn btn-secondary btn-sm"
+                  aria-label={`Modifier la fiche de ${product.title}`}
+                >
+                  <Edit2 size={13} /> Modifier
+                </Link>
+                {product.status === 'published' && (
+                  <Link
+                    href={`/livres/${product.slug}`}
+                    target="_blank"
+                    className="btn btn-secondary btn-sm"
+                    aria-label={`Voir ${product.title} sur la boutique`}
+                  >
+                    <Eye size={13} /> Voir
+                  </Link>
+                )}
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleArchive(product.id, product.status)}
+                  disabled={archivingId === product.id}
+                  aria-label={`${product.status === 'archived' ? 'Désarchiver' : 'Archiver'} ${product.title}`}
+                >
+                  <Archive size={13} style={{ color: product.status === 'archived' ? 'var(--admin-gold)' : undefined }} />
+                </button>
+              </div>
+            </div>
+          ))
         )}
       </div>
 
