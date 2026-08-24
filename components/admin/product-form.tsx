@@ -510,8 +510,11 @@ export function ProductForm({
         return;
       }
 
-      // Avertissement non-bloquant si pas d'image
-      const hasCover = images.some((img) => img.type === 'cover' || img.storagePath);
+      // Avertissement non-bloquant si pas de VRAIE couverture. `||` acceptait
+      // à tort n'importe quelle image uploadée (quatrième, intérieur...) —
+      // une couverture doit avoir type === 'cover' ET être réellement
+      // uploadée (storagePath présent, pas seulement en cours d'upload).
+      const hasCover = images.some((img) => img.type === 'cover' && img.storagePath);
       if (!hasCover) {
         setWarning('Publication effectuée sans photo de couverture. Le visuel 3D virtuel sera affiché.');
       }

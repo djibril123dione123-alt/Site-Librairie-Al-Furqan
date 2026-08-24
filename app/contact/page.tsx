@@ -1,6 +1,13 @@
+import { Metadata } from 'next';
 import Link from 'next/link';
 import { ChevronDown, MessageCircle, MapPin, ArrowRight } from 'lucide-react';
 import { siteConfig, buildWhatsAppUrl } from '@/lib/al-furqan-data';
+
+export const metadata: Metadata = {
+  title: 'Contact',
+  description: 'Contacter Al Furqan sur WhatsApp, TikTok ou Facebook Marketplace — librairie islamique à Saint-Louis, Sénégal.',
+  alternates: { canonical: '/contact' },
+};
 
 export default function ContactPage() {
   return (

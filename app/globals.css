@@ -190,8 +190,8 @@ h1, h2 { font-weight: 500; }
 
 /* Hero — "nature morte asymétrique": one real book, generously scaled,
    never a three-book decorative composition. Copy ~42%, book stage ~58%.
-   Full-width surface wrapper carries the deliberate --paper background;
-   .hero itself stays the centered max-width composition. */
+   .hero itself stays the centered max-width composition; the full-width
+   surface wrapper's background is set below (--bg, not --paper — see R3). */
 /* --bg (near-white), not --paper: the hero book is a real photograph with
    its own near-white background, so a warm cream stage behind it read as
    "a book inside two nested rectangles" rather than a book in space. */
@@ -233,18 +233,19 @@ main { overflow: hidden; }
 /* Homepage rhythm — full-bleed background bands with centred content,
    same technique as .editorial-band/.footer: padding carries both the
    edge-to-edge colour and the ~1216px content measure, no extra wrapper.
-   Background alternates --paper/--surface so each section reads distinct
-   from its immediate neighbour (Hero paper → Discovery surface → Quran
-   paper → Categories surface → Trust deep) without inventing new colour —
-   Hero and Quran share a tone, and so do Discovery and Categories, but
-   since neither pair is adjacent the alternation still reads clearly. */
+   .home-band and .home-band-alt both resolve to --surface (R2 lightened
+   the storefront off --paper) — two class names kept for markup clarity,
+   not for a colour alternation. Hero uses --bg and Trust uses --deep as
+   the only outliers in the section rhythm. */
 .home-band { padding: 88px max(32px, calc((100vw - 1216px) / 2)); background: var(--surface); }
 .home-band-alt { background: var(--surface); }
 .home-band .section-title { max-width: 1216px; margin: 0 auto 32px; }
 .home-band .discovery-rail, .home-band .category-tile-grid { max-width: 1216px; margin: 0 auto; }
 
-/* Discovery rail — desktop grid, mobile horizontal scroll-snap. Cards stay
-   full BookCard size (Phase B); nothing is shrunk into a thumbnail. */
+/* Discovery rail — a grid at every width (2 columns <=900px, 1 column
+   <=389px — see that breakpoint below), never a horizontal scroll-snap
+   strip. Cards stay full BookCard size (Phase B); nothing is shrunk into
+   a thumbnail. */
 .discovery-rail { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; }
 /* Real catalogue is still small — a sparse grid (< 4 items) would leave an
    obvious empty gap on the right instead of feeling like a deliberate
@@ -459,7 +460,10 @@ main { overflow: hidden; }
 .storefront-breadcrumb-item { display: inline-flex; align-items: center; gap: 6px; }
 .storefront-breadcrumb-item svg { color: var(--muted); }
 .storefront-breadcrumb a:hover { color: var(--gold); }
-.storefront-breadcrumb-current { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 600; }
+/* min(320px, 60vw): same truncation width as before on normal viewports,
+   but scales down on very narrow phones instead of a fixed 320px box
+   overflowing a viewport that's also ~320px wide once padding is removed. */
+.storefront-breadcrumb-current { max-width: min(320px, 60vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 600; }
 /* About's own content column is a narrower 900px reading measure (see
    .about-page) — the breadcrumb aligns to it instead of the canonical
    1280px shell used everywhere else. */
@@ -823,6 +827,29 @@ main { overflow: hidden; }
 .toast { position: fixed; z-index: 60; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--deep); color: var(--paper); padding: 12px 18px; border-radius: 99px; display: flex; gap: 8px; align-items: center; box-shadow: 0 8px 25px rgba(16,47,56,.2); font-size: 13px; animation: toast-in .25s ease-out; }
 .toast svg { color: #9ac5a5; }
 
+/* Floating WhatsApp — mobile-only support shortcut (Phase H §8-13). Hidden
+   on desktop entirely; visibility on mobile is further gated in JS by route
+   and by open overlays (search/cart/menu), see components/layout/floating-whatsapp.tsx. */
+.floating-whatsapp {
+  display: none;
+  position: fixed;
+  z-index: 40;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--deep);
+  color: #fff;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 22px rgba(9,30,36,.32);
+  animation: floating-whatsapp-in .3s var(--ease-premium);
+}
+.floating-whatsapp:hover { background: var(--ink); }
+@keyframes floating-whatsapp-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .floating-whatsapp { animation: none; } }
+
 /* ============================================================
    Delivery / Review / WhatsApp handoff — Phase F2.
    Calm editorial language (thin dividers, quiet gold selected-state,
@@ -1031,6 +1058,7 @@ main { overflow: hidden; }
   .header-action { padding: 4px; }
   .cart-link-desktop { display: none; }
   .cart-link-mobile { display: inline-flex; }
+  .floating-whatsapp { display: flex; }
   /* Defensive: the drawer is a desktop-only surface (see §34) — nothing
      should trigger cartOpen on mobile anymore, but this keeps it from
      ever covering the screen if it somehow did. */
@@ -1148,10 +1176,28 @@ main { overflow: hidden; }
   .delivery-office-distance { align-self: center; }
 }
 
+/* Every 2-column BookCard grid (set at <=900px) needs more width than very
+   narrow phones have — below ~390px each row's natural content width
+   exceeds the viewport and forces page-level horizontal scroll. Single
+   column below that width; 390px and up already fit. */
+@media (max-width: 389px) {
+  .discovery-rail,
+  .category-tile-grid,
+  .book-grid,
+  .catalogue-results .book-grid,
+  .entity-book-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Responsive — small mobile */
 @media (max-width: 520px) {
   .brand strong { font-size: 19px; }
   .brand small { display: none; }
+  /* The desktop min-width kept the brand from shrinking in that wider flex
+     row; once the subtitle is hidden it just reserves dead space narrow
+     phones don't have, pushing .header-actions past the viewport edge. */
+  .brand { min-width: 0; }
   .hero-search { margin-top: 30px; }
   .quran-arabic { font-size: 46px; }
   .section-title { align-items: flex-start; flex-direction: column; }

@@ -21,6 +21,16 @@ type DeliveryChoice = {
 
 const DRAFT_KEY = 'af-delivery-draft';
 
+// Pragmatic, non-strict validation — accepts common Senegal formats
+// ("77 123 45 67", "+221 77 123 45 67", "221771234567") without an
+// international phone library. Only rejects obviously empty/too-short input.
+function isPlausiblePhone(raw: string): boolean {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 9) return true;
+  if (digits.length === 12 && digits.startsWith('221')) return true;
+  return false;
+}
+
 export default function LivraisonPage() {
   const { loading, resolution } = useCartRevalidation();
   const lines = resolution.lines;
@@ -71,6 +81,7 @@ export default function LivraisonPage() {
   const cartHasInvalidLines = !loading && lines.length > 0 && invalidLines.length > 0;
 
   const subtotal = validLines.reduce((sum, l) => sum + (l.lineTotal ?? 0), 0);
+  const isPhoneValid = isPlausiblePhone(phone);
 
   const handleDeliverySubmit = (data: DeliveryChoice) => {
     setDeliveryData(data);
@@ -81,7 +92,7 @@ export default function LivraisonPage() {
   };
 
   const handleFinalSubmit = () => {
-    if (!deliveryData || !name || !phone || cartHasInvalidLines) return;
+    if (!deliveryData || !name.trim() || !isPhoneValid || cartHasInvalidLines) return;
 
     import('@/lib/data/analytics').then((m) => m.trackCatalogEvent('whatsapp_click'));
 
@@ -122,8 +133,8 @@ Montant des ouvrages : ${formatPrice(subtotal)}
 ${deliveryText}${postalText ? `\n${postalText}` : ''}
 
 *COORDONNÉES CLIENT*
-Nom : ${name}
-Téléphone : ${phone}
+Nom : ${name.trim()}
+Téléphone : ${phone.trim()}
 
 Référence commande : ${ref.current}`;
 
@@ -270,7 +281,7 @@ Référence commande : ${ref.current}`;
 
             <button
               onClick={handleFinalSubmit}
-              disabled={!name || !phone || cartHasInvalidLines}
+              disabled={!name.trim() || !isPhoneValid || cartHasInvalidLines}
               className="button button-dark delivery-whatsapp-button"
             >
               <MessageCircle size={18} /> Commander sur WhatsApp

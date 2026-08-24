@@ -120,7 +120,6 @@ export async function getCatalogueFacets(): Promise<CatalogueFacets> {
     const lang = p.language;
     const avail = dbAvailabilityToUi(p.availability);
     const reading = p.reading;
-    const price = p.price || 0;
 
     if (catName) catMap.set(catName, (catMap.get(catName) || 0) + 1);
     if (autName) autMap.set(autName, (autMap.get(autName) || 0) + 1);
@@ -135,8 +134,13 @@ export async function getCatalogueFacets(): Promise<CatalogueFacets> {
       else sansTajwid++;
     }
 
-    if (price < minP) minP = price;
-    if (price > maxP) maxP = price;
+    // Nullish, not falsy — a published product missing a price (shouldn't
+    // happen given publish validation, but defensive here) must not widen
+    // the visible price filter to a fake "0 F CFA" floor.
+    if (p.price !== null && p.price !== undefined) {
+      if (p.price < minP) minP = p.price;
+      if (p.price > maxP) maxP = p.price;
+    }
   });
 
   const toOptions = (map: Map<string, number>) =>

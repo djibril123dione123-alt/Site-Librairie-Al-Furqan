@@ -57,11 +57,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
+  // /livraison is intentionally `robots: { index: false }` (see
+  // app/livraison/layout.tsx) — a sitemap should only list pages meant to
+  // be indexed, so it's excluded here rather than sending crawlers a
+  // contradictory signal.
   const staticUrls = [
     { url: baseUrl, lastModified: new Date(), changeFrequency: 'daily' as const, priority: 1.0 },
     { url: `${baseUrl}/catalogue`, lastModified: new Date(), changeFrequency: 'daily' as const, priority: 0.9 },
     { url: `${baseUrl}/collections`, lastModified: new Date(), changeFrequency: 'weekly' as const, priority: 0.8 },
-    { url: `${baseUrl}/livraison`, lastModified: new Date(), changeFrequency: 'monthly' as const, priority: 0.5 },
     { url: `${baseUrl}/a-propos`, lastModified: new Date(), changeFrequency: 'monthly' as const, priority: 0.5 },
     { url: `${baseUrl}/contact`, lastModified: new Date(), changeFrequency: 'monthly' as const, priority: 0.5 },
   ];

@@ -91,7 +91,14 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
   const [selectedRegion, setSelectedRegion] = useState(initialData?.location?.region || '');
   const [selectedDept, setSelectedDept] = useState(initialData?.location?.department || '');
   const [selectedCommune, setSelectedCommune] = useState(initialData?.location?.commune || '');
-  const [selectedLocality, setSelectedLocality] = useState(initialData?.location?.locality || '');
+  // The combobox needs a genuinely unique `value` per option to key its list
+  // and to know which row is selected. Real ANSD locality NAMES are not
+  // unique (the same village/quartier name recurs in different communes),
+  // so the option's `value` is the locality's real database id — never the
+  // display name. `selectedLocalityLabel` is the actual human-readable name
+  // and is the only one ever sent onward (LocationData.locality, WhatsApp).
+  const [selectedLocalityId, setSelectedLocalityId] = useState(initialData?.location?.locality || '');
+  const [selectedLocalityLabel, setSelectedLocalityLabel] = useState(initialData?.location?.locality || '');
 
   const [customLocalityInput, setCustomLocalityInput] = useState('');
   const [quartier, setQuartier] = useState(initialData?.location?.quartier || '');
@@ -191,8 +198,12 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
       });
 
       if (!error && data) {
+        // item.id is the real senegal_locations row id (search_senegal_localities
+        // RPC) — a stable unique identifier, not an invented one. The display
+        // name (item.locality) is NOT unique across communes, so it must never
+        // be used as the option's value/key.
         const opts: ComboboxOption[] = data.map((item: any) => ({
-          value: item.locality,
+          value: item.id,
           label: item.locality,
           sublabel: [item.commune, item.department, item.region].filter(Boolean).join(' · ')
         }));
@@ -210,7 +221,8 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
       searchLocalitiesServer('');
     } else {
       setLocalitiesOptions([]);
-      setSelectedLocality('');
+      setSelectedLocalityId('');
+      setSelectedLocalityLabel('');
     }
   }, [selectedRegion, selectedDept, selectedCommune, searchLocalitiesServer]);
 
@@ -288,7 +300,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
     return list;
   }, [allOffices, selectedRegion, officeSearch]);
 
-  const finalLocality = selectedLocality === "Je ne trouve pas ma localité" ? customLocalityInput : selectedLocality;
+  const finalLocality = selectedLocalityId === "Je ne trouve pas ma localité" ? customLocalityInput : selectedLocalityLabel;
 
   const isFormValid = Boolean(
     method &&
@@ -309,7 +321,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
         locality: finalLocality,
         quartier,
         repere,
-        isCustomLocality: selectedLocality === "Je ne trouve pas ma localité"
+        isCustomLocality: selectedLocalityId === "Je ne trouve pas ma localité"
       },
       postOffice: method === 'la_poste' ? (
         isCustomOffice
@@ -375,7 +387,8 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
                   setSelectedRegion(val);
                   setSelectedDept('');
                   setSelectedCommune('');
-                  setSelectedLocality('');
+                  setSelectedLocalityId('');
+      setSelectedLocalityLabel('');
                 }}
                 placeholder="Sélectionner une région..."
                 searchPlaceholder="Rechercher une région..."
@@ -392,7 +405,8 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
                 onChange={(val) => {
                   setSelectedDept(val);
                   setSelectedCommune('');
-                  setSelectedLocality('');
+                  setSelectedLocalityId('');
+      setSelectedLocalityLabel('');
                 }}
                 placeholder={!selectedRegion ? "Choisissez une région d'abord" : "Sélectionner un département..."}
                 searchPlaceholder="Rechercher un département..."
@@ -408,7 +422,8 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
                 disabled={!selectedRegion || communes.length === 0}
                 onChange={(val) => {
                   setSelectedCommune(val);
-                  setSelectedLocality('');
+                  setSelectedLocalityId('');
+      setSelectedLocalityLabel('');
                 }}
                 placeholder={!selectedRegion ? "Choisissez une région d'abord" : "Sélectionner une commune..."}
                 searchPlaceholder="Rechercher une commune..."
@@ -420,10 +435,18 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
               <label className="delivery-field-label">Localité / Quartier / Village</label>
               <SearchableCombobox
                 options={localitiesOptions}
-                value={selectedLocality}
+                value={selectedLocalityId}
                 disabled={!selectedRegion}
                 loading={localitiesLoading}
-                onChange={(val) => setSelectedLocality(val)}
+                onChange={(val) => {
+                  setSelectedLocalityId(val);
+                  if (val === "Je ne trouve pas ma localité") {
+                    setSelectedLocalityLabel('');
+                  } else {
+                    const match = localitiesOptions.find((o) => o.value === val);
+                    setSelectedLocalityLabel(match ? match.label : val);
+                  }
+                }}
                 onSearchChange={(q) => searchLocalitiesServer(q)}
                 placeholder={!selectedRegion ? "Choisissez une région d'abord" : "Rechercher une localité..."}
                 searchPlaceholder="Tapez un nom de village, quartier..."
@@ -433,7 +456,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
           </div>
 
           {/* Fallback Saisie Manuelle Localité */}
-          {selectedLocality === "Je ne trouve pas ma localité" && (
+          {selectedLocalityId === "Je ne trouve pas ma localité" && (
             <div className="delivery-inline-note">
               <label className="delivery-field-label">Saisissez le nom de votre localité</label>
               <input
@@ -448,7 +471,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
           )}
 
           {/* Champs Adresse Supplémentaires */}
-          {method === 'standard' && selectedLocality && (
+          {method === 'standard' && selectedLocalityId && (
             <div className="delivery-field-grid delivery-field-grid-tight">
               <div className="delivery-field">
                 <label className="delivery-field-label">Quartier / Rue (requis)</label>
