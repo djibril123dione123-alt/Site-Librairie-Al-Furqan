@@ -21,7 +21,19 @@ export function revalidateProductSurfaces(slug: string) {
   revalidatePath('/catalogue');
   revalidatePath('/');
   revalidatePath('/admin/produits');
+  revalidatePath('/categories');
   revalidatePath('/categories/[slug]', 'page');
+  // /auteurs and /editeurs are index pages, not just entity detail pages —
+  // /auteurs sorts by live published book count, and /editeurs renders up
+  // to 3 real product cover images per publisher directly on the index
+  // (Phase L cover-crop audit: a crop, a status flip, or a publisher/author
+  // change on any product can make either page stale without this).
+  revalidatePath('/auteurs');
   revalidatePath('/auteurs/[slug]', 'page');
+  revalidatePath('/editeurs');
   revalidatePath('/editeurs/[slug]', 'page');
+  // A product can be featured in a collection — its price/cover/status
+  // changing must not leave that collection's page showing stale data.
+  revalidatePath('/collections');
+  revalidatePath('/collections/[slug]', 'page');
 }

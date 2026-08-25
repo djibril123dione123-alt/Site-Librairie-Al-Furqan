@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import type { Availability } from '@/lib/types/ui';
 import { AdminModal } from './admin-modal';
+import { CoverCropModal } from './cover-crop-modal';
 
 const DEFAULT_CATEGORIES = [
   { id: '1', name: 'Coran', slug: 'coran' },
@@ -65,6 +66,15 @@ export type ImageItem = {
   file?: File;
   preview: string;
   storagePath?: string;
+  // Present only once this exact image has been cropped at least once —
+  // see lib/admin/crop-math.ts and the /crop API routes. Carried through
+  // every save so the delete-all/reinsert-all image sync (see the products
+  // PUT route) never silently drops an already-applied crop.
+  originalStoragePath?: string;
+  cropData?: import('@/lib/admin/crop-math').CropData | null;
+  // Public URL of the untouched original — set by the product loader.
+  // Falls back to `preview` when the image has never been cropped.
+  originalUrl?: string;
   type: 'cover' | 'back' | 'spine' | 'inside' | 'toc' | 'other';
   position?: number;
   uploading?: boolean;
@@ -196,9 +206,13 @@ export function ProductForm({
   const [showAuthorModal, setShowAuthorModal] = useState(false);
   const [newAuthorName, setNewAuthorName] = useState('');
   const [newAuthorBio, setNewAuthorBio] = useState('');
+  const [savingAuthor, setSavingAuthor] = useState(false);
+  const isSubmittingAuthorRef = useRef(false);
   const [showPublisherModal, setShowPublisherModal] = useState(false);
   const [newPublisherName, setNewPublisherName] = useState('');
   const [newPublisherDesc, setNewPublisherDesc] = useState('');
+  const [savingPublisher, setSavingPublisher] = useState(false);
+  const isSubmittingPublisherRef = useRef(false);
 
   const [saving, setSaving] = useState(false);
   // `saving` (React state) drives the disabled UI, but its DOM update isn't
@@ -219,6 +233,7 @@ export function ProductForm({
   const [fallbackOpen, setFallbackOpen] = useState(
     () => !(initialData?.images || []).some((img) => img.type === 'cover')
   );
+  const [cropIndex, setCropIndex] = useState<number | null>(null);
   const hasCoverImage = images.some((img) => img.type === 'cover');
   const hadCoverRef = useRef(hasCoverImage);
   useEffect(() => {
@@ -230,6 +245,58 @@ export function ProductForm({
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  const [duplicating, setDuplicating] = useState(false);
+  const isDuplicatingRef = useRef(false);
+
+  // Read-only check first (never mutates), then an explicit confirmation
+  // naming exactly what will happen — a new draft, no copied images, cover
+  // required before publish — before the real POST mutation runs. The ref
+  // guard stops a rapid double-click from firing two POSTs (Phase L §23).
+  const handleDuplicate = async () => {
+    if (!duplicateHref || isDuplicatingRef.current) return;
+    isDuplicatingRef.current = true;
+    setDuplicating(true);
+    try {
+      let similarCount = 0;
+      try {
+        const checkRes = await fetch(`/api/admin/products/${productId}/duplicate-check`);
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          similarCount = checkData.similarCount || 0;
+        }
+      } catch {
+        // Non-bloquant : l'absence de compte ne doit pas empêcher la duplication.
+      }
+
+      const lines = [
+        'Dupliquer ce livre ?',
+        '',
+        '- Un nouveau BROUILLON sera créé.',
+        '- Les photos ne sont pas copiées : le nouveau brouillon doit recevoir sa propre couverture.',
+        '- Il devra recevoir une couverture avant de pouvoir être publié.',
+      ];
+      if (similarCount > 0) {
+        lines.push('', `${similarCount} brouillon${similarCount > 1 ? 's' : ''} similaire${similarCount > 1 ? 's' : ''} existe${similarCount > 1 ? 'nt' : ''} déjà.`);
+      }
+      if (!confirm(lines.join('\n'))) {
+        return;
+      }
+
+      const res = await fetch(duplicateHref, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok && data.id) {
+        router.push(`/admin/produits/${data.id}`);
+      } else {
+        alert(data.error || 'Erreur lors de la duplication.');
+      }
+    } catch {
+      alert('Erreur réseau lors de la duplication.');
+    } finally {
+      isDuplicatingRef.current = false;
+      setDuplicating(false);
+    }
+  };
 
   // Charger les catégories de la DB si non transmises
   useEffect(() => {
@@ -373,12 +440,16 @@ export function ProductForm({
     const target = images[index];
     setImages((prev) => prev.filter((_, i) => i !== index));
 
-    if (target && target.storagePath) {
+    // A cropped image has TWO storage objects (the derivative in
+    // storagePath, the untouched original in originalStoragePath) — both
+    // must be considered for cleanup, never just the one currently shown.
+    const pathsToClean = Array.from(new Set([target?.storagePath, target?.originalStoragePath].filter(Boolean))) as string[];
+    if (pathsToClean.length > 0) {
       try {
         await fetch('/api/admin/upload', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: target.storagePath }),
+          body: JSON.stringify({ paths: pathsToClean }),
         });
       } catch {
         // Silencieux
@@ -410,8 +481,16 @@ export function ProductForm({
     });
   };
 
+  // Synchronous ref guard (same pattern as the main form's isSubmittingRef)
+  // — a fast double-click on "Enregistrer l'auteur" fires two native click
+  // events before React's `savingAuthor` state re-render can disable the
+  // button, so a plain state check alone isn't enough to stop the second
+  // request. This is what let two identically-named author rows get created
+  // 0.3s apart in the wild (Phase K finding).
   const handleQuickCreateAuthor = async () => {
-    if (!newAuthorName.trim()) return;
+    if (!newAuthorName.trim() || isSubmittingAuthorRef.current) return;
+    isSubmittingAuthorRef.current = true;
+    setSavingAuthor(true);
     try {
       const res = await fetch('/api/admin/authors', {
         method: 'POST',
@@ -420,7 +499,7 @@ export function ProductForm({
       });
       const data = await res.json();
       if (res.ok && data.id) {
-        setAuthorsList((prev) => [...prev, { id: data.id, name: data.name }]);
+        setAuthorsList((prev) => (prev.some((a) => a.id === data.id) ? prev : [...prev, { id: data.id, name: data.name }]));
         setField('author', data.name);
         setField('authorId', data.id);
         setShowAuthorModal(false);
@@ -431,11 +510,16 @@ export function ProductForm({
       }
     } catch {
       alert('Erreur lors de la création de l\'auteur.');
+    } finally {
+      isSubmittingAuthorRef.current = false;
+      setSavingAuthor(false);
     }
   };
 
   const handleQuickCreatePublisher = async () => {
-    if (!newPublisherName.trim()) return;
+    if (!newPublisherName.trim() || isSubmittingPublisherRef.current) return;
+    isSubmittingPublisherRef.current = true;
+    setSavingPublisher(true);
     try {
       const res = await fetch('/api/admin/publishers', {
         method: 'POST',
@@ -444,7 +528,7 @@ export function ProductForm({
       });
       const data = await res.json();
       if (res.ok && data.id) {
-        setPublishersList((prev) => [...prev, { id: data.id, name: data.name }]);
+        setPublishersList((prev) => (prev.some((p) => p.id === data.id) ? prev : [...prev, { id: data.id, name: data.name }]));
         setField('publisher', data.name);
         setField('publisherId', data.id);
         setShowPublisherModal(false);
@@ -455,6 +539,9 @@ export function ProductForm({
       }
     } catch {
       alert('Erreur lors de la création de l\'éditeur.');
+    } finally {
+      isSubmittingPublisherRef.current = false;
+      setSavingPublisher(false);
     }
   };
 
@@ -514,13 +601,20 @@ export function ProductForm({
         return;
       }
 
-      // Avertissement non-bloquant si pas de VRAIE couverture. `||` acceptait
-      // à tort n'importe quelle image uploadée (quatrième, intérieur...) —
-      // une couverture doit avoir type === 'cover' ET être réellement
-      // uploadée (storagePath présent, pas seulement en cours d'upload).
+      // Une couverture doit avoir type === 'cover' ET être réellement
+      // uploadée (storagePath présent, pas seulement en cours d'upload) —
+      // publier sans couverture réelle est bloqué, pas seulement déconseillé.
       const hasCover = images.some((img) => img.type === 'cover' && img.storagePath);
       if (!hasCover) {
-        setWarning('Publication effectuée sans photo de couverture. Le visuel 3D virtuel sera affiché.');
+        setError('Ajoutez une couverture avant de publier ce livre.');
+        return;
+      }
+
+      // Marqueur interne du duplicateur ("Titre (copie)") — utile en
+      // brouillon, dangereux en ligne si l'opérateur oublie de le retirer.
+      if (/\(copie\)/i.test(form.title)) {
+        setError('Renommez cette copie avant de la publier.');
+        return;
       }
     }
 
@@ -562,6 +656,8 @@ export function ProductForm({
         hasVariants: form.hasVariants,
         images: images.filter(img => !img.uploading && img.storagePath).map((img, idx) => ({
           storagePath: img.storagePath,
+          originalStoragePath: img.originalStoragePath || null,
+          cropData: img.cropData || null,
           type: img.type,
           position: idx
         })),
@@ -679,10 +775,10 @@ export function ProductForm({
           )}
 
           {duplicateHref && (
-            <Link href={duplicateHref} className="btn btn-secondary btn-sm">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={handleDuplicate} disabled={duplicating}>
               <Copy size={14} />
-              <span>Dupliquer</span>
-            </Link>
+              <span>{duplicating ? 'Duplication…' : 'Dupliquer'}</span>
+            </button>
           )}
 
           {/* Secondaire : reprendre une saisie rapide sans repasser par
@@ -774,10 +870,10 @@ export function ProductForm({
             </Link>
           )}
           {duplicateHref && (
-            <Link href={duplicateHref} className="btn btn-secondary btn-sm">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={handleDuplicate} disabled={duplicating}>
               <Copy size={13} />
-              <span>Dupliquer</span>
-            </Link>
+              <span>{duplicating ? 'Duplication…' : 'Dupliquer'}</span>
+            </button>
           )}
           {productId && (
             <Link href="/admin/produits/nouveau" className="btn btn-secondary btn-sm">
@@ -1133,6 +1229,15 @@ export function ProductForm({
                           </button>
                         </div>
                       </div>
+                      {img.type === 'cover' && img.storagePath && !img.uploading && productId && img.id && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm image-preview-crop-btn"
+                          onClick={() => setCropIndex(i)}
+                        >
+                          Ajuster la couverture
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1519,11 +1624,11 @@ export function ProductForm({
           />
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowAuthorModal(false)}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowAuthorModal(false)} disabled={savingAuthor}>
             Annuler
           </button>
-          <button type="button" className="btn btn-primary btn-sm" onClick={handleQuickCreateAuthor}>
-            Enregistrer l&apos;auteur
+          <button type="button" className="btn btn-primary btn-sm" onClick={handleQuickCreateAuthor} disabled={savingAuthor || !newAuthorName.trim()}>
+            {savingAuthor ? 'Enregistrement…' : "Enregistrer l'auteur"}
           </button>
         </div>
       </AdminModal>
@@ -1552,14 +1657,62 @@ export function ProductForm({
           />
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowPublisherModal(false)}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowPublisherModal(false)} disabled={savingPublisher}>
             Annuler
           </button>
-          <button type="button" className="btn btn-primary btn-sm" onClick={handleQuickCreatePublisher}>
-            Enregistrer l&apos;éditeur
+          <button type="button" className="btn btn-primary btn-sm" onClick={handleQuickCreatePublisher} disabled={savingPublisher || !newPublisherName.trim()}>
+            {savingPublisher ? 'Enregistrement…' : "Enregistrer l'éditeur"}
           </button>
         </div>
       </AdminModal>
+
+      {/* Éditeur de recadrage — ne peut opérer que sur une image déjà
+          persistée (id + productId réels) car il écrit directement sur la
+          ligne product_images correspondante. */}
+      {cropIndex !== null && productId && images[cropIndex]?.id && (
+        <CoverCropModal
+          open={cropIndex !== null}
+          onClose={() => setCropIndex(null)}
+          productId={productId}
+          imageId={images[cropIndex].id!}
+          originalUrl={images[cropIndex].originalUrl || images[cropIndex].preview}
+          existingCropData={images[cropIndex].cropData || null}
+          productTitle={form.title}
+          productAuthor={form.author}
+          color={form.color}
+          ink="#f7e6c4"
+          onApplied={(result) => {
+            setImages((prev) =>
+              prev.map((img, i) =>
+                i === cropIndex
+                  ? {
+                      ...img,
+                      storagePath: result.storagePath,
+                      originalStoragePath: result.originalStoragePath,
+                      cropData: result.cropData,
+                      preview: result.publicUrl,
+                    }
+                  : img
+              )
+            );
+          }}
+          onReset={(result) => {
+            setImages((prev) =>
+              prev.map((img, i) =>
+                i === cropIndex
+                  ? {
+                      ...img,
+                      storagePath: result.storagePath,
+                      originalStoragePath: result.originalStoragePath,
+                      cropData: null,
+                      preview: result.publicUrl,
+                    }
+                  : img
+              )
+            );
+          }}
+        />
+      )}
     </div>
   );
 }

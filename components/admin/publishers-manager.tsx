@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Building2, Plus, Search, Edit2, BookOpen, Check, Loader2 } from 'lucide-react';
 import { AdminModal } from './admin-modal';
@@ -29,6 +29,7 @@ export function PublishersManager({ initialPublishers }: { initialPublishers: Ad
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [error, setError] = useState('');
   const router = useRouter();
 
@@ -55,10 +56,8 @@ export function PublishersManager({ initialPublishers }: { initialPublishers: Ad
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      setError('Le nom de l\'éditeur est obligatoire.');
-      return;
-    }
+    if (!name.trim() || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setSaving(true);
     setError('');
 
@@ -83,6 +82,7 @@ export function PublishersManager({ initialPublishers }: { initialPublishers: Ad
     } catch {
       setError('Erreur réseau lors de l\'enregistrement.');
     } finally {
+      isSubmittingRef.current = false;
       setSaving(false);
     }
   };

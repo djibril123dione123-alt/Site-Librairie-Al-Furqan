@@ -1,0 +1,55 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { isSupabaseConfigured } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/supabase/auth';
+import { revalidateCollectionSurfaces } from '@/lib/data/revalidate-collection';
+
+/**
+ * Swap this collection's position with its immediate neighbor in the
+ * published-order list. Accessible move-up/move-down, not drag-and-drop —
+ * Phase L §6 asks for accessible controls first, drag as an optional
+ * addition only.
+ */
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  const { error: authError } = await requireAdmin();
+  if (authError === 'UNAUTHORIZED') return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (authError === 'FORBIDDEN') return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
+
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ success: true });
+  }
+
+  const body = await request.json();
+  const direction = body.direction === 'up' ? -1 : body.direction === 'down' ? 1 : null;
+  if (!direction) {
+    return NextResponse.json({ error: 'Direction invalide' }, { status: 400 });
+  }
+
+  const supabase = createAdminClient();
+  const { data: all, error } = await supabase.from('collections').select('id, position').order('position');
+  if (error || !all) {
+    return NextResponse.json({ error: 'Erreur lors de la lecture des collections' }, { status: 500 });
+  }
+
+  const index = all.findIndex((c) => c.id === params.id);
+  const targetIndex = index + direction;
+  if (index === -1 || targetIndex < 0 || targetIndex >= all.length) {
+    return NextResponse.json({ success: true }); // already at the edge — no-op, not an error
+  }
+
+  const current = all[index];
+  const neighbor = all[targetIndex];
+
+  const [{ error: err1 }, { error: err2 }] = await Promise.all([
+    supabase.from('collections').update({ position: neighbor.position } as any).eq('id', current.id),
+    supabase.from('collections').update({ position: current.position } as any).eq('id', neighbor.id),
+  ]);
+
+  if (err1 || err2) {
+    return NextResponse.json({ error: 'Erreur lors du réordonnancement' }, { status: 500 });
+  }
+
+  revalidateCollectionSurfaces();
+
+  return NextResponse.json({ success: true });
+}

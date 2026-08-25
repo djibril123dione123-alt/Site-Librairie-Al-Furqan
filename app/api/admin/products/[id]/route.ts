@@ -4,6 +4,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/supabase/auth';
 import { uiAvailabilityToDb } from '@/lib/types/mappers';
 import { revalidateProductSurfaces } from '@/lib/data/revalidate-product';
+import { resolveOrCreateEntityId } from '@/lib/supabase/entity-dedupe';
 
 function generateSlug(title: string): string {
   return title
@@ -72,6 +73,17 @@ export async function PUT(
   const body = await request.json();
   const supabase = createAdminClient();
 
+  // 1. Récupérer le produit actuel
+  const { data: currentProduct, error: fetchErr } = await supabase
+    .from('products')
+    .select('id, slug, title, status, author_id, publisher_id, category_id')
+    .eq('id', id)
+    .single();
+
+  if (fetchErr || !currentProduct) {
+    return NextResponse.json({ error: 'Produit introuvable en base' }, { status: 404 });
+  }
+
   // Validation de PUBLICATION
   if (body.status === 'published') {
     if (!body.category && !body.categoryId) {
@@ -85,42 +97,39 @@ export async function PUT(
     if (stockNum === null) {
       return NextResponse.json({ error: 'La quantité en stock doit être renseignée pour publier un livre.' }, { status: 400 });
     }
-  }
-
-  // 1. Récupérer le produit actuel
-  const { data: currentProduct, error: fetchErr } = await supabase
-    .from('products')
-    .select('id, slug, status, author_id, publisher_id, category_id')
-    .eq('id', id)
-    .single();
-
-  if (fetchErr || !currentProduct) {
-    return NextResponse.json({ error: 'Produit introuvable en base' }, { status: 404 });
+    // `body.images` reflects the full intended set only when the client
+    // actually sent one (see the images-sync block below) — when it's
+    // absent this save isn't touching images, so the cover already
+    // persisted in the DB (if any) still applies.
+    let hasCover: boolean;
+    if (Array.isArray(body.images)) {
+      hasCover = body.images.some((img: any) => img.type === 'cover' && img.storagePath);
+    } else {
+      const { count } = await supabase
+        .from('product_images')
+        .select('*', { count: 'exact', head: true })
+        .eq('product_id', id)
+        .eq('type', 'cover');
+      hasCover = (count ?? 0) > 0;
+    }
+    if (!hasCover) {
+      return NextResponse.json({ error: 'Ajoutez une couverture avant de publier ce livre.' }, { status: 400 });
+    }
+    const titleForCheck = body.title || currentProduct.title;
+    if (/\(copie\)/i.test(titleForCheck)) {
+      return NextResponse.json({ error: 'Renommez cette copie avant de la publier.' }, { status: 400 });
+    }
   }
 
   // 2. Résolution Auteur / Éditeur / Catégorie
   let authorId = body.authorId !== undefined ? (body.authorId || null) : currentProduct.author_id;
   if (!authorId && body.author) {
-    const authorSlug = generateSlug(body.author);
-    const { data: existingAuthor } = await supabase.from('authors').select('id').eq('slug', authorSlug).single();
-    if (existingAuthor) {
-      authorId = existingAuthor.id;
-    } else {
-      const { data: newAuthor } = await supabase.from('authors').insert({ name: body.author, slug: authorSlug } as any).select('id').single();
-      authorId = newAuthor?.id || null;
-    }
+    authorId = await resolveOrCreateEntityId(supabase, 'authors', body.author);
   }
 
   let publisherId = body.publisherId !== undefined ? (body.publisherId || null) : currentProduct.publisher_id;
   if (!publisherId && body.publisher) {
-    const publisherSlug = generateSlug(body.publisher);
-    const { data: existingPublisher } = await supabase.from('publishers').select('id').eq('slug', publisherSlug).single();
-    if (existingPublisher) {
-      publisherId = existingPublisher.id;
-    } else {
-      const { data: newPublisher } = await supabase.from('publishers').insert({ name: body.publisher, slug: publisherSlug } as any).select('id').single();
-      publisherId = newPublisher?.id || null;
-    }
+    publisherId = await resolveOrCreateEntityId(supabase, 'publishers', body.publisher);
   }
 
   let categoryId = body.categoryId !== undefined ? (body.categoryId || null) : currentProduct.category_id;
@@ -196,7 +205,7 @@ export async function PUT(
   if (Array.isArray(body.images)) {
     const { data: oldImages } = await supabase
       .from('product_images')
-      .select('id, storage_path')
+      .select('id, storage_path, original_storage_path')
       .eq('product_id', id);
 
     const newPaths = new Set(body.images.map((img: any) => img.storagePath));
@@ -205,14 +214,22 @@ export async function PUT(
       const removedImages = oldImages.filter((oldImg: any) => !newPaths.has(oldImg.storage_path));
       for (const removed of removedImages) {
         await supabase.from('product_images').delete().eq('id', removed.id);
-        
-        const { count } = await supabase
-          .from('product_images')
-          .select('*', { count: 'exact', head: true })
-          .eq('storage_path', removed.storage_path);
 
-        if ((count ?? 0) === 0 && removed.storage_path) {
-          await supabase.storage.from('product-images').remove([removed.storage_path]);
+        // A removed image may carry a crop lineage of its own (a derivative
+        // AND an untouched original) — both are candidates for cleanup,
+        // each checked independently so one being still-referenced never
+        // blocks cleaning the other.
+        const candidatePaths = Array.from(
+          new Set([removed.storage_path, removed.original_storage_path].filter(Boolean))
+        ) as string[];
+        for (const candidate of candidatePaths) {
+          const { count } = await supabase
+            .from('product_images')
+            .select('*', { count: 'exact', head: true })
+            .or(`storage_path.eq.${candidate},original_storage_path.eq.${candidate}`);
+          if ((count ?? 0) === 0) {
+            await supabase.storage.from('product-images').remove([candidate]);
+          }
         }
       }
     }
@@ -220,7 +237,7 @@ export async function PUT(
     await supabase.from('product_images').delete().eq('product_id', id);
     let coverAssigned = false;
     const newImageRows = [];
-    
+
     for (let idx = 0; idx < body.images.length; idx++) {
       const img = body.images[idx];
       let type = img.type || (idx === 0 ? 'cover' : 'inside');
@@ -228,7 +245,7 @@ export async function PUT(
         if (coverAssigned) type = 'inside';
         else coverAssigned = true;
       }
-      
+
       let storage_path = img.storagePath;
       if (storage_path && storage_path.startsWith('temp/')) {
         const filename = storage_path.split('/').pop();
@@ -242,6 +259,13 @@ export async function PUT(
       newImageRows.push({
         product_id: id,
         storage_path,
+        // Round-tripped so a normal form save (title edit, reorder, etc.)
+        // never wipes a crop already applied via the dedicated crop
+        // endpoint — this block deletes and reinserts every image row on
+        // every save, so anything not explicitly carried through here is
+        // silently lost.
+        original_storage_path: img.originalStoragePath || null,
+        crop_data: img.cropData || null,
         type,
         position: img.position ?? idx,
         alt_text: img.altText || null,
@@ -327,9 +351,15 @@ export async function DELETE(
   const { data: targetProduct } = await supabase.from('products').select('slug').eq('id', params.id).single();
 
   if (hardDelete) {
-    const { data: images } = await supabase.from('product_images').select('storage_path').eq('product_id', params.id);
+    // A cropped cover owns two storage objects (the derivative in
+    // storage_path, the untouched original in original_storage_path) —
+    // both are being namespaced under this product's own storage folder,
+    // so both are safe to remove together with the product.
+    const { data: images } = await supabase.from('product_images').select('storage_path, original_storage_path').eq('product_id', params.id);
     if (images && images.length > 0) {
-      const paths = images.map((i: any) => i.storage_path).filter(Boolean);
+      const paths = Array.from(
+        new Set(images.flatMap((i: any) => [i.storage_path, i.original_storage_path]).filter(Boolean))
+      );
       if (paths.length > 0) {
         await supabase.storage.from('product-images').remove(paths);
       }

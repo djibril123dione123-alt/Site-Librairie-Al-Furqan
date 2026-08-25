@@ -10,7 +10,11 @@ function getRawAdminClient() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
-export async function GET(
+// A GET request must never create database state — the old handler here
+// broke that on every click of "Dupliquer" (and on any prefetch/crawler
+// hitting the link). Duplication is now a real mutation: POST, returning
+// JSON so the client decides navigation, rather than a server redirect.
+export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -67,7 +71,5 @@ export async function GET(
     );
   }
 
-  return NextResponse.redirect(
-    new URL(`/admin/produits/${duplicate.id}`, request.url)
-  );
+  return NextResponse.json({ success: true, id: duplicate.id });
 }

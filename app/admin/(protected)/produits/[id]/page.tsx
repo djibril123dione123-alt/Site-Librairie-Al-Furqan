@@ -91,16 +91,18 @@ async function getProduct(id: string) {
     color: data.color || 'navy',
     hasVariants: data.has_variants,
     images: sortedImages.map((img: any) => {
-      const publicUrl = img.storage_path.startsWith('http')
-        ? img.storage_path
-        : `${supabaseUrl}/storage/v1/object/public/product-images/${img.storage_path}`;
+      const toPublicUrl = (path: string) =>
+        path.startsWith('http') ? path : `${supabaseUrl}/storage/v1/object/public/product-images/${path}`;
       return {
         id: img.id,
         storagePath: img.storage_path,
+        originalStoragePath: img.original_storage_path || undefined,
+        cropData: img.crop_data || undefined,
         type: img.type as any,
         position: img.position,
         altText: img.alt_text || '',
-        preview: publicUrl,
+        preview: toPublicUrl(img.storage_path),
+        originalUrl: toPublicUrl(img.original_storage_path || img.storage_path),
       };
     }),
     variants: (data.product_variants || []).map((v: any) => {

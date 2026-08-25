@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/supabase/auth';
 import { uiAvailabilityToDb } from '@/lib/types/mappers';
 import { z } from 'zod';
 import { revalidateProductSurfaces } from '@/lib/data/revalidate-product';
+import { resolveOrCreateEntityId } from '@/lib/supabase/entity-dedupe';
 
 function generateSlug(title: string): string {
   return title
@@ -25,6 +26,8 @@ function parseNumberOrNull(val: any): number | null {
 const imageSchema = z.object({
   id: z.string().optional(),
   storagePath: z.string(),
+  originalStoragePath: z.string().nullable().optional(),
+  cropData: z.any().nullable().optional(),
   type: z.string().optional(),
   position: z.number().optional(),
   altText: z.string().nullable().optional(),
@@ -73,6 +76,49 @@ const productSchema = z.object({
   images: z.array(imageSchema).nullable().optional(),
 });
 
+// GET — liste légère pour les sélecteurs Admin (ex: association de livres
+// à une collection). Le catalogue tient en une poignée de dizaines de
+// lignes : un filtrage client sur cette liste complète suffit, comme le
+// fait déjà la table produits elle-même (voir ProductListTable).
+export async function GET() {
+  const { error: authError } = await requireAdmin();
+  if (authError === 'UNAUTHORIZED') return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (authError === 'FORBIDDEN') return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
+
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json([]);
+  }
+
+  const supabase = createAdminClient();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const { data, error } = await supabase
+    .from('products')
+    .select('id, slug, title, isbn, price, status, authors(name), publishers(name), product_images(storage_path, type)')
+    .order('title');
+
+  if (error) return NextResponse.json([], { status: 500 });
+
+  const mapped = (data || []).map((p: any) => {
+    const cover = p.product_images?.find((img: any) => img.type === 'cover') || p.product_images?.[0];
+    const coverUrl = cover?.storage_path
+      ? (cover.storage_path.startsWith('http') ? cover.storage_path : `${supabaseUrl}/storage/v1/object/public/product-images/${cover.storage_path}`)
+      : null;
+    return {
+      id: p.id,
+      slug: p.slug,
+      title: p.title,
+      isbn: p.isbn || null,
+      price: p.price,
+      status: p.status,
+      author: p.authors?.name || null,
+      publisher: p.publishers?.name || null,
+      coverUrl,
+    };
+  });
+
+  return NextResponse.json(mapped);
+}
+
 // POST — créer un produit
 export async function POST(request: NextRequest) {
   const { error: authError } = await requireAdmin();
@@ -106,32 +152,25 @@ export async function POST(request: NextRequest) {
     if (stockNum === null) {
       return NextResponse.json({ error: 'La quantité en stock doit être renseignée pour publier un livre.' }, { status: 400 });
     }
+    const hasCover = (data.images || []).some((img) => img.type === 'cover' && img.storagePath);
+    if (!hasCover) {
+      return NextResponse.json({ error: 'Ajoutez une couverture avant de publier ce livre.' }, { status: 400 });
+    }
+    if (/\(copie\)/i.test(data.title)) {
+      return NextResponse.json({ error: 'Renommez cette copie avant de la publier.' }, { status: 400 });
+    }
   }
 
   // 1. Résolution Auteur
   let authorId: string | null = data.authorId || null;
   if (!authorId && data.author) {
-    const authorSlug = generateSlug(data.author);
-    const { data: existingAuthor } = await supabase.from('authors').select('id').eq('slug', authorSlug).single();
-    if (existingAuthor) {
-      authorId = existingAuthor.id;
-    } else {
-      const { data: newAuthor } = await supabase.from('authors').insert({ name: data.author, slug: authorSlug } as any).select('id').single();
-      authorId = newAuthor?.id || null;
-    }
+    authorId = await resolveOrCreateEntityId(supabase, 'authors', data.author);
   }
 
   // 2. Résolution Éditeur
   let publisherId: string | null = data.publisherId || null;
   if (!publisherId && data.publisher) {
-    const publisherSlug = generateSlug(data.publisher);
-    const { data: existingPublisher } = await supabase.from('publishers').select('id').eq('slug', publisherSlug).single();
-    if (existingPublisher) {
-      publisherId = existingPublisher.id;
-    } else {
-      const { data: newPublisher } = await supabase.from('publishers').insert({ name: data.publisher, slug: publisherSlug } as any).select('id').single();
-      publisherId = newPublisher?.id || null;
-    }
+    publisherId = await resolveOrCreateEntityId(supabase, 'publishers', data.publisher);
   }
 
   // 3. Résolution Catégorie
@@ -225,6 +264,8 @@ export async function POST(request: NextRequest) {
       imageRows.push({
         product_id: product.id,
         storage_path,
+        original_storage_path: img.originalStoragePath || null,
+        crop_data: img.cropData || null,
         type,
         position: img.position ?? idx,
         alt_text: img.altText || null,

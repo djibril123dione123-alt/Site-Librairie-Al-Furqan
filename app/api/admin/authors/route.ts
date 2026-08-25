@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/supabase/auth';
+import { findExistingByExactName } from '@/lib/supabase/entity-dedupe';
 
 function generateSlug(name: string): string {
   return name
@@ -41,30 +42,38 @@ export async function POST(request: NextRequest) {
   const baseSlug = generateSlug(name);
   const supabase = createAdminClient();
 
-  // Check if exists
-  const { data: existing } = await supabase.from('authors').select('id, name').eq('slug', baseSlug).single();
+  // Exact-match check (trim + case only — see normalizeExactName). This is
+  // the primary duplicate guard: a Phase K audit found two "Abd Ar-Razzâq
+  // al-Badr" author rows created 0.3s apart, because the old code here only
+  // checked slug once, then on a (redundant) second slug check silently
+  // minted a NEW row with a Date.now()-suffixed slug instead of reusing the
+  // entity that already owned it. Reuse-on-match replaces that entirely.
+  const existing = await findExistingByExactName(supabase, 'authors', name);
   if (existing) {
     return NextResponse.json({ success: true, id: existing.id, name: existing.name });
-  }
-
-  let slug = baseSlug;
-  const { data: slugCheck } = await supabase.from('authors').select('id').eq('slug', slug).single();
-  if (slugCheck) {
-    slug = `${baseSlug}-${Date.now()}`;
   }
 
   const { data: author, error } = await supabase
     .from('authors')
     .insert({
       name,
-      slug,
+      slug: baseSlug,
       bio: body.bio || null,
     } as any)
     .select('id, name, slug')
     .single();
 
-  if (error || !author) {
-    return NextResponse.json({ error: error?.message || 'Erreur lors de la création de l\'auteur' }, { status: 500 });
+  if (error) {
+    // A unique-slug violation here means another request won a genuine race
+    // (both passed the exact-match check above before either had committed)
+    // — reuse the winner instead of mangling a divergent duplicate slug.
+    if (error.code === '23505') {
+      const winner = await findExistingByExactName(supabase, 'authors', name);
+      if (winner) {
+        return NextResponse.json({ success: true, id: winner.id, name: winner.name });
+      }
+    }
+    return NextResponse.json({ error: error.message || 'Erreur lors de la création de l\'auteur' }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, id: author.id, name: author.name, slug: author.slug });

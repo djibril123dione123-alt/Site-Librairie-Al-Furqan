@@ -34,8 +34,12 @@ export default async function Home() {
     : [];
 
   const categoryCounts = new Map(facets.categories.map((f) => [f.value, f.count]));
+  // Same rule as /categories (Phase L §31): a category with zero published
+  // products is never a real destination for a customer, so it never
+  // occupies one of the homepage's 8 tiles either.
   const homeCategories = categories
     .map((c) => ({ ...c, count: categoryCounts.get(c.name) || 0 }))
+    .filter((c) => c.count > 0)
     .sort((a, b) => b.count - a.count || a.position - b.position)
     .slice(0, 8);
 

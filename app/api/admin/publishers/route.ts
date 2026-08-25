@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isSupabaseConfigured, createServerClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/supabase/auth';
+import { findExistingByExactName } from '@/lib/supabase/entity-dedupe';
 
 function generateSlug(name: string): string {
   return name
@@ -41,29 +42,29 @@ export async function POST(request: NextRequest) {
   const baseSlug = generateSlug(name);
   const supabase = createAdminClient();
 
-  const { data: existing } = await supabase.from('publishers').select('id, name').eq('slug', baseSlug).single();
+  const existing = await findExistingByExactName(supabase, 'publishers', name);
   if (existing) {
     return NextResponse.json({ success: true, id: existing.id, name: existing.name });
-  }
-
-  let slug = baseSlug;
-  const { data: slugCheck } = await supabase.from('publishers').select('id').eq('slug', slug).single();
-  if (slugCheck) {
-    slug = `${baseSlug}-${Date.now()}`;
   }
 
   const { data: publisher, error } = await supabase
     .from('publishers')
     .insert({
       name,
-      slug,
+      slug: baseSlug,
       description: body.description || null,
     } as any)
     .select('id, name, slug')
     .single();
 
-  if (error || !publisher) {
-    return NextResponse.json({ error: error?.message || 'Erreur lors de la création de l\'éditeur' }, { status: 500 });
+  if (error) {
+    if (error.code === '23505') {
+      const winner = await findExistingByExactName(supabase, 'publishers', name);
+      if (winner) {
+        return NextResponse.json({ success: true, id: winner.id, name: winner.name });
+      }
+    }
+    return NextResponse.json({ error: error.message || 'Erreur lors de la création de l\'éditeur' }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, id: publisher.id, name: publisher.name, slug: publisher.slug });

@@ -71,22 +71,31 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const { path } = await request.json();
-    if (!path) return NextResponse.json({ error: 'Chemin de fichier requis' }, { status: 400 });
+    const body = await request.json();
+    // A cropped image owns two storage objects (derivative + untouched
+    // original) — `paths` covers that; `path` stays supported for any
+    // other caller still sending the single-path shape.
+    const rawPaths: unknown[] = Array.isArray(body.paths) ? body.paths : body.path ? [body.path] : [];
+    const paths = Array.from(new Set(rawPaths.filter((p): p is string => typeof p === 'string' && p.length > 0)));
+    if (paths.length === 0) return NextResponse.json({ error: 'Chemin de fichier requis' }, { status: 400 });
 
     const supabase = createAdminClient();
 
-    // Vérifier si le fichier est encore référencé dans product_images
-    const { count } = await supabase
-      .from('product_images')
-      .select('*', { count: 'exact', head: true })
-      .eq('storage_path', path);
+    // Each path is checked independently — one may still be referenced
+    // (e.g. the same original reused via a restored crop) while another
+    // isn't; never delete the same object twice, never delete one still
+    // referenced by another row.
+    const toRemove: string[] = [];
+    for (const path of paths) {
+      const { count } = await supabase
+        .from('product_images')
+        .select('*', { count: 'exact', head: true })
+        .or(`storage_path.eq.${path},original_storage_path.eq.${path}`);
+      if ((count ?? 0) === 0) toRemove.push(path);
+    }
 
-    if ((count ?? 0) === 0) {
-      const { error } = await supabase.storage
-        .from('product-images')
-        .remove([path]);
-
+    if (toRemove.length > 0) {
+      const { error } = await supabase.storage.from('product-images').remove(toRemove);
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
