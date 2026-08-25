@@ -6,6 +6,7 @@ import { createBrowserClient } from '@/lib/supabase/client';
 import { SearchableCombobox, ComboboxOption } from '@/components/ui/searchable-combobox';
 import { formatPrice } from '@/lib/al-furqan-data';
 import { LA_POSTE_SMALL_SHIPMENT_GUIDANCE, LA_POSTE_SIMULATOR_URL } from '@/lib/delivery/postal-pricing';
+import { isValidUuid } from '@/lib/utils/uuid';
 
 export type DeliveryMethod = 'standard' | 'la_poste';
 
@@ -441,7 +442,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
   // Only a genuine ANSD row id (a real UUID picked from the search/combobox)
   // is ever forwarded — the legacy "label used as id" restore path and the
   // custom-locality sentinel must never be mistaken for one.
-  const isRealLocalityId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selectedLocalityId);
+  const isRealLocalityId = isValidUuid(selectedLocalityId);
 
   const isFormValid = Boolean(
     method &&

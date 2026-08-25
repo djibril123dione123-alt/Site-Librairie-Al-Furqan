@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CartLine } from '@/components/providers';
 import { getLineKey, getVariantId } from '@/lib/cart/identity';
+import { isValidUuid } from '@/lib/utils/uuid';
 
 const MAX_QUANTITY = 999;
 
@@ -9,20 +10,42 @@ const MAX_QUANTITY = 999;
  * localStorage row must not poison an entire account sync — anything that
  * isn't a real product id / valid positive integer quantity is dropped
  * before it ever reaches the cloud tables. Never invented, never guessed.
+ *
+ * Phase J.2: productId/variantId also have to be valid UUIDs, not just
+ * non-empty strings — customer_cart_items.product_id/variant_id are UUID
+ * columns, so a row like productId:"banana" previously passed this check
+ * and then failed the entire Supabase upsert, taking every OTHER valid
+ * line down with it.
  */
 export function sanitizeCartLines(cart: CartLine[]): { valid: CartLine[]; ignoredCount: number } {
   const valid: CartLine[] = [];
   let ignoredCount = 0;
   for (const line of cart) {
-    const hasProductId = typeof line.productId === 'string' && line.productId.trim().length > 0;
+    const hasValidProductId = isValidUuid(line.productId);
+    const variantId = getVariantId(line);
+    const hasValidVariantId = variantId === undefined || isValidUuid(variantId);
     const qty = Number(line.quantity);
     const hasValidQuantity = Number.isInteger(qty) && qty > 0 && qty <= MAX_QUANTITY;
-    if (!hasProductId || !hasValidQuantity) {
+    if (!hasValidProductId || !hasValidVariantId || !hasValidQuantity) {
       ignoredCount++;
       continue;
     }
     valid.push({ ...line, quantity: qty });
   }
+  return { valid, ignoredCount };
+}
+
+/** Same reasoning as sanitizeCartLines, for customer_wishlist_items.product_id. */
+export function sanitizeWishlistIds(ids: Set<string>): { valid: string[]; ignoredCount: number } {
+  const valid: string[] = [];
+  let ignoredCount = 0;
+  Array.from(ids).forEach((id) => {
+    if (isValidUuid(id)) {
+      valid.push(id);
+    } else {
+      ignoredCount++;
+    }
+  });
   return { valid, ignoredCount };
 }
 
@@ -137,7 +160,13 @@ export async function reconcileCloudWishlist(
   previousIds: Set<string>
 ): Promise<{ ok: boolean; syncedIds: Set<string> }> {
   let ok = true;
-  const currentIds = wishlist;
+  // Same reasoning as reconcileCloudCart: bookkeeping (currentIds, and the
+  // syncedIds this returns) tracks only the sanitized set, so a malformed
+  // id never gets uploaded, never poisons a valid id's upsert, and is
+  // simply never considered "synced" — it stays quarantined in memory
+  // without being retried every time or blocking anything else.
+  const { valid } = sanitizeWishlistIds(wishlist);
+  const currentIds = new Set(valid);
 
   const toAdd = Array.from(currentIds).filter((id) => !previousIds.has(id));
   if (toAdd.length > 0) {

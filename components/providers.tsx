@@ -6,6 +6,7 @@ import type { Product, Variant } from '@/lib/types/ui';
 import { useCustomerSession } from '@/components/auth/customer-session-provider';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { getLineKey } from '@/lib/cart/identity';
+import { createSyncCoordinator, type SyncStatus as CoordinatorStatus } from '@/lib/supabase/sync-coordinator';
 import {
   fetchCloudCart,
   fetchCloudWishlist,
@@ -13,6 +14,8 @@ import {
   mergeWishlists,
   reconcileCloudCart,
   reconcileCloudWishlist,
+  sanitizeCartLines,
+  sanitizeWishlistIds,
 } from '@/lib/supabase/customer';
 
 export type CartLine = {
@@ -27,7 +30,7 @@ export type CartLine = {
   variantId?: string;
 };
 
-type CloudSyncStatus = 'idle' | 'syncing' | 'error';
+type CloudSyncStatus = CoordinatorStatus;
 
 type StoreContextType = {
   cart: CartLine[];
@@ -50,9 +53,8 @@ type StoreContextType = {
   /** True while the one-time post-login cloud merge is in flight — the only
    *  moment worth showing "Synchronisation..." (Phase J §54). */
   cloudSyncing: boolean;
-  /** Reflects the latest per-mutation cloud persistence attempt while
-   *  authenticated. 'error' means a change is only local for now — never
-   *  claim "Synchronisé" in that state (Phase J §32). */
+  /** error if either channel failed, syncing if either has dirty/in-flight
+   *  work, idle only when both are clean and confirmed (Phase J.2 §18). */
   syncStatus: CloudSyncStatus;
 };
 
@@ -73,56 +75,119 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [cartOpen, setCartOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const [cloudPhase, setCloudPhase] = useState<CloudPhase>('idle');
-  // Tracked independently so one channel finishing/succeeding can never mask
-  // the other still being mid-flight or failed (Phase J.1 §12) — the single
-  // publicly-exposed `syncStatus` is derived from both below.
-  const [cartSyncStatus, setCartSyncStatus] = useState<CloudSyncStatus>('idle');
-  const [wishlistSyncStatus, setWishlistSyncStatus] = useState<CloudSyncStatus>('idle');
+  const [cloudPhase, setCloudPhaseState] = useState<CloudPhase>('idle');
+  const [cartSyncStatus, setCartSyncStatusState] = useState<CloudSyncStatus>('idle');
+  const [wishlistSyncStatus, setWishlistSyncStatusState] = useState<CloudSyncStatus>('idle');
   const syncStatus: CloudSyncStatus =
     cartSyncStatus === 'error' || wishlistSyncStatus === 'error'
       ? 'error'
       : cartSyncStatus === 'syncing' || wishlistSyncStatus === 'syncing'
         ? 'syncing'
         : 'idle';
-  // Bumped to force the initial-merge effect to retry after a failed cloud
-  // read — the effect's own deps (user id, auth state) don't change on a
-  // plain retry, so this is what actually re-triggers it.
   const [mergeRetryTick, setMergeRetryTick] = useState(0);
 
-  // Refs so effects always see the latest guest state without re-running on
-  // every keystroke-level state change, and so the merge effect isn't
-  // fighting a stale closure over `cart`/`wishlist` from when it mounted.
+  // Refs so effects/async callbacks always see the LATEST value rather than
+  // whatever was current when that closure was created — critical for
+  // re-validating state after an `await` (Phase J.2 §10/§11), not just for
+  // avoiding stale-closure bugs.
   const cartRef = useRef(cart);
   cartRef.current = cart;
   const wishlistRef = useRef(wishlist);
   wishlistRef.current = wishlist;
+  const userRef = useRef(user);
+  userRef.current = user;
+  const cloudPhaseRef = useRef<CloudPhase>('idle');
+  const cartSyncStatusRef = useRef<CloudSyncStatus>('idle');
+  const wishlistSyncStatusRef = useRef<CloudSyncStatus>('idle');
+
+  const setCloudPhase = (phase: CloudPhase) => {
+    cloudPhaseRef.current = phase;
+    setCloudPhaseState(phase);
+  };
 
   const cloudSyncedCartKeysRef = useRef<Set<string>>(new Set());
   const cloudSyncedWishlistIdsRef = useRef<Set<string>>(new Set());
   const wasAuthenticatedRef = useRef(false);
 
+  // A cloud-truth refresh (Phase J.2 §10) writes straight into `cart`/
+  // `wishlist` — that change must not immediately bounce back out as a
+  // redundant (or, worse, a loop-inducing) cloud write. One-shot flags,
+  // consumed by the very next sync effect run.
+  const skipNextCartSyncRef = useRef(false);
+  const skipNextWishlistSyncRef = useRef(false);
+
+  // Serializes cloud writes per channel — at most one reconcile in flight
+  // at a time, always for the latest state (Phase J.2 §1/§2). Created once;
+  // `reset()` on any account transition so a slow write from a PREVIOUS
+  // user session can never land under a new one (see the sign-in/out
+  // effect below).
+  const cartCoordinatorRef = useRef<ReturnType<typeof createSyncCoordinator<CartLine[]>> | null>(null);
+  if (!cartCoordinatorRef.current) {
+    cartCoordinatorRef.current = createSyncCoordinator<CartLine[]>({
+      reconcile: async (snapshot) => {
+        const uid = userRef.current?.id;
+        if (!uid) return true;
+        const supabase = createBrowserClient();
+        const result = await reconcileCloudCart(supabase, uid, snapshot, cloudSyncedCartKeysRef.current);
+        if (result.ok) cloudSyncedCartKeysRef.current = result.syncedKeys;
+        return result.ok;
+      },
+      onStatusChange: (status) => {
+        cartSyncStatusRef.current = status;
+        setCartSyncStatusState(status);
+      },
+    });
+  }
+  const wishlistCoordinatorRef = useRef<ReturnType<typeof createSyncCoordinator<Set<string>>> | null>(null);
+  if (!wishlistCoordinatorRef.current) {
+    wishlistCoordinatorRef.current = createSyncCoordinator<Set<string>>({
+      reconcile: async (snapshot) => {
+        const uid = userRef.current?.id;
+        if (!uid) return true;
+        const supabase = createBrowserClient();
+        const result = await reconcileCloudWishlist(supabase, uid, snapshot, cloudSyncedWishlistIdsRef.current);
+        if (result.ok) cloudSyncedWishlistIdsRef.current = result.syncedIds;
+        return result.ok;
+      },
+      onStatusChange: (status) => {
+        wishlistSyncStatusRef.current = status;
+        setWishlistSyncStatusState(status);
+      },
+    });
+  }
+
   // ---- 1. Guest hydration — must resolve before anything writes back to
   // localStorage, or an initial empty state would clobber a returning
-  // guest's saved cart/wishlist. ----
+  // guest's saved cart/wishlist. Sanitized on the way in: a malformed row
+  // (e.g. a hand-edited or corrupted af-cart) isn't just a cloud-sync
+  // hazard — the live cart resolver's Supabase query fails outright for
+  // EVERY line if even one productId isn't a real UUID, so a bad row must
+  // never reach `cart`/`wishlist` state at all, cloud account or not. ----
   useEffect(() => {
     try {
       const savedCart = window.localStorage.getItem('af-cart');
       const savedWishlist = window.localStorage.getItem('af-wishlist');
-      if (savedCart) setCart(JSON.parse(savedCart));
-      if (savedWishlist) setWishlist(new Set(JSON.parse(savedWishlist)));
+      if (savedCart) setCart(sanitizeCartLines(JSON.parse(savedCart)).valid);
+      if (savedWishlist) setWishlist(new Set(sanitizeWishlistIds(new Set(JSON.parse(savedWishlist))).valid));
     } catch {
       // ignore
     }
     setLocalReady(true);
   }, []);
 
-  // ---- 2. Guest persistence — only while NOT authenticated. Authenticated
-  // state lives in the cloud; localStorage must stay empty during an
-  // account session so it never leaks into a later sign-out or a different
-  // account signing in on the same browser (Phase J §31, §56). ----
+  // ---- 2. Guest persistence — only while NOT authenticated, AND only once
+  // any authenticated-account cart/wishlist has actually been cleared back
+  // to guest values. `isAuthenticated` alone flips to false BEFORE the
+  // sign-out branch below (effect 3, defined and therefore run right after
+  // this one in the same commit) has a chance to run `setCart([])` — on
+  // that exact render, `cart` here would still be the account's real data.
+  // `wasAuthenticatedRef.current` is still true at that point (effect 3
+  // hasn't flipped it yet) and only becomes false once effect 3 has
+  // actually cleared the state, which is what makes this ordering safe
+  // (Phase J.2 §15/§16/§17) — no window where account data can reach
+  // af-cart/af-wishlist, not even transiently. ----
   useEffect(() => {
-    if (!localReady || isAuthenticated) return;
+    if (!localReady || isAuthenticated || wasAuthenticatedRef.current) return;
     try {
       window.localStorage.setItem('af-cart', JSON.stringify(cart));
     } catch {
@@ -131,7 +196,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [cart, localReady, isAuthenticated]);
 
   useEffect(() => {
-    if (!localReady || isAuthenticated) return;
+    if (!localReady || isAuthenticated || wasAuthenticatedRef.current) return;
     try {
       window.localStorage.setItem('af-wishlist', JSON.stringify(Array.from(wishlist)));
     } catch {
@@ -154,6 +219,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (wasAuthenticatedRef.current) {
         // Just signed out: the account's cart/wishlist must not leak into
         // guest view. Guest storage is already empty from the last merge.
+        // Reset the coordinators too — a write from THIS account still
+        // in flight must never land under whichever account signs in next.
+        cartCoordinatorRef.current?.reset();
+        wishlistCoordinatorRef.current?.reset();
         setCart([]);
         setWishlist(new Set());
       }
@@ -193,8 +262,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const cloudCart = cartRead.data;
       const cloudWishlist = wishlistRead.data;
 
-      const mergedCart = mergeCartLines(cartRef.current, cloudCart);
-      const mergedWishlist = mergeWishlists(wishlistRef.current, cloudWishlist);
+      // Sanitized once more here (on top of the guest-hydration sanitizer)
+      // as defense in depth — cart/wishlist state must never carry a
+      // malformed row regardless of which side of the merge it came from,
+      // since the live cart resolver's Supabase query fails for EVERY line
+      // if even one productId isn't a real UUID (Phase J.2 §6/§7/§8).
+      const mergedCart = sanitizeCartLines(mergeCartLines(cartRef.current, cloudCart)).valid;
+      const mergedWishlist = new Set(sanitizeWishlistIds(mergeWishlists(wishlistRef.current, cloudWishlist)).valid);
 
       const cloudCartKeys = new Set(cloudCart.map(getLineKey));
       const [cartResult, wishlistResult] = await Promise.all([
@@ -234,74 +308,112 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localReady, authReady, isAuthenticated, user?.id, isAdminRoute, mergeRetryTick]);
 
-  // ---- 4. Per-mutation cloud sync while the account is the source of
-  // truth. Always reconciles the full current list — cheap at this scale,
-  // and idempotent, so a failed attempt safely retries on the next change
-  // without any special-casing. ----
+  // ---- 4. Feed the per-channel sync coordinators whenever cart/wishlist
+  // change while the account is the source of truth. The coordinator
+  // itself guarantees at most one write in flight and always sends the
+  // latest snapshot (Phase J.2 §1/§2) — this effect's only job is "this
+  // changed, make sure the coordinator knows". ----
   useEffect(() => {
-    if (isAdminRoute || cloudPhase !== 'ready' || !user) return;
-    let cancelled = false;
-    setCartSyncStatus('syncing');
-    (async () => {
-      const supabase = createBrowserClient();
-      const result = await reconcileCloudCart(supabase, user.id, cart, cloudSyncedCartKeysRef.current);
-      if (cancelled) return;
-      if (result.ok) {
-        cloudSyncedCartKeysRef.current = result.syncedKeys;
-        setCartSyncStatus('idle');
-      } else {
-        setCartSyncStatus('error');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart, cloudPhase, user?.id, isAdminRoute]);
+    if (isAdminRoute || cloudPhase !== 'ready') return;
+    if (skipNextCartSyncRef.current) {
+      // This change came FROM a cloud-truth refresh, not a local mutation
+      // — it's already what the cloud has, feeding it back would be a
+      // pointless (Phase J.2 §12) or even loop-prone write.
+      skipNextCartSyncRef.current = false;
+      return;
+    }
+    cartCoordinatorRef.current?.update(cart);
+  }, [cart, cloudPhase, isAdminRoute]);
 
   useEffect(() => {
-    if (isAdminRoute || cloudPhase !== 'ready' || !user) return;
-    let cancelled = false;
-    setWishlistSyncStatus('syncing');
-    (async () => {
+    if (isAdminRoute || cloudPhase !== 'ready') return;
+    if (skipNextWishlistSyncRef.current) {
+      skipNextWishlistSyncRef.current = false;
+      return;
+    }
+    wishlistCoordinatorRef.current?.update(wishlist);
+  }, [wishlist, cloudPhase, isAdminRoute]);
+
+  // ---- 5. Cross-device / stale-tab reconciliation (Phase J.2 §10). A tab
+  // left open while another device changes the account never had a reason
+  // to notice — this pulls fresh cloud truth on refocus, but ONLY when
+  // this session's own state is fully settled (§11): any dirty/in-flight/
+  // error condition on either channel means "don't clobber what the
+  // customer just did here", and skips the refresh entirely. Deliberately
+  // no Realtime/websocket — a focus-triggered pull is proportionate to
+  // "your other tab should catch up eventually", not live collaboration. ----
+  useEffect(() => {
+    if (isAdminRoute) return;
+
+    const isLocalStateClean = () =>
+      cartSyncStatusRef.current === 'idle' &&
+      wishlistSyncStatusRef.current === 'idle' &&
+      !cartCoordinatorRef.current?.isDirty() &&
+      !cartCoordinatorRef.current?.isRunning() &&
+      !wishlistCoordinatorRef.current?.isDirty() &&
+      !wishlistCoordinatorRef.current?.isRunning();
+
+    const reconcileFromCloud = async () => {
+      if (!isAuthenticated || !user) return;
+      if (cloudPhaseRef.current !== 'ready') return;
+      if (!isLocalStateClean()) return;
+
+      const uidAtStart = user.id;
       const supabase = createBrowserClient();
-      const result = await reconcileCloudWishlist(supabase, user.id, wishlist, cloudSyncedWishlistIdsRef.current);
-      if (cancelled) return;
-      if (result.ok) {
-        cloudSyncedWishlistIdsRef.current = result.syncedIds;
-        setWishlistSyncStatus('idle');
-      } else {
-        setWishlistSyncStatus('error');
-      }
-    })();
+      const [cartRead, wishlistRead] = await Promise.all([
+        fetchCloudCart(supabase, uidAtStart),
+        fetchCloudWishlist(supabase, uidAtStart),
+      ]);
+
+      // Re-validate against the LATEST refs, not the values this function
+      // closed over when it started — any of this can have changed while
+      // the two fetches above were in flight (sign-out, a fresh local
+      // mutation, a different account signing in).
+      if (userRef.current?.id !== uidAtStart) return;
+      if (cloudPhaseRef.current !== 'ready') return;
+      if (!isLocalStateClean()) return;
+      if (!cartRead.ok || !wishlistRead.ok) return;
+
+      skipNextCartSyncRef.current = true;
+      skipNextWishlistSyncRef.current = true;
+      cloudSyncedCartKeysRef.current = new Set(cartRead.data.map(getLineKey));
+      cloudSyncedWishlistIdsRef.current = new Set(wishlistRead.data);
+      setCart(cartRead.data);
+      setWishlist(wishlistRead.data);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') reconcileFromCloud();
+    };
+    window.addEventListener('focus', reconcileFromCloud);
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      cancelled = true;
+      window.removeEventListener('focus', reconcileFromCloud);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wishlist, cloudPhase, user?.id, isAdminRoute]);
+  }, [isAdminRoute, isAuthenticated, user?.id]);
 
-  // ---- 5. Retry a failed sync opportunistically on refocus, rather than
+  // ---- 6. Retry a failed sync opportunistically on refocus, rather than
   // building a queue/offline-sync system disproportionate to the need.
-  // Two distinct failure states, two distinct retries: a failed initial
-  // merge (cloudPhase === 'error') re-runs effect 3 from scratch against
-  // the still-intact guest state; a failed per-mutation sync just nudges
-  // effects 4 to re-send the current cart/wishlist. ----
+  // Three distinct failure states: a failed initial merge (cloudPhase ===
+  // 'error') re-runs effect 3 from scratch against the still-intact guest
+  // state; a failed per-channel sync asks that channel's own coordinator
+  // to retry with whatever is CURRENTLY latest (never a stale snapshot —
+  // Phase J.1 §4, Phase J.2 §3). ----
   useEffect(() => {
     if (isAdminRoute) return;
     const retry = () => {
-      if (cloudPhase === 'error') {
+      if (cloudPhaseRef.current === 'error') {
         setMergeRetryTick((t) => t + 1);
         return;
       }
-      if (syncStatus === 'error' && cloudPhase === 'ready') {
-        // Nudge the sync effects to run again with the current state.
-        setCart((c) => [...c]);
-        setWishlist((w) => new Set(w));
-      }
+      if (cartSyncStatusRef.current === 'error') cartCoordinatorRef.current?.retry();
+      if (wishlistSyncStatusRef.current === 'error') wishlistCoordinatorRef.current?.retry();
     };
     window.addEventListener('focus', retry);
     return () => window.removeEventListener('focus', retry);
-  }, [syncStatus, cloudPhase, isAdminRoute]);
+  }, [isAdminRoute]);
 
   const notify = (message: string) => {
     setToast(message);
