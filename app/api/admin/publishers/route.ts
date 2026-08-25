@@ -14,7 +14,13 @@ function generateSlug(name: string): string {
     .replace(/\s+/g, '-');
 }
 
+// Same reasoning as the authors GET — already-public data, gated anyway
+// for consistency since this path lives under /api/admin/ (Phase L.1 §16).
 export async function GET() {
+  const { error: authError } = await requireAdmin();
+  if (authError === 'UNAUTHORIZED') return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (authError === 'FORBIDDEN') return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json([]);
   }

@@ -40,13 +40,22 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const current = all[index];
   const neighbor = all[targetIndex];
 
-  const [{ error: err1 }, { error: err2 }] = await Promise.all([
-    supabase.from('collections').update({ position: neighbor.position } as any).eq('id', current.id),
-    supabase.from('collections').update({ position: current.position } as any).eq('id', neighbor.id),
-  ]);
-
-  if (err1 || err2) {
+  // Sequential, not Promise.all: the two updates together are a single
+  // logical swap, and running them concurrently means a failure on either
+  // one can leave both rows sharing the same position with no attempt to
+  // recover. Doing them in order lets a second-step failure be undone
+  // (Phase L.1 §22).
+  const { error: err1 } = await supabase.from('collections').update({ position: neighbor.position } as any).eq('id', current.id);
+  if (err1) {
     return NextResponse.json({ error: 'Erreur lors du réordonnancement' }, { status: 500 });
+  }
+
+  const { error: err2 } = await supabase.from('collections').update({ position: current.position } as any).eq('id', neighbor.id);
+  if (err2) {
+    // Best-effort revert of the first step so a partial failure doesn't
+    // leave two collections sharing one position.
+    await supabase.from('collections').update({ position: current.position } as any).eq('id', current.id);
+    return NextResponse.json({ error: 'Erreur lors du réordonnancement (annulé).' }, { status: 500 });
   }
 
   revalidateCollectionSurfaces();

@@ -14,7 +14,16 @@ function generateSlug(name: string): string {
     .replace(/\s+/g, '-');
 }
 
+// Reads the same `authors` data already public via RLS on /auteurs, but
+// this path lives under /api/admin/ and is only ever called from the
+// authenticated Admin — gated for consistency with every other endpoint
+// here rather than relying on "it happens to be public anyway" (Phase L.1
+// §16 audit).
 export async function GET() {
+  const { error: authError } = await requireAdmin();
+  if (authError === 'UNAUTHORIZED') return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (authError === 'FORBIDDEN') return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json([]);
   }

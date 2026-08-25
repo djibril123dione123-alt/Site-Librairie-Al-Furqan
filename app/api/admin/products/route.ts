@@ -272,7 +272,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    await supabase.from('product_images').insert(imageRows as any);
+    if (imageRows.length > 0) {
+      const { error: imagesErr } = await supabase.from('product_images').insert(imageRows as any);
+      if (imagesErr) {
+        return NextResponse.json({ error: `Livre créé, mais l'enregistrement des images a échoué : ${imagesErr.message}` }, { status: 500 });
+      }
+    }
   }
 
   // 8. Variantes (en préservant 0 pour le stock et prix)

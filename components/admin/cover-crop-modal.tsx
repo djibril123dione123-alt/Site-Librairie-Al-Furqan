@@ -5,13 +5,15 @@ import { Check, Loader2, RotateCcw, Wand2, ZoomIn, ZoomOut } from 'lucide-react'
 import { AdminModal } from './admin-modal';
 import { BookStage } from '../books/book-stage';
 import {
-  canvasToPngBlob,
+  canvasToWebpBlob,
   clampRect,
   detectContentBounds,
   drawCropToCanvas,
+  drawPreviewCanvas,
   type CropData,
   type CropRect,
 } from '@/lib/admin/crop-math';
+import { directUploadToStorage } from '@/lib/admin/direct-upload';
 import type { Product } from '@/lib/types/ui';
 
 const VIEWPORT_SIZE = 380;
@@ -84,8 +86,17 @@ export function CoverCropModal({
   const [resetting, setResetting] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [error, setError] = useState('');
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
+  const localPreviewUrlRef = useRef<string | null>(null);
+  const previewRafRef = useRef<number | null>(null);
   const dragRef = useRef<{ handle: Handle; startX: number; startY: number; startRect: CropRect } | null>(null);
+
+  function revokeLocalPreview() {
+    if (localPreviewUrlRef.current) {
+      URL.revokeObjectURL(localPreviewUrlRef.current);
+      localPreviewUrlRef.current = null;
+    }
+  }
 
   // Fresh state every time the modal opens for a (possibly different) image.
   useEffect(() => {
@@ -95,7 +106,8 @@ export function CoverCropModal({
     setRect(null);
     setZoom(1);
     setError('');
-    setPreviewUrl(null);
+    revokeLocalPreview();
+    setLocalPreviewUrl(null);
 
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -113,6 +125,46 @@ export function CoverCropModal({
     img.src = originalUrl;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, originalUrl]);
+
+  // Regenerate the "Aperçu boutique" thumbnail from whatever the rectangle
+  // currently is — before Apply, before any server round-trip — so the
+  // operator judges the actual unsaved crop, not a stale post-save image
+  // (Phase L.1 §8/§9). One rAF-coalesced redraw per change (drag fires
+  // many rect updates per second; this still only draws once per frame),
+  // at thumbnail resolution so it stays cheap regardless of source size.
+  useEffect(() => {
+    if (!imgLoaded || !rect || !imgRef.current) return;
+    const image = imgRef.current;
+    const currentRect = rect;
+    if (previewRafRef.current) cancelAnimationFrame(previewRafRef.current);
+    previewRafRef.current = requestAnimationFrame(() => {
+      previewRafRef.current = null;
+      try {
+        const canvas = drawPreviewCanvas(image, currentRect);
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
+          revokeLocalPreview();
+          localPreviewUrlRef.current = url;
+          setLocalPreviewUrl(url);
+        }, 'image/png');
+      } catch {
+        // Tainted canvas (cross-origin without proper CORS headers) — the
+        // stage falls back to its placeholder rather than a broken image;
+        // Apply still works via the server-side crop, only this live
+        // preview is unavailable.
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rect, imgLoaded]);
+
+  // Revoke whatever's left when the component actually unmounts.
+  useEffect(() => {
+    return () => {
+      if (previewRafRef.current) cancelAnimationFrame(previewRafRef.current);
+      revokeLocalPreview();
+    };
+  }, []);
 
   const displayScale = useMemo(() => {
     if (!naturalSize.width) return 1;
@@ -213,23 +265,29 @@ export function CoverCropModal({
     setError('');
     try {
       const canvas = drawCropToCanvas(imgRef.current, rect);
-      const blob = await canvasToPngBlob(canvas);
+      const blob = await canvasToWebpBlob(canvas);
       const cropData: CropData = { ...rect, sourceWidth: naturalSize.width, sourceHeight: naturalSize.height };
 
-      const formData = new FormData();
-      formData.append('file', blob, 'crop.png');
-      formData.append('cropData', JSON.stringify(cropData));
+      // The derivative goes straight to Storage — a real high-resolution
+      // crop can exceed a Vercel Function's request body limit, so this
+      // route now only ever receives the small JSON "commit" below
+      // (Phase L.1 §11/§14).
+      const { path: uploadedPath } = await directUploadToStorage(blob, {
+        productId,
+        contentType: 'image/webp',
+        suffix: 'crop',
+      });
 
       const res = await fetch(`/api/admin/products/${productId}/images/${imageId}/crop`, {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storagePath: uploadedPath, cropData }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'Erreur lors de l\'enregistrement du recadrage.');
         return;
       }
-      setPreviewUrl(data.publicUrl);
       onApplied({
         storagePath: data.storagePath,
         originalStoragePath: data.originalStoragePath,
@@ -237,8 +295,8 @@ export function CoverCropModal({
         publicUrl: data.publicUrl,
       });
       onClose();
-    } catch {
-      setError('Erreur réseau lors de l\'enregistrement du recadrage — le recadrage n\'a pas été sauvegardé.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur réseau lors de l\'enregistrement du recadrage — le recadrage n\'a pas été sauvegardé.');
     } finally {
       setSaving(false);
     }
@@ -269,8 +327,8 @@ export function CoverCropModal({
   const busy = saving || resetting;
   const displayRect = rect ? toDisplay(rect) : null;
   const previewProduct = useMemo(
-    () => buildPreviewProduct({ title: productTitle, author: productAuthor, color, ink, coverUrl: previewUrl || undefined }),
-    [productTitle, productAuthor, color, ink, previewUrl]
+    () => buildPreviewProduct({ title: productTitle, author: productAuthor, color, ink, coverUrl: localPreviewUrl || undefined }),
+    [productTitle, productAuthor, color, ink, localPreviewUrl]
   );
 
   return (

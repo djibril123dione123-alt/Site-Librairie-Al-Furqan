@@ -22,11 +22,18 @@ function parseNumberOrNull(val: any): number | null {
   return isNaN(n) ? null : n;
 }
 
-// GET single product with full relational payload
+// GET single product with full relational payload — service-role backed,
+// returns draft/archived rows and every internal field regardless of
+// publication status, so this is privileged data and must be admin-gated
+// like every other verb on this route (Phase L.1 §16 audit finding).
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const { error: authError } = await requireAdmin();
+  if (authError === 'UNAUTHORIZED') return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (authError === 'FORBIDDEN') return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json(null);
   }
@@ -201,43 +208,70 @@ export async function PUT(
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 
-  // 6. Synchronisation IMAGES
+  // 6. Synchronisation IMAGES — réconciliation par id, jamais un vidage
+  // complet : une ligne existante garde son id (le crop editor s'appuie
+  // dessus, et product_variants.image_id pointe dessus via ON DELETE SET
+  // NULL) à travers un simple changement de titre/prix/catégorie. Voir
+  // Phase L.1 §1-5.
+  let canonicalImages: Array<{
+    id: string;
+    storagePath: string;
+    originalStoragePath: string | null;
+    cropData: any;
+    type: string;
+    position: number;
+    altText: string | null;
+  }> = [];
+
   if (Array.isArray(body.images)) {
-    const { data: oldImages } = await supabase
+    const { data: oldImages, error: oldImagesErr } = await supabase
       .from('product_images')
       .select('id, storage_path, original_storage_path')
       .eq('product_id', id);
 
-    const newPaths = new Set(body.images.map((img: any) => img.storagePath));
+    if (oldImagesErr) {
+      return NextResponse.json({ error: 'Erreur lors de la lecture des images existantes.' }, { status: 500 });
+    }
 
-    if (oldImages && oldImages.length > 0) {
-      const removedImages = oldImages.filter((oldImg: any) => !newPaths.has(oldImg.storage_path));
-      for (const removed of removedImages) {
-        await supabase.from('product_images').delete().eq('id', removed.id);
+    const oldById = new Map((oldImages || []).map((img: any) => [img.id, img]));
 
-        // A removed image may carry a crop lineage of its own (a derivative
-        // AND an untouched original) — both are candidates for cleanup,
-        // each checked independently so one being still-referenced never
-        // blocks cleaning the other.
-        const candidatePaths = Array.from(
-          new Set([removed.storage_path, removed.original_storage_path].filter(Boolean))
-        ) as string[];
-        for (const candidate of candidatePaths) {
-          const { count } = await supabase
-            .from('product_images')
-            .select('*', { count: 'exact', head: true })
-            .or(`storage_path.eq.${candidate},original_storage_path.eq.${candidate}`);
-          if ((count ?? 0) === 0) {
-            await supabase.storage.from('product-images').remove([candidate]);
-          }
+    // Toute id fournie par le client doit appartenir à CE produit — sinon
+    // on refuse plutôt que de deviner (ex: réattribuer par erreur la ligne
+    // d'un autre produit).
+    for (const img of body.images) {
+      if (img.id && !oldById.has(img.id)) {
+        return NextResponse.json({ error: `Image ${img.id} introuvable pour ce produit.` }, { status: 400 });
+      }
+    }
+
+    const keptIds = new Set(body.images.map((img: any) => img.id).filter(Boolean));
+    const removedImages = (oldImages || []).filter((oldImg: any) => !keptIds.has(oldImg.id));
+
+    for (const removed of removedImages) {
+      const { error: delErr } = await supabase.from('product_images').delete().eq('id', removed.id);
+      if (delErr) {
+        return NextResponse.json({ error: `Erreur lors de la suppression d'une image : ${delErr.message}` }, { status: 500 });
+      }
+
+      // A removed image may carry a crop lineage of its own (a derivative
+      // AND an untouched original) — both are candidates for cleanup,
+      // each checked independently so one being still-referenced never
+      // blocks cleaning the other.
+      const candidatePaths = Array.from(
+        new Set([removed.storage_path, removed.original_storage_path].filter(Boolean))
+      ) as string[];
+      for (const candidate of candidatePaths) {
+        const { count } = await supabase
+          .from('product_images')
+          .select('*', { count: 'exact', head: true })
+          .or(`storage_path.eq.${candidate},original_storage_path.eq.${candidate}`);
+        if ((count ?? 0) === 0) {
+          await supabase.storage.from('product-images').remove([candidate]);
         }
       }
     }
 
-    await supabase.from('product_images').delete().eq('product_id', id);
     let coverAssigned = false;
-    const newImageRows = [];
-
     for (let idx = 0; idx < body.images.length; idx++) {
       const img = body.images[idx];
       let type = img.type || (idx === 0 ? 'cover' : 'inside');
@@ -256,24 +290,56 @@ export async function PUT(
         }
       }
 
-      newImageRows.push({
-        product_id: id,
-        storage_path,
-        // Round-tripped so a normal form save (title edit, reorder, etc.)
-        // never wipes a crop already applied via the dedicated crop
-        // endpoint — this block deletes and reinserts every image row on
-        // every save, so anything not explicitly carried through here is
-        // silently lost.
-        original_storage_path: img.originalStoragePath || null,
-        crop_data: img.cropData || null,
-        type,
-        position: img.position ?? idx,
-        alt_text: img.altText || null,
-      });
-    }
-
-    if (newImageRows.length > 0) {
-      await supabase.from('product_images').insert(newImageRows as any);
+      if (img.id) {
+        // Ligne existante : on ne touche JAMAIS original_storage_path ni
+        // crop_data ici — ces deux colonnes n'appartiennent qu'aux routes
+        // /crop et /crop/reset. Un enregistrement générique du formulaire
+        // ne peut donc structurellement jamais les altérer.
+        const { data: updated, error: updErr } = await supabase
+          .from('product_images')
+          .update({ storage_path, type, position: img.position ?? idx, alt_text: img.altText || null } as any)
+          .eq('id', img.id)
+          .select('id, storage_path, original_storage_path, crop_data, type, position, alt_text')
+          .single();
+        if (updErr || !updated) {
+          return NextResponse.json({ error: `Erreur lors de la mise à jour d'une image : ${updErr?.message || 'inconnue'}` }, { status: 500 });
+        }
+        canonicalImages.push({
+          id: updated.id,
+          storagePath: updated.storage_path,
+          originalStoragePath: updated.original_storage_path,
+          cropData: updated.crop_data,
+          type: updated.type,
+          position: updated.position,
+          altText: updated.alt_text,
+        });
+      } else {
+        const { data: inserted, error: insErr } = await supabase
+          .from('product_images')
+          .insert({
+            product_id: id,
+            storage_path,
+            original_storage_path: img.originalStoragePath || null,
+            crop_data: img.cropData || null,
+            type,
+            position: img.position ?? idx,
+            alt_text: img.altText || null,
+          } as any)
+          .select('id, storage_path, original_storage_path, crop_data, type, position, alt_text')
+          .single();
+        if (insErr || !inserted) {
+          return NextResponse.json({ error: `Erreur lors de l'ajout d'une image : ${insErr?.message || 'inconnue'}` }, { status: 500 });
+        }
+        canonicalImages.push({
+          id: inserted.id,
+          storagePath: inserted.storage_path,
+          originalStoragePath: inserted.original_storage_path,
+          cropData: inserted.crop_data,
+          type: inserted.type,
+          position: inserted.position,
+          altText: inserted.alt_text,
+        });
+      }
     }
   }
 
@@ -328,7 +394,24 @@ export async function PUT(
 
   revalidateProductSurfaces(targetSlug);
 
-  return NextResponse.json({ success: true, slug: targetSlug });
+  // Canonical images (when this save touched them) — the client updates
+  // its local state from this response instead of trusting its own
+  // pre-save ids/paths or waiting on router.refresh() to repair them
+  // (Phase L.1 §5).
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const toPublicUrl = (path: string) =>
+    path.startsWith('http') ? path : `${supabaseUrl}/storage/v1/object/public/product-images/${path}`;
+  const imagesResponse = Array.isArray(body.images)
+    ? canonicalImages
+        .sort((a, b) => a.position - b.position)
+        .map((img) => ({
+          ...img,
+          publicUrl: toPublicUrl(img.storagePath),
+          originalUrl: toPublicUrl(img.originalStoragePath || img.storagePath),
+        }))
+    : undefined;
+
+  return NextResponse.json({ success: true, slug: targetSlug, images: imagesResponse });
 }
 
 // DELETE product
@@ -354,19 +437,51 @@ export async function DELETE(
     // A cropped cover owns two storage objects (the derivative in
     // storage_path, the untouched original in original_storage_path) —
     // both are being namespaced under this product's own storage folder,
-    // so both are safe to remove together with the product.
-    const { data: images } = await supabase.from('product_images').select('storage_path, original_storage_path').eq('product_id', params.id);
-    if (images && images.length > 0) {
-      const paths = Array.from(
-        new Set(images.flatMap((i: any) => [i.storage_path, i.original_storage_path]).filter(Boolean))
-      );
-      if (paths.length > 0) {
-        await supabase.storage.from('product-images').remove(paths);
+    // so both are safe to remove together with the product. Collected
+    // BEFORE the DB delete, but only actually removed from Storage AFTER
+    // the DB delete is confirmed — a failed DB delete must leave every
+    // file untouched (Phase L.1 §7).
+    const { data: images } = await supabase
+      .from('product_images')
+      .select('storage_path, original_storage_path')
+      .eq('product_id', params.id);
+    const paths = Array.from(
+      new Set((images || []).flatMap((i: any) => [i.storage_path, i.original_storage_path]).filter(Boolean))
+    );
+
+    const { error: deleteErr, count } = await supabase
+      .from('products')
+      .delete({ count: 'exact' })
+      .eq('id', params.id);
+
+    if (deleteErr) {
+      return NextResponse.json({ error: `Erreur lors de la suppression du produit : ${deleteErr.message}` }, { status: 500 });
+    }
+    if (!count) {
+      // Nothing was actually deleted (already gone, or id mismatch) —
+      // never claim success, and never touch Storage for a delete that
+      // didn't happen.
+      return NextResponse.json({ error: 'Produit introuvable — rien n\'a été supprimé.' }, { status: 404 });
+    }
+
+    if (paths.length > 0) {
+      // Best-effort: Storage rows can't un-delete the product row that's
+      // already gone, so a cleanup failure here is reported but doesn't
+      // turn a genuinely successful product deletion into an error.
+      const { error: storageErr } = await supabase.storage.from('product-images').remove(paths);
+      if (storageErr) {
+        if (targetProduct?.slug) revalidateProductSurfaces(targetProduct.slug);
+        return NextResponse.json({
+          success: true,
+          warning: `Produit supprimé, mais certains fichiers n'ont pas pu être nettoyés : ${storageErr.message}`,
+        });
       }
     }
-    await supabase.from('products').delete().eq('id', params.id);
   } else {
-    await supabase.from('products').update({ status: 'archived' } as any).eq('id', params.id);
+    const { error: archiveErr } = await supabase.from('products').update({ status: 'archived' } as any).eq('id', params.id);
+    if (archiveErr) {
+      return NextResponse.json({ error: `Erreur lors de l'archivage : ${archiveErr.message}` }, { status: 500 });
+    }
   }
 
   if (targetProduct?.slug) {

@@ -4,6 +4,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/supabase/auth';
 import { z } from 'zod';
 import { revalidateCollectionSurfaces } from '@/lib/data/revalidate-collection';
+import { hasAtLeastOnePublishedProduct } from '@/lib/supabase/collection-validation';
 
 function generateSlug(title: string): string {
   return title
@@ -29,7 +30,13 @@ const collectionSchema = z.object({
   products: z.array(productRefSchema).optional(),
 });
 
+// Service-role backed, returns draft collections too — admin-gated like
+// every other verb here (Phase L.1 §16).
 export async function GET() {
+  const { error: authError } = await requireAdmin();
+  if (authError === 'UNAUTHORIZED') return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (authError === 'FORBIDDEN') return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json([]);
   }
@@ -59,8 +66,15 @@ export async function POST(request: NextRequest) {
   }
   const data = parsed.data;
 
-  if (data.status === 'published' && !data.description?.trim()) {
-    return NextResponse.json({ error: 'Une description est nécessaire pour publier une collection.' }, { status: 400 });
+  if (data.status === 'published') {
+    if (!data.description?.trim()) {
+      return NextResponse.json({ error: 'Une description est nécessaire pour publier une collection.' }, { status: 400 });
+    }
+    const supabaseCheck = createAdminClient();
+    const productIds = (data.products || []).map((p) => p.productId);
+    if (!(await hasAtLeastOnePublishedProduct(supabaseCheck, productIds))) {
+      return NextResponse.json({ error: 'Associez au moins un livre publié avant de publier cette collection.' }, { status: 400 });
+    }
   }
 
   const supabase = createAdminClient();
@@ -72,7 +86,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Le slug "${slug}" est déjà utilisé par une autre collection.` }, { status: 400 });
   }
 
-  const { count } = await supabase.from('collections').select('*', { count: 'exact', head: true });
+  // MAX(position)+1, not count(*) — a prior deletion can leave a gap that
+  // count() blindly reuses, silently duplicating another row's position
+  // (Phase L.1 §18).
+  const { data: maxRow } = await supabase
+    .from('collections')
+    .select('position')
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextPosition = (maxRow?.position ?? -1) + 1;
 
   const { data: collection, error } = await supabase
     .from('collections')
@@ -82,7 +105,7 @@ export async function POST(request: NextRequest) {
       eyebrow: data.eyebrow || null,
       description: data.description || null,
       status: data.status,
-      position: count ?? 0,
+      position: nextPosition,
     } as any)
     .select('id, slug')
     .single();
@@ -99,7 +122,11 @@ export async function POST(request: NextRequest) {
     }));
     const { error: linkErr } = await supabase.from('collection_products').insert(rows as any);
     if (linkErr) {
-      return NextResponse.json({ error: linkErr.message }, { status: 500 });
+      // Nothing else can reference a collection that's brand new — a full
+      // rollback here is safe and leaves no half-created collection
+      // behind (Phase L.1 §19).
+      await supabase.from('collections').delete().eq('id', collection.id);
+      return NextResponse.json({ error: `L'association des livres a échoué, la collection n'a pas été créée : ${linkErr.message}` }, { status: 500 });
     }
   }
 

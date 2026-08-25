@@ -27,6 +27,7 @@ import {
 import type { Availability } from '@/lib/types/ui';
 import { AdminModal } from './admin-modal';
 import { CoverCropModal } from './cover-crop-modal';
+import { directUploadToStorage } from '@/lib/admin/direct-upload';
 
 const DEFAULT_CATEGORIES = [
   { id: '1', name: 'Coran', slug: 'coran' },
@@ -389,8 +390,8 @@ export function ProductForm({
         setError(`Format non supporté pour "${file.name}" (JPG, PNG, WebP uniquement).`);
         continue;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        setError(`Image "${file.name}" trop volumineuse (max 5 Mo).`);
+      if (file.size > 15 * 1024 * 1024) {
+        setError(`Image "${file.name}" trop volumineuse (max 15 Mo).`);
         continue;
       }
 
@@ -406,31 +407,20 @@ export function ProductForm({
       setImages((prev) => [...prev, newImg]);
 
       try {
-        const formData = new FormData();
-        formData.append('file', file);
-        if (productId) formData.append('productId', productId);
-
-        const res = await fetch('/api/admin/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const data = await res.json();
-        if (res.ok && data.publicUrl) {
-          setImages((prev) =>
-            prev.map((img) =>
-              img.preview === tempPreview
-                ? { ...img, preview: data.publicUrl, storagePath: data.storagePath, uploading: false }
-                : img
-            )
-          );
-        } else {
-          setImages((prev) => prev.filter((img) => img.preview !== tempPreview));
-          setError(data.error || 'Échec de l\'upload de l\'image.');
-        }
-      } catch {
+        // Goes straight to Supabase Storage — never through this Vercel
+        // Function's request body, which caps well below a real
+        // high-resolution catalogue photo (Phase L.1 §11-13).
+        const { path, publicUrl } = await directUploadToStorage(file, { productId, contentType: file.type });
+        setImages((prev) =>
+          prev.map((img) =>
+            img.preview === tempPreview
+              ? { ...img, preview: publicUrl, storagePath: path, uploading: false }
+              : img
+          )
+        );
+      } catch (err) {
         setImages((prev) => prev.filter((img) => img.preview !== tempPreview));
-        setError('Erreur réseau lors de l\'upload de l\'image.');
+        setError(err instanceof Error ? err.message : 'Échec de l\'upload de l\'image.');
       }
     }
   };
@@ -655,6 +645,11 @@ export function ProductForm({
         color: form.color,
         hasVariants: form.hasVariants,
         images: images.filter(img => !img.uploading && img.storagePath).map((img, idx) => ({
+          // Present only for already-persisted rows — the server
+          // reconciles by id (update) vs its absence (insert) rather than
+          // deleting and reinserting everything on every save, so an
+          // already-applied crop survives an unrelated title/price edit.
+          id: img.id || undefined,
           storagePath: img.storagePath,
           originalStoragePath: img.originalStoragePath || null,
           cropData: img.cropData || null,
@@ -711,6 +706,28 @@ export function ProductForm({
 
       if (result.slug) {
         setForm((prev) => ({ ...prev, slug: result.slug }));
+      }
+
+      // The server is the source of truth for image identity (ids can
+      // only be assigned by the DB) — repairing local state from its
+      // response, rather than trusting whatever the client already had or
+      // waiting on router.refresh(), is what keeps the crop editor's
+      // imageId valid immediately after an edit (Phase L.1 §5/§6).
+      if (Array.isArray(result.images)) {
+        setImages((prev) => {
+          const uploadingStill = prev.filter((img) => img.uploading);
+          const persisted = result.images.map((img: any) => ({
+            id: img.id,
+            storagePath: img.storagePath,
+            originalStoragePath: img.originalStoragePath || undefined,
+            cropData: img.cropData || undefined,
+            originalUrl: img.originalUrl,
+            type: img.type,
+            position: img.position,
+            preview: img.publicUrl,
+          }));
+          return [...persisted, ...uploadingStill];
+        });
       }
 
       if (!productId && result.id) {
@@ -1147,7 +1164,7 @@ export function ProductForm({
             </div>
 
             <div className="form-group">
-              <label className="form-label">Upload d&apos;images (JPG, PNG, WebP — max 5 Mo)</label>
+              <label className="form-label">Upload d&apos;images (JPG, PNG, WebP — max 15 Mo)</label>
               <div
                 className={`upload-dropzone ${dragActive ? 'drag-active' : ''}`}
                 onClick={() => document.getElementById('product-image-input')?.click()}

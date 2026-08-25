@@ -4,6 +4,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/supabase/auth';
 import { z } from 'zod';
 import { revalidateCollectionSurfaces } from '@/lib/data/revalidate-collection';
+import { hasAtLeastOnePublishedProduct } from '@/lib/supabase/collection-validation';
 
 function generateSlug(title: string): string {
   return title
@@ -29,7 +30,13 @@ const collectionUpdateSchema = z.object({
   products: z.array(productRefSchema).optional(),
 });
 
+// Service-role backed, includes draft product associations regardless of
+// status — admin-gated like every other verb here (Phase L.1 §16).
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const { error: authError } = await requireAdmin();
+  if (authError === 'UNAUTHORIZED') return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  if (authError === 'FORBIDDEN') return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json(null);
   }
@@ -116,6 +123,21 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (!descriptionAfterUpdate?.trim()) {
       return NextResponse.json({ error: 'Une description est nécessaire pour publier une collection.' }, { status: 400 });
     }
+
+    // Effective product set after this save: the payload's if it's
+    // touching associations, otherwise whatever is already linked — never
+    // trust the client picker's own idea of each product's status, only
+    // the DB's current one (Phase L.1 §21).
+    let effectiveProductIds: string[];
+    if (Array.isArray(data.products)) {
+      effectiveProductIds = data.products.map((p) => p.productId);
+    } else {
+      const { data: existingLinks } = await supabase.from('collection_products').select('product_id').eq('collection_id', id);
+      effectiveProductIds = (existingLinks || []).map((l: any) => l.product_id);
+    }
+    if (!(await hasAtLeastOnePublishedProduct(supabase, effectiveProductIds))) {
+      return NextResponse.json({ error: 'Associez au moins un livre publié avant de publier cette collection.' }, { status: 400 });
+    }
   }
 
   let targetSlug = current.slug;
@@ -140,21 +162,49 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 
-  // Association produits — remplacement complet, même schéma que les
-  // images/variantes/thèmes produit : supprimer puis réinsérer dans l'ordre
-  // fourni. Ne modifie jamais products.status — seule l'appartenance à la
+  // Association produits — réconciliation non-destructive plutôt qu'un
+  // vidage puis réinsertion : la sélection valide existante ne doit jamais
+  // disparaître simplement parce que le remplacement échoue (Phase L.1
+  // §20). On UPSERT d'abord l'ensemble désiré (ajoute les nouveaux, met à
+  // jour la position des existants) — si ça échoue, rien n'a encore été
+  // retiré. Seulement ensuite on supprime les associations qui ne sont
+  // plus désirées ; si CETTE étape échoue, l'état obtenu est un
+  // sur-ensemble (quelques associations en trop), jamais un état vide.
+  // Ne modifie jamais products.status — seule l'appartenance à la
   // collection change ; un produit brouillon reste un brouillon.
   if (Array.isArray(data.products)) {
-    await supabase.from('collection_products').delete().eq('collection_id', id);
+    const { data: existingLinksForPrune } = await supabase
+      .from('collection_products')
+      .select('product_id')
+      .eq('collection_id', id);
+    const existingIds = new Set((existingLinksForPrune || []).map((l: any) => l.product_id));
+    const desiredIds = new Set(data.products.map((p) => p.productId));
+
     if (data.products.length > 0) {
       const rows = data.products.map((p) => ({
         collection_id: id,
         product_id: p.productId,
         position: p.position,
       }));
-      const { error: linkErr } = await supabase.from('collection_products').insert(rows as any);
-      if (linkErr) {
-        return NextResponse.json({ error: linkErr.message }, { status: 500 });
+      const { error: upsertErr } = await supabase
+        .from('collection_products')
+        .upsert(rows as any, { onConflict: 'collection_id,product_id' });
+      if (upsertErr) {
+        return NextResponse.json({ error: `Erreur lors de l'association des livres : ${upsertErr.message}` }, { status: 500 });
+      }
+    }
+
+    const toRemove = Array.from(existingIds).filter((pid) => !desiredIds.has(pid as string));
+    if (toRemove.length > 0) {
+      const { error: pruneErr } = await supabase
+        .from('collection_products')
+        .delete()
+        .eq('collection_id', id)
+        .in('product_id', toRemove);
+      if (pruneErr) {
+        return NextResponse.json({
+          error: `Les livres sélectionnés ont été enregistrés, mais d'anciennes associations n'ont pas pu être retirées : ${pruneErr.message}`,
+        }, { status: 500 });
       }
     }
   }

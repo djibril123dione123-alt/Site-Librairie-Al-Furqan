@@ -5,10 +5,13 @@ import { requireAdmin } from '@/lib/supabase/auth';
 import { revalidateProductSurfaces } from '@/lib/data/revalidate-product';
 
 /**
- * Apply a crop to one product image. Non-destructive by construction:
- * the derived file always gets a brand-new storage path (upload never
- * overwrites), and the true original is never touched — see the ordering
- * below for exactly how that's enforced under partial failure.
+ * Commit a crop already uploaded directly to Storage (see
+ * lib/admin/direct-upload.ts) to one product image. Non-destructive by
+ * construction: the derived file always got a brand-new storage path
+ * (upload never overwrites), and the true original is never touched — see
+ * the ordering below for exactly how that's enforced under partial
+ * failure. This route no longer receives file bytes at all (Phase L.1
+ * §11/§14) — only the small JSON path + crop metadata.
  */
 export async function POST(
   request: NextRequest,
@@ -22,17 +25,11 @@ export async function POST(
     return NextResponse.json({ error: 'Supabase non configuré' }, { status: 503 });
   }
 
-  const formData = await request.formData();
-  const file = formData.get('file') as File | null;
-  const cropDataRaw = formData.get('cropData') as string | null;
-  if (!file || !cropDataRaw) {
-    return NextResponse.json({ error: 'Fichier ou données de recadrage manquants' }, { status: 400 });
-  }
-  let cropData: unknown;
-  try {
-    cropData = JSON.parse(cropDataRaw);
-  } catch {
-    return NextResponse.json({ error: 'Données de recadrage invalides' }, { status: 400 });
+  const body = await request.json().catch(() => null);
+  const newPath: string | undefined = body?.storagePath;
+  const cropData: unknown = body?.cropData;
+  if (!newPath || !cropData) {
+    return NextResponse.json({ error: 'Chemin de fichier ou données de recadrage manquants' }, { status: 400 });
   }
 
   const supabase = createAdminClient();
@@ -48,23 +45,24 @@ export async function POST(
     return NextResponse.json({ error: 'Image introuvable' }, { status: 404 });
   }
 
+  // The uploaded path must actually be namespaced under this product and
+  // actually exist — the client only ever gets a signed URL scoped to a
+  // path this server generated (see /api/admin/upload/sign), but this
+  // still guards against a stale/reused path being committed.
+  if (!newPath.startsWith(`${params.id}/`)) {
+    return NextResponse.json({ error: 'Chemin de fichier invalide pour ce produit.' }, { status: 400 });
+  }
+  const { data: existsCheck, error: existsErr } = await supabase.storage.from('product-images').exists(newPath);
+  if (existsErr || !existsCheck) {
+    return NextResponse.json({ error: 'Le fichier recadré est introuvable — réessayez le recadrage.' }, { status: 400 });
+  }
+
   // The true, never-retouched original: if this image was never cropped
   // before, its CURRENT storage_path is that original (Phase L §13 legacy
   // compatibility rule). If it was already cropped, original_storage_path
   // already points to it and must be carried forward unchanged.
   const trueOriginalPath: string = imageRow.original_storage_path || imageRow.storage_path;
   const oldDisplayPath: string = imageRow.storage_path;
-
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const newPath = `${params.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-crop.png`;
-
-  const { error: uploadErr } = await supabase.storage
-    .from('product-images')
-    .upload(newPath, bytes, { contentType: 'image/png', upsert: false });
-
-  if (uploadErr) {
-    return NextResponse.json({ error: `Échec de l'upload du recadrage : ${uploadErr.message}` }, { status: 500 });
-  }
 
   // DB update is the authoritative step. If it fails, the operator must
   // never be told the crop saved — roll back the orphaned upload and
