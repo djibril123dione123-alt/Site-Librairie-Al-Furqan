@@ -259,10 +259,31 @@ export function CoverCropModal({
     }
   }
 
+  // Best-effort: if the derivative made it to Storage but the commit was
+  // rejected — or its response was lost to a network error — the upload
+  // is an orphan unless the commit actually succeeded server-side despite
+  // the client never seeing it. The cleanup endpoint re-checks DB
+  // references itself before removing anything, so calling it here is
+  // always safe: it deletes the file only when nothing ended up pointing
+  // at it (Phase L.1.1 §12-14).
+  async function cleanupOrphanUpload(path: string) {
+    try {
+      await fetch('/api/admin/upload', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: [path] }),
+      });
+    } catch {
+      // Best-effort only — nothing more to do client-side if even the
+      // cleanup call itself fails.
+    }
+  }
+
   async function handleApply() {
     if (!rect || !imgRef.current || saving) return;
     setSaving(true);
     setError('');
+    let uploadedPath: string | undefined;
     try {
       const canvas = drawCropToCanvas(imgRef.current, rect);
       const blob = await canvasToWebpBlob(canvas);
@@ -272,11 +293,12 @@ export function CoverCropModal({
       // crop can exceed a Vercel Function's request body limit, so this
       // route now only ever receives the small JSON "commit" below
       // (Phase L.1 §11/§14).
-      const { path: uploadedPath } = await directUploadToStorage(blob, {
+      const uploadResult = await directUploadToStorage(blob, {
         productId,
         contentType: 'image/webp',
         suffix: 'crop',
       });
+      uploadedPath = uploadResult.path;
 
       const res = await fetch(`/api/admin/products/${productId}/images/${imageId}/crop`, {
         method: 'POST',
@@ -286,6 +308,7 @@ export function CoverCropModal({
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'Erreur lors de l\'enregistrement du recadrage.');
+        await cleanupOrphanUpload(uploadedPath);
         return;
       }
       onApplied({
@@ -297,6 +320,7 @@ export function CoverCropModal({
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur réseau lors de l\'enregistrement du recadrage — le recadrage n\'a pas été sauvegardé.');
+      if (uploadedPath) await cleanupOrphanUpload(uploadedPath);
     } finally {
       setSaving(false);
     }

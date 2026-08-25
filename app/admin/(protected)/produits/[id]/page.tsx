@@ -110,7 +110,8 @@ async function getProduct(id: string) {
         ? Object.entries(v.attributes).map(([k, val]) => `${k}: ${val}`).join(', ')
         : '';
       return {
-        id: v.id,
+        clientKey: v.id,
+        persistedId: v.id,
         attributes: attrStr,
         price: v.price?.toString() || '',
         stock: v.stock_quantity?.toString() || '',

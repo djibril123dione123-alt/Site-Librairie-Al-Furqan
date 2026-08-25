@@ -105,7 +105,14 @@ function normalizeForCompare(s: string): string {
 }
 
 export type VariantItem = {
-  id: string;
+  // Stable React key — always present, but NEVER sent to the server as a
+  // DB identity. `crypto.randomUUID()` for a brand-new row is shaped
+  // exactly like a real DB id, so conflating the two would let a new,
+  // never-persisted variant masquerade as an update to an existing row.
+  clientKey: string;
+  // The real DB id — present only once this row has actually been
+  // persisted (loaded from the server, or assigned after a save).
+  persistedId?: string;
   attributes: string;
   price: string;
   stock: string;
@@ -538,17 +545,17 @@ export function ProductForm({
   const addVariant = () => {
     setVariants((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), attributes: '', price: form.price, stock: form.stockQuantity },
+      { clientKey: crypto.randomUUID(), attributes: '', price: form.price, stock: form.stockQuantity },
     ]);
   };
 
-  const removeVariant = (id: string) => {
-    setVariants((prev) => prev.filter((v) => v.id !== id));
+  const removeVariant = (clientKey: string) => {
+    setVariants((prev) => prev.filter((v) => v.clientKey !== clientKey));
   };
 
-  const updateVariant = (id: string, field: keyof VariantItem, value: string) => {
+  const updateVariant = (clientKey: string, field: keyof VariantItem, value: string) => {
     setVariants((prev) =>
-      prev.map((v) => (v.id === id ? { ...v, [field]: value } : v))
+      prev.map((v) => (v.clientKey === clientKey ? { ...v, [field]: value } : v))
     );
   };
 
@@ -657,6 +664,11 @@ export function ProductForm({
           position: idx
         })),
         variants: form.hasVariants ? variants.map((v) => ({
+          // Present only for already-persisted rows — same reconciliation
+          // contract as images, so an existing variant (and anything that
+          // references it, like a customer's cart line) keeps its id
+          // across an unrelated product save.
+          id: v.persistedId || undefined,
           attributes: v.attributes,
           price: v.price !== '' ? Number(v.price) : null,
           stock: v.stock !== '' ? Number(v.stock) : null,
@@ -728,6 +740,22 @@ export function ProductForm({
           }));
           return [...persisted, ...uploadingStill];
         });
+      }
+
+      // Same reasoning as images: the server just assigned/kept the real
+      // ids, so local variant state is rebuilt from its response rather
+      // than trusting whatever client-side clientKeys happened to exist
+      // before this save (Phase L.1.1 §4).
+      if (Array.isArray(result.variants)) {
+        setVariants(result.variants.map((v: any) => ({
+          clientKey: v.id,
+          persistedId: v.id,
+          attributes: v.attributes && typeof v.attributes === 'object'
+            ? Object.entries(v.attributes).map(([k, val]) => `${k}: ${val}`).join(', ')
+            : (v.attributes || ''),
+          price: v.price != null ? String(v.price) : '',
+          stock: v.stock != null ? String(v.stock) : '',
+        })));
       }
 
       if (!productId && result.id) {
@@ -1478,14 +1506,14 @@ export function ProductForm({
                 </div>
 
                 {variants.map((v) => (
-                  <div key={v.id} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                  <div key={v.clientKey} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
                     <input
                       type="text"
                       className="form-input"
                       style={{ flex: 2 }}
                       placeholder="Ex: Format: Grand, Reliure: Cuir"
                       value={v.attributes}
-                      onChange={(e) => updateVariant(v.id, 'attributes', e.target.value)}
+                      onChange={(e) => updateVariant(v.clientKey, 'attributes', e.target.value)}
                     />
                     <input
                       type="number"
@@ -1493,7 +1521,7 @@ export function ProductForm({
                       style={{ flex: 1 }}
                       placeholder="Prix FCFA"
                       value={v.price}
-                      onChange={(e) => updateVariant(v.id, 'price', e.target.value)}
+                      onChange={(e) => updateVariant(v.clientKey, 'price', e.target.value)}
                     />
                     <input
                       type="number"
@@ -1501,12 +1529,12 @@ export function ProductForm({
                       style={{ flex: 1 }}
                       placeholder="Stock"
                       value={v.stock}
-                      onChange={(e) => updateVariant(v.id, 'stock', e.target.value)}
+                      onChange={(e) => updateVariant(v.clientKey, 'stock', e.target.value)}
                     />
                     <button
                       type="button"
                       className="btn btn-danger btn-sm"
-                      onClick={() => removeVariant(v.id)}
+                      onClick={() => removeVariant(v.clientKey)}
                     >
                       <Trash2 size={13} />
                     </button>

@@ -83,49 +83,12 @@ export async function PUT(
   // 1. Récupérer le produit actuel
   const { data: currentProduct, error: fetchErr } = await supabase
     .from('products')
-    .select('id, slug, title, status, author_id, publisher_id, category_id')
+    .select('id, slug, title, status, author_id, publisher_id, category_id, price, stock_quantity')
     .eq('id', id)
     .single();
 
   if (fetchErr || !currentProduct) {
     return NextResponse.json({ error: 'Produit introuvable en base' }, { status: 404 });
-  }
-
-  // Validation de PUBLICATION
-  if (body.status === 'published') {
-    if (!body.category && !body.categoryId) {
-      return NextResponse.json({ error: 'Une catégorie est obligatoire pour publier un livre.' }, { status: 400 });
-    }
-    const priceNum = parseNumberOrNull(body.price);
-    if (priceNum === null) {
-      return NextResponse.json({ error: 'Un prix de vente valide est obligatoire pour publier un livre.' }, { status: 400 });
-    }
-    const stockNum = parseNumberOrNull(body.stockQuantity);
-    if (stockNum === null) {
-      return NextResponse.json({ error: 'La quantité en stock doit être renseignée pour publier un livre.' }, { status: 400 });
-    }
-    // `body.images` reflects the full intended set only when the client
-    // actually sent one (see the images-sync block below) — when it's
-    // absent this save isn't touching images, so the cover already
-    // persisted in the DB (if any) still applies.
-    let hasCover: boolean;
-    if (Array.isArray(body.images)) {
-      hasCover = body.images.some((img: any) => img.type === 'cover' && img.storagePath);
-    } else {
-      const { count } = await supabase
-        .from('product_images')
-        .select('*', { count: 'exact', head: true })
-        .eq('product_id', id)
-        .eq('type', 'cover');
-      hasCover = (count ?? 0) > 0;
-    }
-    if (!hasCover) {
-      return NextResponse.json({ error: 'Ajoutez une couverture avant de publier ce livre.' }, { status: 400 });
-    }
-    const titleForCheck = body.title || currentProduct.title;
-    if (/\(copie\)/i.test(titleForCheck)) {
-      return NextResponse.json({ error: 'Renommez cette copie avant de la publier.' }, { status: 400 });
-    }
   }
 
   // 2. Résolution Auteur / Éditeur / Catégorie
@@ -163,6 +126,93 @@ export async function PUT(
   
   if (stockQuantity === 0) {
     dbAvailability = 'out_of_stock';
+  }
+
+  // Validation de PUBLICATION — sur les valeurs EFFECTIVES (celles qui
+  // seront réellement en base après cet enregistrement), jamais seulement
+  // sur ce que CE payload contient. Un PUT partiel (ex: ne changer que le
+  // statut, ou une simple description) ne doit pas être rejeté au motif
+  // qu'il ne re-soumet pas des champs déjà valides en base (Phase L.1.1
+  // §10).
+  if (body.status === 'published') {
+    // `categoryId` retombe déjà sur currentProduct.category_id quand le
+    // payload ne touche pas la catégorie (résolu ci-dessus) — c'est déjà
+    // la valeur effective.
+    if (!categoryId) {
+      return NextResponse.json({ error: 'Une catégorie est obligatoire pour publier un livre.' }, { status: 400 });
+    }
+    const effectivePrice = 'price' in body ? parseNumberOrNull(body.price) : currentProduct.price;
+    if (effectivePrice === null) {
+      return NextResponse.json({ error: 'Un prix de vente valide est obligatoire pour publier un livre.' }, { status: 400 });
+    }
+    const effectiveStock = 'stockQuantity' in body ? stockQuantity : currentProduct.stock_quantity;
+    if (effectiveStock === null) {
+      return NextResponse.json({ error: 'La quantité en stock doit être renseignée pour publier un livre.' }, { status: 400 });
+    }
+    // `body.images` reflects the full intended set only when the client
+    // actually sent one (see the images-sync block below) — when it's
+    // absent this save isn't touching images, so the cover already
+    // persisted in the DB (if any) still applies.
+    let hasCover: boolean;
+    if (Array.isArray(body.images)) {
+      hasCover = body.images.some((img: any) => img.type === 'cover' && img.storagePath);
+    } else {
+      const { count } = await supabase
+        .from('product_images')
+        .select('*', { count: 'exact', head: true })
+        .eq('product_id', id)
+        .eq('type', 'cover');
+      hasCover = (count ?? 0) > 0;
+    }
+    if (!hasCover) {
+      return NextResponse.json({ error: 'Ajoutez une couverture avant de publier ce livre.' }, { status: 400 });
+    }
+    const effectiveTitle = body.title || currentProduct.title;
+    if (/\(copie\)/i.test(effectiveTitle)) {
+      return NextResponse.json({ error: 'Renommez cette copie avant de la publier.' }, { status: 400 });
+    }
+  }
+
+  // Pré-validation IMAGES/VARIANTES — lectures seules, avant toute
+  // mutation du produit. Un id fourni par le client qui n'appartient pas
+  // à ce produit doit rejeter la requête AVANT que le titre/prix ne soit
+  // déjà modifié en base (Phase L.1.1 §8).
+  let oldImages: Array<{ id: string; storage_path: string; original_storage_path: string | null }> = [];
+  let removedImages: typeof oldImages = [];
+  if (Array.isArray(body.images)) {
+    const { data: fetchedOldImages, error: oldImagesErr } = await supabase
+      .from('product_images')
+      .select('id, storage_path, original_storage_path')
+      .eq('product_id', id);
+    if (oldImagesErr) {
+      return NextResponse.json({ error: 'Erreur lors de la lecture des images existantes.' }, { status: 500 });
+    }
+    oldImages = fetchedOldImages || [];
+    const oldById = new Map(oldImages.map((img) => [img.id, img]));
+    for (const img of body.images) {
+      if (img.id && !oldById.has(img.id)) {
+        return NextResponse.json({ error: `Image ${img.id} introuvable pour ce produit.` }, { status: 400 });
+      }
+    }
+    const keptImageIds = new Set(body.images.map((img: any) => img.id).filter(Boolean));
+    removedImages = oldImages.filter((oldImg) => !keptImageIds.has(oldImg.id));
+  }
+
+  let oldVariantIds = new Set<string>();
+  if (body.hasVariants === true && Array.isArray(body.variants)) {
+    const { data: oldVariants, error: oldVariantsErr } = await supabase
+      .from('product_variants')
+      .select('id')
+      .eq('product_id', id);
+    if (oldVariantsErr) {
+      return NextResponse.json({ error: 'Erreur lors de la lecture des variantes existantes.' }, { status: 500 });
+    }
+    oldVariantIds = new Set((oldVariants || []).map((v: any) => v.id));
+    for (const v of body.variants) {
+      if (v.id && !oldVariantIds.has(v.id)) {
+        return NextResponse.json({ error: `Variante ${v.id} introuvable pour ce produit.` }, { status: 400 });
+      }
+    }
   }
 
   // 5. Payload de mise à jour produit
@@ -212,7 +262,11 @@ export async function PUT(
   // complet : une ligne existante garde son id (le crop editor s'appuie
   // dessus, et product_variants.image_id pointe dessus via ON DELETE SET
   // NULL) à travers un simple changement de titre/prix/catégorie. Voir
-  // Phase L.1 §1-5.
+  // Phase L.1 §1-5. Écrit d'abord les lignes conservées/nouvelles ; ne
+  // supprime les lignes retirées qu'une fois TOUTES ces écritures
+  // confirmées, pour qu'un échec d'ajout ne détruise jamais une image
+  // valide qui allait être retirée (Phase L.1.1 §6-7). `oldImages` et
+  // `removedImages` viennent de la pré-validation ci-dessus.
   let canonicalImages: Array<{
     id: string;
     storagePath: string;
@@ -224,53 +278,6 @@ export async function PUT(
   }> = [];
 
   if (Array.isArray(body.images)) {
-    const { data: oldImages, error: oldImagesErr } = await supabase
-      .from('product_images')
-      .select('id, storage_path, original_storage_path')
-      .eq('product_id', id);
-
-    if (oldImagesErr) {
-      return NextResponse.json({ error: 'Erreur lors de la lecture des images existantes.' }, { status: 500 });
-    }
-
-    const oldById = new Map((oldImages || []).map((img: any) => [img.id, img]));
-
-    // Toute id fournie par le client doit appartenir à CE produit — sinon
-    // on refuse plutôt que de deviner (ex: réattribuer par erreur la ligne
-    // d'un autre produit).
-    for (const img of body.images) {
-      if (img.id && !oldById.has(img.id)) {
-        return NextResponse.json({ error: `Image ${img.id} introuvable pour ce produit.` }, { status: 400 });
-      }
-    }
-
-    const keptIds = new Set(body.images.map((img: any) => img.id).filter(Boolean));
-    const removedImages = (oldImages || []).filter((oldImg: any) => !keptIds.has(oldImg.id));
-
-    for (const removed of removedImages) {
-      const { error: delErr } = await supabase.from('product_images').delete().eq('id', removed.id);
-      if (delErr) {
-        return NextResponse.json({ error: `Erreur lors de la suppression d'une image : ${delErr.message}` }, { status: 500 });
-      }
-
-      // A removed image may carry a crop lineage of its own (a derivative
-      // AND an untouched original) — both are candidates for cleanup,
-      // each checked independently so one being still-referenced never
-      // blocks cleaning the other.
-      const candidatePaths = Array.from(
-        new Set([removed.storage_path, removed.original_storage_path].filter(Boolean))
-      ) as string[];
-      for (const candidate of candidatePaths) {
-        const { count } = await supabase
-          .from('product_images')
-          .select('*', { count: 'exact', head: true })
-          .or(`storage_path.eq.${candidate},original_storage_path.eq.${candidate}`);
-        if ((count ?? 0) === 0) {
-          await supabase.storage.from('product-images').remove([candidate]);
-        }
-      }
-    }
-
     let coverAssigned = false;
     for (let idx = 0; idx < body.images.length; idx++) {
       const img = body.images[idx];
@@ -341,34 +348,109 @@ export async function PUT(
         });
       }
     }
+
+    // Toutes les lignes conservées/nouvelles ont été écrites avec succès —
+    // seulement maintenant on retire celles que l'opérateur a réellement
+    // enlevées, et on nettoie leurs fichiers Storage désormais orphelins.
+    for (const removed of removedImages) {
+      const { error: delErr } = await supabase.from('product_images').delete().eq('id', removed.id);
+      if (delErr) {
+        return NextResponse.json({ error: `Erreur lors de la suppression d'une image : ${delErr.message}` }, { status: 500 });
+      }
+
+      // A removed image may carry a crop lineage of its own (a derivative
+      // AND an untouched original) — both are candidates for cleanup,
+      // each checked independently so one being still-referenced never
+      // blocks cleaning the other.
+      const candidatePaths = Array.from(
+        new Set([removed.storage_path, removed.original_storage_path].filter(Boolean))
+      ) as string[];
+      for (const candidate of candidatePaths) {
+        const { count } = await supabase
+          .from('product_images')
+          .select('*', { count: 'exact', head: true })
+          .or(`storage_path.eq.${candidate},original_storage_path.eq.${candidate}`);
+        if ((count ?? 0) === 0) {
+          await supabase.storage.from('product-images').remove([candidate]);
+        }
+      }
+    }
   }
 
-  // 7. Synchronisation VARIANTES (en préservant 0 pour les sous-champs)
+  // 7. Synchronisation VARIANTES — réconciliation par id, jamais un vidage
+  // complet : customer_cart_items.variant_id référence product_variants(id)
+  // ON DELETE CASCADE, donc un vidage/réinsertion sur un enregistrement
+  // ordinaire détruirait silencieusement les paniers clients actifs
+  // (Phase L.1.1 §1-4). Même principe d'ordre que les images : on écrit
+  // d'abord les lignes conservées/nouvelles, on ne supprime qu'ensuite.
+  let canonicalVariants: Array<{
+    id: string;
+    attributes: Record<string, string>;
+    price: number | null;
+    stock: number | null;
+    imageId: string | null;
+  }> = [];
+
   if (body.hasVariants === false) {
     await supabase.from('product_variants').delete().eq('product_id', id);
   } else if (body.hasVariants === true && Array.isArray(body.variants)) {
-    await supabase.from('product_variants').delete().eq('product_id', id);
-    const variantRows = body.variants.map((v: any) => {
+    const keptVariantIds = new Set(body.variants.map((v: any) => v.id).filter(Boolean));
+    const removedVariantIds = Array.from(oldVariantIds).filter((oid) => !keptVariantIds.has(oid));
+
+    for (const v of body.variants) {
       const attrs: Record<string, string> = {};
       if (typeof v.attributes === 'string') {
         v.attributes.split(',').forEach((pair: string) => {
-          const [key, val] = pair.split(':').map((s) => s.trim());
+          const [key, val] = pair.split(':').map((s: string) => s.trim());
           if (key && val) attrs[key] = val;
         });
       } else if (v.attributes && typeof v.attributes === 'object') {
         Object.assign(attrs, v.attributes);
       }
-      return {
-        product_id: id,
-        attributes: attrs,
-        price: parseNumberOrNull(v.price),
-        stock_quantity: parseNumberOrNull(v.stock),
-        availability: 'in_stock',
-      };
-    });
+      const price = parseNumberOrNull(v.price);
+      const stock = parseNumberOrNull(v.stock);
 
-    if (variantRows.length > 0) {
-      await supabase.from('product_variants').insert(variantRows as any);
+      if (v.id) {
+        const { data: updated, error: updErr } = await supabase
+          .from('product_variants')
+          .update({ attributes: attrs, price, stock_quantity: stock } as any)
+          .eq('id', v.id)
+          .select('id, attributes, price, stock_quantity, image_id')
+          .single();
+        if (updErr || !updated) {
+          return NextResponse.json({ error: `Erreur lors de la mise à jour d'une variante : ${updErr?.message || 'inconnue'}` }, { status: 500 });
+        }
+        canonicalVariants.push({
+          id: updated.id,
+          attributes: updated.attributes,
+          price: updated.price,
+          stock: updated.stock_quantity,
+          imageId: updated.image_id,
+        });
+      } else {
+        const { data: inserted, error: insErr } = await supabase
+          .from('product_variants')
+          .insert({ product_id: id, attributes: attrs, price, stock_quantity: stock, availability: 'in_stock' } as any)
+          .select('id, attributes, price, stock_quantity, image_id')
+          .single();
+        if (insErr || !inserted) {
+          return NextResponse.json({ error: `Erreur lors de l'ajout d'une variante : ${insErr?.message || 'inconnue'}` }, { status: 500 });
+        }
+        canonicalVariants.push({
+          id: inserted.id,
+          attributes: inserted.attributes,
+          price: inserted.price,
+          stock: inserted.stock_quantity,
+          imageId: inserted.image_id,
+        });
+      }
+    }
+
+    if (removedVariantIds.length > 0) {
+      const { error: delVarErr } = await supabase.from('product_variants').delete().in('id', removedVariantIds);
+      if (delVarErr) {
+        return NextResponse.json({ error: `Erreur lors de la suppression d'une variante : ${delVarErr.message}` }, { status: 500 });
+      }
     }
   }
 
@@ -411,7 +493,13 @@ export async function PUT(
         }))
     : undefined;
 
-  return NextResponse.json({ success: true, slug: targetSlug, images: imagesResponse });
+  // Same reasoning for variants — only the DB can assign a real id, so the
+  // client rebuilds its local state from this response rather than
+  // reusing whatever clientKeys it sent (Phase L.1.1 §4).
+  const variantsResponse =
+    body.hasVariants === true && Array.isArray(body.variants) ? canonicalVariants : undefined;
+
+  return NextResponse.json({ success: true, slug: targetSlug, images: imagesResponse, variants: variantsResponse });
 }
 
 // DELETE product
