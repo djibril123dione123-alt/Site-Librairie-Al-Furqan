@@ -444,20 +444,13 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
       (pos) => {
         setLocating(false);
         const { latitude, longitude } = pos.coords;
+        // "Utiliser ma position actuelle" ranks the list by real distance —
+        // it never chooses an office for the customer. The customer always
+        // selects a bureau intentionally, whether that happened before GPS
+        // (their existing pick is left untouched) or happens afterwards
+        // from the freshly-sorted list.
         setDeviceCoords({ lat: latitude, lng: longitude });
         setOfficeRankingMode('device');
-
-        const validOffices = allOffices.filter(o => o.latitude !== null && o.longitude !== null);
-        if (validOffices.length > 0) {
-          const nearest = validOffices
-            .map(o => ({
-              ...o,
-              distanceKm: getDistanceFromLatLonInKm(latitude, longitude, Number(o.latitude), Number(o.longitude))
-            }))
-            .sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0))[0];
-          setSelectedOffice(nearest);
-          setIsCustomOffice(false);
-        }
       },
       () => {
         setLocating(false);
@@ -467,11 +460,13 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
   };
 
   // §27: the explicit, clearly-labelled way back from device-based ranking
-  // to the default destination-based recommendations. A GPS-selected office
-  // from outside the destination's region would otherwise sit there marked
-  // "selected" underneath a "recommended for <region>" heading it doesn't
-  // belong to — the same staleness §30/§34 guard against on a destination
-  // change applies here too, just triggered by the ranking-mode switch.
+  // to the default destination-based recommendations. An office the
+  // customer manually picked while in device mode may belong to a region
+  // that no longer matches the destination — it would otherwise sit there
+  // marked "selected" underneath a "recommandés pour <region>" heading it
+  // doesn't belong to. Same staleness guard as the destination-change
+  // effect below (§30/§34), just triggered by the ranking-mode switch. A
+  // selection that still matches the destination region is left alone.
   const returnToDestinationRanking = () => {
     setOfficeRankingMode('destination');
     setDeviceCoords(null);

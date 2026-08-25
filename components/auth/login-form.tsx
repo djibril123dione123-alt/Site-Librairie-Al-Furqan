@@ -10,34 +10,63 @@ import { useCustomerSession } from './customer-session-provider';
 type Mode = 'login' | 'signup' | 'forgot';
 type Status = 'idle' | 'submitting' | 'error';
 
+// A semantic kind alongside every mapped error message, so the UI can
+// decide what to show (e.g. the resend-confirmation action) from what
+// actually happened rather than pattern-matching the French display text —
+// two different errors can share a word ("adresse") without sharing a
+// meaning (Phase J.3.1 §6).
+type AuthErrorKind =
+  | 'invalid_credentials'
+  | 'email_not_confirmed'
+  | 'invalid_email'
+  | 'already_registered'
+  | 'weak_password'
+  | 'rate_limit'
+  | 'network'
+  | 'generic';
+
+interface AuthError {
+  message: string;
+  kind: AuthErrorKind;
+}
+
 const MIN_PASSWORD_LENGTH = 6;
+const NETWORK_ERROR: AuthError = {
+  message: 'Problème de connexion réseau. Vérifiez votre connexion et réessayez.',
+  kind: 'network',
+};
 
 // Supabase's own messages are English and sometimes technical — this maps
 // the handful that can actually reach this form to factual French copy,
 // without ever surfacing the raw error object to the customer (Phase J.3
 // §18). Unmatched messages fall back to a generic, still-honest line.
-function mapAuthError(message: string): string {
+function mapAuthError(message: string): AuthError {
   const m = message.toLowerCase();
-  if (m.includes('invalid login credentials')) return 'Email ou mot de passe incorrect.';
+  if (m.includes('invalid login credentials')) {
+    return { message: 'Email ou mot de passe incorrect.', kind: 'invalid_credentials' };
+  }
   if (m.includes('email not confirmed')) {
-    return "Cette adresse n'est pas encore confirmée. Vérifiez votre boîte mail pour activer votre compte.";
+    return {
+      message: "Cette adresse n'est pas encore confirmée. Vérifiez votre boîte mail pour activer votre compte.",
+      kind: 'email_not_confirmed',
+    };
   }
   if (m.includes('already registered') || m.includes('user already exists')) {
-    return 'Un compte existe déjà avec cette adresse. Essayez de vous connecter plutôt.';
+    return { message: 'Un compte existe déjà avec cette adresse. Essayez de vous connecter plutôt.', kind: 'already_registered' };
   }
-  if (m.includes('password should be at least') || m.includes('password') && m.includes('character')) {
-    return `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères.`;
+  if (m.includes('password should be at least') || (m.includes('password') && m.includes('character'))) {
+    return { message: `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères.`, kind: 'weak_password' };
   }
   if (m.includes('unable to validate email') || (m.includes('email') && m.includes('invalid'))) {
-    return "Cette adresse email n'est pas valide.";
+    return { message: "Cette adresse email n'est pas valide.", kind: 'invalid_email' };
   }
   if (m.includes('rate limit') || m.includes('security purposes')) {
-    return 'Trop de tentatives. Merci de réessayer dans quelques minutes.';
+    return { message: 'Trop de tentatives. Merci de réessayer dans quelques minutes.', kind: 'rate_limit' };
   }
   if (m.includes('fetch') || m.includes('network')) {
-    return 'Problème de connexion réseau. Vérifiez votre connexion et réessayez.';
+    return NETWORK_ERROR;
   }
-  return 'Une erreur est survenue. Réessayez dans un instant.';
+  return { message: 'Une erreur est survenue. Réessayez dans un instant.', kind: 'generic' };
 }
 
 export function LoginForm() {
@@ -52,12 +81,15 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [status, setStatus] = useState<Status>('idle');
-  const [error, setError] = useState(
+  const [error, setError] = useState('');
+  const [errorKind, setErrorKind] = useState<AuthErrorKind | null>(null);
+  const [callbackError] = useState(
     searchParams.get('error') === 'callback'
       ? 'Ce lien est invalide ou a expiré. Merci de réessayer ci-dessous.'
       : ''
   );
   const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [resendError, setResendError] = useState('');
   const [signupSent, setSignupSent] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
 
@@ -71,27 +103,42 @@ export function LoginForm() {
     return null;
   }
 
-  function switchMode(next: Mode) {
-    setMode(next);
+  function applyError(info: AuthError) {
+    setError(info.message);
+    setErrorKind(info.kind);
+    setStatus('error');
+  }
+
+  function switchMode(nextMode: Mode) {
+    setMode(nextMode);
     setError('');
+    setErrorKind(null);
     setPassword('');
     setConfirmPassword('');
     setStatus('idle');
     setSignupSent(false);
     setForgotSent(false);
     setResendStatus('idle');
+    setResendError('');
   }
 
   async function handleResendConfirmation() {
     const trimmed = email.trim();
     if (!trimmed) return;
     setResendStatus('sending');
+    setResendError('');
     try {
       const supabase = createBrowserClient();
-      await supabase.auth.resend({ type: 'signup', email: trimmed });
+      const { error: resendErr } = await supabase.auth.resend({ type: 'signup', email: trimmed });
+      if (resendErr) {
+        setResendStatus('idle');
+        setResendError(mapAuthError(resendErr.message).message);
+        return;
+      }
       setResendStatus('sent');
     } catch {
       setResendStatus('idle');
+      setResendError(NETWORK_ERROR.message);
     }
   }
 
@@ -101,7 +148,9 @@ export function LoginForm() {
     if (!trimmedEmail || !password) return;
     setStatus('submitting');
     setError('');
+    setErrorKind(null);
     setResendStatus('idle');
+    setResendError('');
     try {
       const supabase = createBrowserClient();
       const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -109,15 +158,13 @@ export function LoginForm() {
         password,
       });
       if (signInError) {
-        setError(mapAuthError(signInError.message));
-        setStatus('error');
+        applyError(mapAuthError(signInError.message));
         return;
       }
       // isAuthenticated flips via the session listener; the effect above
       // handles the redirect once it does.
     } catch {
-      setError(mapAuthError(''));
-      setStatus('error');
+      applyError(NETWORK_ERROR);
     }
   }
 
@@ -126,17 +173,16 @@ export function LoginForm() {
     const trimmedEmail = email.trim();
     if (!trimmedEmail || !password) return;
     if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(`Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères.`);
-      setStatus('error');
+      applyError({ message: `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères.`, kind: 'weak_password' });
       return;
     }
     if (password !== confirmPassword) {
-      setError('Les deux mots de passe ne correspondent pas.');
-      setStatus('error');
+      applyError({ message: 'Les deux mots de passe ne correspondent pas.', kind: 'generic' });
       return;
     }
     setStatus('submitting');
     setError('');
+    setErrorKind(null);
     try {
       const supabase = createBrowserClient();
       const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
@@ -146,14 +192,12 @@ export function LoginForm() {
         options: { emailRedirectTo: redirectTo },
       });
       if (signUpError) {
-        setError(mapAuthError(signUpError.message));
-        setStatus('error');
+        applyError(mapAuthError(signUpError.message));
         return;
       }
       setSignupSent(true);
     } catch {
-      setError(mapAuthError(''));
-      setStatus('error');
+      applyError(NETWORK_ERROR);
     }
   }
 
@@ -163,16 +207,24 @@ export function LoginForm() {
     if (!trimmedEmail) return;
     setStatus('submitting');
     setError('');
+    setErrorKind(null);
     try {
       const supabase = createBrowserClient();
       const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent('/auth/nouveau-mot-de-passe')}`;
-      await supabase.auth.resetPasswordForEmail(trimmedEmail, { redirectTo });
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, { redirectTo });
+      if (resetError) {
+        applyError(mapAuthError(resetError.message));
+        return;
+      }
       // Neutral outcome regardless of whether an account exists for this
       // address (Phase J.3 §18 — never confirm/deny account existence).
+      // Supabase itself doesn't error for an unknown email here, so a
+      // genuine `error` reaching this branch is an infra failure (rate
+      // limit, invalid format, network) — never proof one way or the
+      // other about the account, so it's safe to surface factually.
       setForgotSent(true);
     } catch {
-      setError(mapAuthError(''));
-      setStatus('error');
+      applyError(NETWORK_ERROR);
     }
   }
 
@@ -204,7 +256,8 @@ export function LoginForm() {
     );
   }
 
-  const isEmailNotConfirmed = error.startsWith('Cette adresse');
+  const isEmailNotConfirmed = errorKind === 'email_not_confirmed';
+  const displayedError = error || callbackError;
 
   return (
     <>
@@ -227,9 +280,9 @@ export function LoginForm() {
               disabled={status === 'submitting'}
             />
           </div>
-          {error && (
+          {displayedError && (
             <p className="delivery-error-text" role="alert" style={{ marginTop: 8 }}>
-              {error}
+              {displayedError}
             </p>
           )}
           <button
@@ -344,25 +397,32 @@ export function LoginForm() {
             </button>
           )}
 
-          {error && (
+          {displayedError && (
             <div style={{ marginTop: 8 }}>
               <p className="delivery-error-text" role="alert">
-                {error}
+                {displayedError}
               </p>
               {isEmailNotConfirmed && (
-                <button
-                  type="button"
-                  className="text-link"
-                  onClick={handleResendConfirmation}
-                  disabled={resendStatus === 'sending'}
-                  style={{ marginTop: 4 }}
-                >
-                  {resendStatus === 'sent'
-                    ? 'Email de confirmation renvoyé'
-                    : resendStatus === 'sending'
-                      ? 'Envoi…'
-                      : "Renvoyer l'email de confirmation"}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="text-link"
+                    onClick={handleResendConfirmation}
+                    disabled={resendStatus === 'sending'}
+                    style={{ marginTop: 4 }}
+                  >
+                    {resendStatus === 'sent'
+                      ? 'Email de confirmation renvoyé'
+                      : resendStatus === 'sending'
+                        ? 'Envoi…'
+                        : "Renvoyer l'email de confirmation"}
+                  </button>
+                  {resendError && (
+                    <p className="delivery-error-text" role="alert" style={{ marginTop: 4 }}>
+                      {resendError}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           )}
