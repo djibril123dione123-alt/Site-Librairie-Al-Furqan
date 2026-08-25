@@ -53,26 +53,38 @@ export function mergeWishlists(guest: Set<string>, cloud: Set<string>): Set<stri
   return new Set([...Array.from(guest), ...Array.from(cloud)]);
 }
 
-export async function fetchCloudCart(supabase: SupabaseClient, userId: string): Promise<CartLine[]> {
+/**
+ * A failed read must never be silently treated as "the account has nothing".
+ * The initial sign-in merge has to tell these apart — {ok:true, data:[]} is
+ * a genuinely empty account (safe to merge/write); {ok:false} is a network/
+ * RLS/query failure (must not touch guest state at all). The raw Postgrest
+ * error is captured for logging but never meant for customer-facing text.
+ */
+export type CloudReadResult<T> = { ok: true; data: T } | { ok: false; error: string };
+
+export async function fetchCloudCart(supabase: SupabaseClient, userId: string): Promise<CloudReadResult<CartLine[]>> {
   const { data, error } = await supabase
     .from('customer_cart_items')
     .select('product_id, variant_id, quantity')
     .eq('user_id', userId);
-  if (error || !data) return [];
-  return data.map((row: any) => ({
-    productId: row.product_id,
-    variantId: row.variant_id ?? undefined,
-    quantity: row.quantity,
-  }));
+  if (error) return { ok: false, error: error.message };
+  return {
+    ok: true,
+    data: (data ?? []).map((row: any) => ({
+      productId: row.product_id,
+      variantId: row.variant_id ?? undefined,
+      quantity: row.quantity,
+    })),
+  };
 }
 
-export async function fetchCloudWishlist(supabase: SupabaseClient, userId: string): Promise<Set<string>> {
+export async function fetchCloudWishlist(supabase: SupabaseClient, userId: string): Promise<CloudReadResult<Set<string>>> {
   const { data, error } = await supabase
     .from('customer_wishlist_items')
     .select('product_id')
     .eq('user_id', userId);
-  if (error || !data) return new Set();
-  return new Set(data.map((row: any) => row.product_id as string));
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: new Set((data ?? []).map((row: any) => row.product_id as string)) };
 }
 
 /**

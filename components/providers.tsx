@@ -74,7 +74,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const [cloudPhase, setCloudPhase] = useState<CloudPhase>('idle');
-  const [syncStatus, setSyncStatus] = useState<CloudSyncStatus>('idle');
+  // Tracked independently so one channel finishing/succeeding can never mask
+  // the other still being mid-flight or failed (Phase J.1 §12) — the single
+  // publicly-exposed `syncStatus` is derived from both below.
+  const [cartSyncStatus, setCartSyncStatus] = useState<CloudSyncStatus>('idle');
+  const [wishlistSyncStatus, setWishlistSyncStatus] = useState<CloudSyncStatus>('idle');
+  const syncStatus: CloudSyncStatus =
+    cartSyncStatus === 'error' || wishlistSyncStatus === 'error'
+      ? 'error'
+      : cartSyncStatus === 'syncing' || wishlistSyncStatus === 'syncing'
+        ? 'syncing'
+        : 'idle';
+  // Bumped to force the initial-merge effect to retry after a failed cloud
+  // read — the effect's own deps (user id, auth state) don't change on a
+  // plain retry, so this is what actually re-triggers it.
+  const [mergeRetryTick, setMergeRetryTick] = useState(0);
 
   // Refs so effects always see the latest guest state without re-running on
   // every keystroke-level state change, and so the merge effect isn't
@@ -158,11 +172,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     (async () => {
       const supabase = createBrowserClient();
-      const [cloudCart, cloudWishlist] = await Promise.all([
+      const [cartRead, wishlistRead] = await Promise.all([
         fetchCloudCart(supabase, user.id),
         fetchCloudWishlist(supabase, user.id),
       ]);
       if (cancelled) return;
+
+      // Phase J.1 §1/§2 hard rule: a failed read is NOT the same thing as a
+      // genuinely empty account. Proceeding as though it were would merge
+      // (and then write) an assumed-empty cloud state, destroying guest
+      // intent on a transient network/RLS/query failure. Neither read may
+      // be trusted unless BOTH succeeded — guest cart/wishlist are left
+      // completely untouched, cloudPhase becomes 'error' (retryable), and
+      // nothing is cleared from localStorage.
+      if (!cartRead.ok || !wishlistRead.ok) {
+        setCloudPhase('error');
+        return;
+      }
+
+      const cloudCart = cartRead.data;
+      const cloudWishlist = wishlistRead.data;
 
       const mergedCart = mergeCartLines(cartRef.current, cloudCart);
       const mergedWishlist = mergeWishlists(wishlistRef.current, cloudWishlist);
@@ -176,7 +205,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       if (cartResult.ok && wishlistResult.ok) {
         // Cloud write succeeded first — only now is it safe to treat the
-        // merge as settled and clear the guest copy (Phase J §29).
+        // merge as settled and clear the guest copy (Phase J §29). This
+        // also correctly covers the legitimate "cloud reads succeeded and
+        // came back empty" case (Phase J.1 §15): mergedCart/mergedWishlist
+        // are then just the guest's own state, written up and only then
+        // cleared locally.
         setCart(mergedCart);
         setWishlist(mergedWishlist);
         cloudSyncedCartKeysRef.current = cartResult.syncedKeys;
@@ -199,7 +232,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localReady, authReady, isAuthenticated, user?.id, isAdminRoute]);
+  }, [localReady, authReady, isAuthenticated, user?.id, isAdminRoute, mergeRetryTick]);
 
   // ---- 4. Per-mutation cloud sync while the account is the source of
   // truth. Always reconciles the full current list — cheap at this scale,
@@ -208,16 +241,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isAdminRoute || cloudPhase !== 'ready' || !user) return;
     let cancelled = false;
-    setSyncStatus('syncing');
+    setCartSyncStatus('syncing');
     (async () => {
       const supabase = createBrowserClient();
       const result = await reconcileCloudCart(supabase, user.id, cart, cloudSyncedCartKeysRef.current);
       if (cancelled) return;
       if (result.ok) {
         cloudSyncedCartKeysRef.current = result.syncedKeys;
-        setSyncStatus('idle');
+        setCartSyncStatus('idle');
       } else {
-        setSyncStatus('error');
+        setCartSyncStatus('error');
       }
     })();
     return () => {
@@ -229,14 +262,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isAdminRoute || cloudPhase !== 'ready' || !user) return;
     let cancelled = false;
+    setWishlistSyncStatus('syncing');
     (async () => {
       const supabase = createBrowserClient();
       const result = await reconcileCloudWishlist(supabase, user.id, wishlist, cloudSyncedWishlistIdsRef.current);
       if (cancelled) return;
       if (result.ok) {
         cloudSyncedWishlistIdsRef.current = result.syncedIds;
+        setWishlistSyncStatus('idle');
       } else {
-        setSyncStatus('error');
+        setWishlistSyncStatus('error');
       }
     })();
     return () => {
@@ -246,10 +281,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [wishlist, cloudPhase, user?.id, isAdminRoute]);
 
   // ---- 5. Retry a failed sync opportunistically on refocus, rather than
-  // building a queue/offline-sync system disproportionate to the need. ----
+  // building a queue/offline-sync system disproportionate to the need.
+  // Two distinct failure states, two distinct retries: a failed initial
+  // merge (cloudPhase === 'error') re-runs effect 3 from scratch against
+  // the still-intact guest state; a failed per-mutation sync just nudges
+  // effects 4 to re-send the current cart/wishlist. ----
   useEffect(() => {
     if (isAdminRoute) return;
     const retry = () => {
+      if (cloudPhase === 'error') {
+        setMergeRetryTick((t) => t + 1);
+        return;
+      }
       if (syncStatus === 'error' && cloudPhase === 'ready') {
         // Nudge the sync effects to run again with the current state.
         setCart((c) => [...c]);
@@ -267,7 +310,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const addToCart = (product: Product, variant?: Variant) => {
     setCart((current) => {
-      const existing = current.find((line) => line.productId === product.id && line.variant?.id === variant?.id);
+      // Canonical identity (productId + getVariantId), not `line.variant?.id`
+      // — a cloud-restored line only ever carries `variantId`, never a full
+      // `variant` snapshot, so comparing `.variant?.id` alone would treat it
+      // as a different (base) line and add a duplicate instead of
+      // incrementing (Phase J.1 §6).
+      const targetKey = getLineKey({ productId: product.id, variantId: variant?.id });
+      const existing = current.find((line) => getLineKey(line) === targetKey);
       if (existing) {
         return current.map((line) => (line === existing ? { ...line, quantity: line.quantity + 1 } : line));
       }

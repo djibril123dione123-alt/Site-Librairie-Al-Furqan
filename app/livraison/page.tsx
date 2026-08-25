@@ -63,6 +63,15 @@ export default function LivraisonPage() {
   const [saveDestination, setSaveDestination] = useState(false);
   const [rememberContact, setRememberContact] = useState(false);
   const [contactPrefilled, setContactPrefilled] = useState(false);
+  // Account preference save is secondary to the order itself (Phase J.1
+  // §9/§10): a failure here must never lose the cart, alter the WhatsApp
+  // payload, or block "Commander sur WhatsApp". A ref (not state) gates the
+  // second click's behavior because it must be read synchronously in the
+  // same call where it's set — a state update wouldn't be visible until
+  // the next render, which is too late for a single click handler.
+  const [preferenceSaveFailure, setPreferenceSaveFailure] = useState<{ destination: boolean; contact: boolean } | null>(null);
+  const [savingPreferences, setSavingPreferences] = useState(false);
+  const preferenceFailureAcknowledgedRef = useRef(false);
 
   const ref = useRef<string | null>(null);
   if (!ref.current && typeof window !== 'undefined') {
@@ -200,46 +209,66 @@ export default function LivraisonPage() {
     setStep('verification');
   };
 
+  // Returns true if there was nothing to save, or everything saved. False
+  // means at least one explicitly-requested save failed — the caller must
+  // not proceed to WhatsApp on this same attempt.
+  const attemptPreferenceSaves = async (): Promise<boolean> => {
+    if (!isAuthenticated || !user || !deliveryData) return true;
+    if (!saveDestination && !rememberContact) return true;
+
+    setSavingPreferences(true);
+    const supabase = createBrowserClient();
+    let destinationOk = true;
+    let contactOk = true;
+
+    if (saveDestination) {
+      const isCustomOffice = deliveryData.postOffice?.isCustomOffice;
+      destinationOk = await saveDeliveryPreference(supabase, user.id, {
+        preferredDeliveryMethod: deliveryData.method,
+        region: deliveryData.location.region,
+        department: deliveryData.location.department || null,
+        commune: deliveryData.location.commune || null,
+        locality: deliveryData.location.locality,
+        localityId: deliveryData.location.localityId || null,
+        isCustomLocality: !!deliveryData.location.isCustomLocality,
+        preferredPostOfficeId: deliveryData.postOffice && !isCustomOffice ? deliveryData.postOffice.id : null,
+        preferredCustomOfficeName: isCustomOffice ? deliveryData.postOffice!.name : null,
+      });
+    }
+    if (rememberContact) {
+      contactOk = await saveContactPreference(supabase, user.id, {
+        rememberContactDetails: true,
+        contactName: name.trim(),
+        contactPhone: phone.trim(),
+        quartier: deliveryData.location.quartier || null,
+        repere: deliveryData.location.repere || null,
+      });
+    }
+    setSavingPreferences(false);
+
+    if (!destinationOk || !contactOk) {
+      setPreferenceSaveFailure({ destination: saveDestination && !destinationOk, contact: rememberContact && !contactOk });
+      return false;
+    }
+    setPreferenceSaveFailure(null);
+    return true;
+  };
+
   const handleFinalSubmit = async () => {
     if (!deliveryData || !name.trim() || !isPhoneValid || cartHasInvalidLines) return;
 
-    import('@/lib/data/analytics').then((m) => m.trackCatalogEvent('whatsapp_click'));
-
-    // Deliberate, per-order opt-in only — never silently written. Awaited
-    // (briefly) before the WhatsApp handoff below, since navigating away
-    // would otherwise cancel the request mid-flight.
-    if (isAuthenticated && user && (saveDestination || rememberContact)) {
-      const supabase = createBrowserClient();
-      const saves: Promise<boolean>[] = [];
-      if (saveDestination) {
-        const isCustomOffice = deliveryData.postOffice?.isCustomOffice;
-        saves.push(
-          saveDeliveryPreference(supabase, user.id, {
-            preferredDeliveryMethod: deliveryData.method,
-            region: deliveryData.location.region,
-            department: deliveryData.location.department || null,
-            commune: deliveryData.location.commune || null,
-            locality: deliveryData.location.locality,
-            localityId: deliveryData.location.localityId || null,
-            isCustomLocality: !!deliveryData.location.isCustomLocality,
-            preferredPostOfficeId: deliveryData.postOffice && !isCustomOffice ? deliveryData.postOffice.id : null,
-            preferredCustomOfficeName: isCustomOffice ? deliveryData.postOffice!.name : null,
-          })
-        );
-      }
-      if (rememberContact) {
-        saves.push(
-          saveContactPreference(supabase, user.id, {
-            rememberContactDetails: true,
-            contactName: name.trim(),
-            contactPhone: phone.trim(),
-            quartier: deliveryData.location.quartier || null,
-            repere: deliveryData.location.repere || null,
-          })
-        );
-      }
-      await Promise.all(saves);
+    // First attempt (or after "Réessayer"): try the save, and if it fails,
+    // stay on this screen so the warning is visible — the order itself has
+    // not been touched yet. Clicking "Commander sur WhatsApp" again (which
+    // sets the ack ref first) means "continue anyway": the order flow must
+    // never be gated on optional account convenience data.
+    if (!preferenceFailureAcknowledgedRef.current) {
+      const saved = await attemptPreferenceSaves();
+      if (!saved) return;
     }
+    preferenceFailureAcknowledgedRef.current = false;
+
+    import('@/lib/data/analytics').then((m) => m.trackCatalogEvent('whatsapp_click'));
 
     const baseUrl = getSiteUrl();
 
@@ -454,9 +483,38 @@ Référence commande : ${ref.current}`;
               )}
             </section>
 
+            {preferenceSaveFailure && (
+              <div className="delivery-inline-note" role="status">
+                <strong>Votre commande peut continuer normalement</strong>
+                <p className="delivery-hint">
+                  {preferenceSaveFailure.destination && preferenceSaveFailure.contact
+                    ? "Nous n'avons pas pu enregistrer cette destination ni vos coordonnées sur votre compte pour la prochaine fois."
+                    : preferenceSaveFailure.destination
+                      ? "Nous n'avons pas pu enregistrer cette destination sur votre compte pour la prochaine fois."
+                      : "Nous n'avons pas pu enregistrer vos coordonnées sur votre compte pour la prochaine fois."}
+                </p>
+                <div className="account-nudge-actions">
+                  <button
+                    type="button"
+                    className="text-link"
+                    onClick={() => {
+                      preferenceFailureAcknowledgedRef.current = false;
+                      handleFinalSubmit();
+                    }}
+                    disabled={savingPreferences}
+                  >
+                    {savingPreferences ? 'Nouvel essai…' : "Réessayer l'enregistrement"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <button
-              onClick={handleFinalSubmit}
-              disabled={!name.trim() || !isPhoneValid || cartHasInvalidLines}
+              onClick={() => {
+                if (preferenceSaveFailure) preferenceFailureAcknowledgedRef.current = true;
+                handleFinalSubmit();
+              }}
+              disabled={!name.trim() || !isPhoneValid || cartHasInvalidLines || savingPreferences}
               className="button button-dark delivery-whatsapp-button"
             >
               <MessageCircle size={18} /> Commander sur WhatsApp
