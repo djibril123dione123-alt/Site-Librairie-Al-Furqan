@@ -57,6 +57,17 @@ function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon
   return R * c;
 }
 
+// senegal_locations carries no coordinates at all (confirmed by direct
+// audit — 0 of 25,240 rows), so "closest office to the selected locality"
+// cannot be computed by distance; region is the strongest factual link
+// delivery_points actually supports (department/commune are unpopulated
+// there too). Accent/case fold so "Thiès" (ANSD) and "Thiès"/"THIES"
+// (however an office row happens to store it) compare equal.
+function normalizeRegionKey(region: string | null | undefined): string {
+  if (!region) return '';
+  return region.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+}
+
 const FALLBACK_REGIONS = [
   'DAKAR', 'DIOURBEL', 'FATICK', 'KAFFRINE', 'KAOLACK', 'KEDOUGOU',
   'KOLDA', 'LOUGA', 'MATAM', 'SAINT-LOUIS', 'SEDHIOU', 'TAMBACOUNDA',
@@ -141,6 +152,36 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
   // list with its own scroll reads fine there (Phase I §44).
   const [officeListCollapsed, setOfficeListCollapsed] = useState(false);
   const selectedOfficeRowRef = useRef<HTMLLabelElement>(null);
+
+  // Phase J.3 §29: which signal is currently driving office relevance.
+  // 'destination' (the default) ranks by the delivery address the customer
+  // is actively filling in; 'device' is the explicit, temporary "use my
+  // current position" action. They are never blended — switching to one
+  // fully replaces the other's ordering, and a destination-field change
+  // always snaps back to 'destination' (§30).
+  const [officeRankingMode, setOfficeRankingMode] = useState<'destination' | 'device'>('destination');
+  const [deviceCoords, setDeviceCoords] = useState<{ lat: number; lng: number } | null>(null);
+  // §25: region-matched offices are the default recommendation, not a dead
+  // end — this reveals the rest of the catalogue on request.
+  const [showAllRegions, setShowAllRegions] = useState(false);
+
+  // Any destination-level change (§21/§30/§31) snaps ranking back to
+  // 'destination' and drops the "show other regions" expansion — a fresh
+  // destination deserves a fresh recommendation, not a stale GPS ordering
+  // or a stale "see more" state left over from a previous one. A
+  // previously-picked office that no longer matches the new destination's
+  // region is cleared rather than silently kept (§30/§34) — a restored
+  // saved preference's region+office pair still matches on mount, so this
+  // never disturbs a legitimate restore.
+  useEffect(() => {
+    setOfficeRankingMode('destination');
+    setShowAllRegions(false);
+    setSelectedOffice((current) => {
+      if (!current || current.isCustomOffice || !selectedRegion || !current.region) return current;
+      return normalizeRegionKey(current.region) === normalizeRegionKey(selectedRegion) ? current : null;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRegion, selectedDept, selectedCommune, selectedLocalityId]);
 
   // 1. Fetch Regions via RPC or Fallback
   useEffect(() => {
@@ -387,7 +428,11 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
     fetchAllOffices();
   }, [method, supabase]);
 
-  // Haversine Geolocation across ALL cartographed offices
+  // "Use my current position" (§27): an explicit, temporary override of
+  // ranking only. It never touches the delivery destination fields — that
+  // stays exactly what the customer typed, which is why a gift sent from
+  // Dakar to a Saint-Louis address keeps its Saint-Louis destination even
+  // after this runs.
   const handleGeolocation = () => {
     if (!navigator.geolocation) {
       setGeoError('Géolocalisation non supportée par votre navigateur.');
@@ -399,16 +444,18 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
       (pos) => {
         setLocating(false);
         const { latitude, longitude } = pos.coords;
+        setDeviceCoords({ lat: latitude, lng: longitude });
+        setOfficeRankingMode('device');
 
         const validOffices = allOffices.filter(o => o.latitude !== null && o.longitude !== null);
         if (validOffices.length > 0) {
-          const withDistance = validOffices.map(o => ({
-            ...o,
-            distanceKm: getDistanceFromLatLonInKm(latitude, longitude, Number(o.latitude), Number(o.longitude))
-          })).sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
-
-          setAllOffices(withDistance);
-          setSelectedOffice(withDistance[0]);
+          const nearest = validOffices
+            .map(o => ({
+              ...o,
+              distanceKm: getDistanceFromLatLonInKm(latitude, longitude, Number(o.latitude), Number(o.longitude))
+            }))
+            .sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0))[0];
+          setSelectedOffice(nearest);
           setIsCustomOffice(false);
         }
       },
@@ -419,24 +466,78 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
     );
   };
 
-  // Filtered offices for display
-  const displayedOffices = useMemo(() => {
-    let list = allOffices;
+  // §27: the explicit, clearly-labelled way back from device-based ranking
+  // to the default destination-based recommendations. A GPS-selected office
+  // from outside the destination's region would otherwise sit there marked
+  // "selected" underneath a "recommended for <region>" heading it doesn't
+  // belong to — the same staleness §30/§34 guard against on a destination
+  // change applies here too, just triggered by the ranking-mode switch.
+  const returnToDestinationRanking = () => {
+    setOfficeRankingMode('destination');
+    setDeviceCoords(null);
+    setSelectedOffice((current) => {
+      if (!current || current.isCustomOffice || !selectedRegion || !current.region) return current;
+      return normalizeRegionKey(current.region) === normalizeRegionKey(selectedRegion) ? current : null;
+    });
+  };
 
-    // Filter by region if user selected a region AND office has region defined
-    if (selectedRegion) {
-      const regUpper = selectedRegion.toUpperCase();
-      const filteredByReg = list.filter(o => !o.region || o.region.toUpperCase() === regUpper);
-      if (filteredByReg.length > 0) list = filteredByReg;
+  // Offices whose region matches the selected destination (§23/§24 — region
+  // is the strongest factual relation the data supports; see the audit note
+  // above normalizeRegionKey). Falls back to the full list rather than an
+  // empty one so a destination in a region with no matching office is never
+  // a dead end (§25).
+  const regionMatchedOffices = useMemo(() => {
+    if (!selectedRegion) return allOffices;
+    const destKey = normalizeRegionKey(selectedRegion);
+    const matched = allOffices.filter(o => normalizeRegionKey(o.region) === destKey);
+    return matched.length > 0 ? matched : allOffices;
+  }, [allOffices, selectedRegion]);
+
+  const isRegionNarrowing = selectedRegion.length > 0 && regionMatchedOffices.length < allOffices.length;
+
+  // Filtered/ranked offices for display. Search always runs over the full
+  // catalogue (§37) so a genuine result is never hidden just because it
+  // falls outside the recommended group — recommendation is a default
+  // ordering, not a filter that can hide a real office.
+  const displayedOffices = useMemo(() => {
+    const isSearching = officeSearch.trim().length > 0;
+    let list = officeRankingMode === 'device' || showAllRegions || isSearching || !selectedRegion
+      ? allOffices
+      : regionMatchedOffices;
+
+    if (officeRankingMode === 'device' && deviceCoords) {
+      list = list
+        .map(o => (o.latitude !== null && o.longitude !== null)
+          ? { ...o, distanceKm: getDistanceFromLatLonInKm(deviceCoords.lat, deviceCoords.lng, Number(o.latitude), Number(o.longitude)) }
+          : o)
+        .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
+    } else {
+      list = [...list].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
     }
 
-    if (officeSearch.trim()) {
+    if (isSearching) {
       const q = officeSearch.toLowerCase();
       list = list.filter(o => o.name.toLowerCase().includes(q) || (o.address && o.address.toLowerCase().includes(q)));
     }
 
     return list;
-  }, [allOffices, selectedRegion, officeSearch]);
+  }, [allOffices, regionMatchedOffices, selectedRegion, officeSearch, officeRankingMode, deviceCoords, showAllRegions]);
+
+  // §26: only claim the precision the data actually supports. We never have
+  // real locality/commune coordinates (see the audit note above
+  // normalizeRegionKey), so "près de <localité>" is never honest — the best
+  // real claim is region-level, and device mode is its own distinct claim.
+  const officeSectionHeading = officeRankingMode === 'device'
+    ? 'Bureau de Poste — les plus proches de votre position'
+    : selectedRegion
+      ? `Bureau de Poste — recommandés pour la région de ${selectedRegion}`
+      : `Bureau de Poste (${allOffices.length} points cartographiés)`;
+
+  const officeSectionHint = officeRankingMode === 'device'
+    ? 'Classés par distance depuis votre position actuelle. Ceci ne modifie pas votre adresse de livraison.'
+    : selectedRegion
+      ? 'Recommandation basée sur la région de livraison sélectionnée.'
+      : 'Points de service officiellement cartographiés par La Poste Sénégal.';
 
   const finalLocality = selectedLocalityId === "Je ne trouve pas ma localité" ? customLocalityInput : selectedLocalityLabel;
   // Only a genuine ANSD row id (a real UUID picked from the search/combobox)
@@ -697,8 +798,8 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
         <div className="delivery-step">
           <div className="delivery-office-header">
             <div>
-              <h3 className="delivery-step-title">3. Bureau de Poste ({allOffices.length} points cartographiés)</h3>
-              <p className="delivery-hint">Points de service officiellement cartographiés par La Poste Sénégal.</p>
+              <h3 className="delivery-step-title">3. {officeSectionHeading}</h3>
+              <p className="delivery-hint">{officeSectionHint}</p>
             </div>
 
             <div className="delivery-office-actions">
@@ -709,7 +810,7 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
                 className="delivery-geo-button"
               >
                 <Navigation size={14} />
-                {locating ? 'Géolocalisation...' : 'Trouver le plus proche'}
+                {locating ? 'Géolocalisation...' : 'Utiliser ma position actuelle'}
               </button>
 
               <a
@@ -723,8 +824,18 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
             </div>
           </div>
 
-          <p className="delivery-hint">Votre position sert uniquement à trouver les bureaux de poste les plus proches.</p>
+          <p className="delivery-hint">Utiliser ma position actuelle change uniquement le classement des bureaux ci-dessous — elle ne remplace jamais l&apos;adresse de livraison.</p>
           {geoError && <p className="delivery-error-text">{geoError}</p>}
+
+          {officeRankingMode === 'device' && (
+            <button
+              type="button"
+              className="delivery-office-mode-return"
+              onClick={returnToDestinationRanking}
+            >
+              ← Revenir aux bureaux recommandés pour ma destination
+            </button>
+          )}
 
           <input
             type="text"
@@ -733,6 +844,18 @@ export function DeliveryForm({ onValidSubmit, initialData }: DeliveryFormProps) 
             placeholder="Filtrer les bureaux de poste par nom..."
             className="delivery-text-input delivery-office-search"
           />
+
+          {officeRankingMode !== 'device' && isRegionNarrowing && !officeSearch.trim() && (
+            <button
+              type="button"
+              className="delivery-office-region-toggle"
+              onClick={() => setShowAllRegions((v) => !v)}
+            >
+              {showAllRegions
+                ? 'Afficher seulement les bureaux recommandés'
+                : 'Voir les bureaux des autres régions'}
+            </button>
+          )}
 
           {/* Outside the scrolling list on every viewport. On mobile it also
               replaces the list once a real office is picked, so the customer

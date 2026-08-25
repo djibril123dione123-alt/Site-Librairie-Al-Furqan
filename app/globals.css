@@ -1009,6 +1009,10 @@ main { overflow: hidden; }
 .delivery-field-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; color: var(--gold-text); }
 .delivery-field-optional { color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 4px; }
 .delivery-text-input { width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 11px 13px; font-size: 13px; min-height: 44px; }
+.auth-password-field { position: relative; display: flex; }
+.auth-password-field .delivery-text-input { padding-right: 44px; }
+.auth-password-toggle { position: absolute; top: 0; right: 0; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: none; border: none; color: var(--muted); }
+.auth-password-toggle:hover { color: var(--gold); }
 .delivery-inline-note { background: var(--paper); border-left: 2px solid var(--gold); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
 .account-nudge-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 4px; }
 .account-nudge-actions .button { padding: 10px 18px; font-size: 12px; min-height: 44px; }
@@ -1025,6 +1029,8 @@ main { overflow: hidden; }
 .delivery-map-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); min-height: 44px; }
 .delivery-map-link:hover { color: var(--gold); text-decoration: underline; }
 .delivery-office-search { margin-top: 2px; }
+.delivery-office-mode-return, .delivery-office-region-toggle { align-self: flex-start; border: none; background: none; color: var(--gold-text); font-size: 12.5px; font-weight: 600; padding: 6px 0; min-height: 44px; text-align: left; text-decoration: underline; text-underline-offset: 2px; }
+.delivery-office-mode-return:hover, .delivery-office-region-toggle:hover { color: var(--gold); }
 .delivery-office-copy { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
 .delivery-office-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .delivery-office-name-row strong { font-size: 13.5px; color: var(--ink); }
