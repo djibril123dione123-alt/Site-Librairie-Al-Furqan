@@ -164,6 +164,12 @@ export async function POST(request: NextRequest) {
   const data = parsed.data;
   const supabase = createAdminClient();
 
+  // "Variantes activées" ne veut rien dire sans au moins une variante —
+  // sinon has_variants=true peut survivre avec zéro ligne product_variants.
+  if (data.hasVariants === true && !(Array.isArray(data.variants) && data.variants.length >= 1)) {
+    return NextResponse.json({ error: 'Ajoutez au moins une variante ou désactivez l\'option variantes.' }, { status: 400 });
+  }
+
   // Validation stricte pour la PUBLICATION
   if (data.status === 'published') {
     if (!data.category && !data.categoryId) {

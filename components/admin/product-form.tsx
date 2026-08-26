@@ -92,6 +92,14 @@ const IMAGE_TYPE_LABELS: Record<ImageItem['type'], string> = {
 
 const IMAGE_TYPE_OPTIONS = Object.entries(IMAGE_TYPE_LABELS) as [ImageItem['type'], string][];
 
+// A brand-new product's success response can carry a non-fatal theme
+// warning, but creation immediately router.push()es to the edit page —
+// mounting a fresh ProductForm instance that has no memory of that
+// response. Bridged across the navigation via sessionStorage rather than
+// a query param, so it doesn't leak into the URL or need the page's prop
+// contract to change.
+const PENDING_WARNING_KEY = 'admin-product-pending-warning';
+
 // Normalise pour une comparaison tolérante (accents/casse/ponctuation) —
 // utilisé uniquement pour un avertissement non-bloquant, jamais pour
 // modifier automatiquement un champ.
@@ -253,6 +261,18 @@ export function ProductForm({
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  // Pick up a warning stashed by the create-then-redirect flow above —
+  // runs once per mount, so it only ever fires right after that specific
+  // navigation, never on a plain page refresh or direct visit.
+  useEffect(() => {
+    const pending = sessionStorage.getItem(PENDING_WARNING_KEY);
+    if (pending) {
+      sessionStorage.removeItem(PENDING_WARNING_KEY);
+      setWarning(pending);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [duplicating, setDuplicating] = useState(false);
   const isDuplicatingRef = useRef(false);
@@ -583,6 +603,14 @@ export function ProductForm({
       return;
     }
 
+    // "Variantes activées" sans aucune variante est refusé au même titre
+    // côté client — jamais désactivé silencieusement à la place de
+    // bloquer, même pour un simple brouillon.
+    if (form.hasVariants && variants.length === 0) {
+      setError('Ajoutez au moins une variante ou désactivez l\'option variantes.');
+      return;
+    }
+
     // 2. Validation stricte pour la PUBLICATION
     if (finalStatus === 'published') {
       if (!form.category && !form.categoryId) {
@@ -691,6 +719,15 @@ export function ProductForm({
         return;
       }
 
+      // The book itself is genuinely saved at this point — a theme-only
+      // partial failure is never fatal to the product, but the operator
+      // still needs to know some metadata didn't fully persist. Set before
+      // the "addAnother" branch below so it survives that reset too,
+      // instead of being silently dropped on the way to the next form.
+      if (result.warning) {
+        setWarning(result.warning);
+      }
+
       // Succès confirmé par le serveur — seul point à partir duquel il est
       // sûr de réinitialiser le formulaire (jamais avant : voir critère
       // d'acceptation Phase G §35, aucune perte en cas d'échec de l'API).
@@ -759,6 +796,13 @@ export function ProductForm({
       }
 
       if (!productId && result.id) {
+        // This navigation mounts a brand-new ProductForm instance for the
+        // edit page — any local state set above (including the warning
+        // just above) doesn't survive it. Stash it across the navigation
+        // rather than losing it; the mount effect below picks it up once.
+        if (result.warning) {
+          sessionStorage.setItem(PENDING_WARNING_KEY, result.warning);
+        }
         router.push(`/admin/produits/${result.id}`);
       } else {
         router.refresh();

@@ -80,6 +80,13 @@ export async function PUT(
   const body = await request.json();
   const supabase = createAdminClient();
 
+  // "Variantes activées" ne veut rien dire sans au moins une variante —
+  // rejeté avant toute lecture/mutation, y compris quand ce PUT ne fait
+  // que ré-basculer hasVariants sur un produit existant.
+  if (body.hasVariants === true && !(Array.isArray(body.variants) && body.variants.length >= 1)) {
+    return NextResponse.json({ error: 'Ajoutez au moins une variante ou désactivez l\'option variantes.' }, { status: 400 });
+  }
+
   // 1. Récupérer le produit actuel
   const { data: currentProduct, error: fetchErr } = await supabase
     .from('products')
