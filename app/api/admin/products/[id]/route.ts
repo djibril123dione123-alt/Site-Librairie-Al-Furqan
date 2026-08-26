@@ -83,7 +83,7 @@ export async function PUT(
   // 1. Récupérer le produit actuel
   const { data: currentProduct, error: fetchErr } = await supabase
     .from('products')
-    .select('id, slug, title, status, author_id, publisher_id, category_id, price, stock_quantity')
+    .select('id, slug, title, status, author_id, publisher_id, category_id, price, stock_quantity, has_variants')
     .eq('id', id)
     .single();
 
@@ -392,7 +392,15 @@ export async function PUT(
   }> = [];
 
   if (body.hasVariants === false) {
-    await supabase.from('product_variants').delete().eq('product_id', id);
+    const { error: delAllVariantsErr } = await supabase.from('product_variants').delete().eq('product_id', id);
+    if (delAllVariantsErr) {
+      // The product core row above already committed has_variants=false —
+      // restore it so the product never ends up flagged "no variants"
+      // while variant rows (and whatever references them) still exist
+      // (Phase L §4).
+      await supabase.from('products').update({ has_variants: currentProduct.has_variants } as any).eq('id', id);
+      return NextResponse.json({ error: `La désactivation des variantes a échoué : ${delAllVariantsErr.message}` }, { status: 500 });
+    }
   } else if (body.hasVariants === true && Array.isArray(body.variants)) {
     const keptVariantIds = new Set(body.variants.map((v: any) => v.id).filter(Boolean));
     const removedVariantIds = Array.from(oldVariantIds).filter((oid) => !keptVariantIds.has(oid));
@@ -495,9 +503,16 @@ export async function PUT(
 
   // Same reasoning for variants — only the DB can assign a real id, so the
   // client rebuilds its local state from this response rather than
-  // reusing whatever clientKeys it sent (Phase L.1.1 §4).
+  // reusing whatever clientKeys it sent (Phase L.1.1 §4). An explicit `[]`
+  // when variants were just disabled is itself the authoritative signal
+  // that none remain — `undefined` would leave the client unable to tell
+  // "untouched" apart from "cleared" (Phase L §5).
   const variantsResponse =
-    body.hasVariants === true && Array.isArray(body.variants) ? canonicalVariants : undefined;
+    body.hasVariants === false
+      ? []
+      : body.hasVariants === true && Array.isArray(body.variants)
+        ? canonicalVariants
+        : undefined;
 
   return NextResponse.json({ success: true, slug: targetSlug, images: imagesResponse, variants: variantsResponse });
 }

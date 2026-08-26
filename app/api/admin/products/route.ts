@@ -23,6 +23,31 @@ function parseNumberOrNull(val: any): number | null {
   return isNaN(n) ? null : n;
 }
 
+// A brand-new product with no other references yet is safe to fully
+// unwind: deleting the row cascades to product_images/product_variants/
+// product_themes (all ON DELETE CASCADE — see migration 001), so any child
+// rows this creation attempt already wrote disappear with it. Only the
+// Storage files need explicit cleanup, since Storage has no cascade of its
+// own (Phase L §1-3: never leave a half-created product behind).
+async function rollbackFailedProductCreation(
+  supabase: ReturnType<typeof createAdminClient>,
+  productId: string,
+  candidatePaths: (string | null | undefined)[]
+) {
+  await supabase.from('products').delete().eq('id', productId);
+
+  const uniquePaths = Array.from(new Set(candidatePaths.filter((p): p is string => Boolean(p))));
+  for (const path of uniquePaths) {
+    const { count } = await supabase
+      .from('product_images')
+      .select('*', { count: 'exact', head: true })
+      .or(`storage_path.eq.${path},original_storage_path.eq.${path}`);
+    if ((count ?? 0) === 0) {
+      await supabase.storage.from('product-images').remove([path]);
+    }
+  }
+}
+
 const imageSchema = z.object({
   id: z.string().optional(),
   storagePath: z.string(),
@@ -238,11 +263,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error?.message || 'Erreur création produit' }, { status: 500 });
   }
 
-  // 7. Images
+  // 7. Images — critique : un échec ici ne doit jamais laisser un produit
+  // fraîchement créé sans le recadrage/couverture demandé (Phase L §1-3).
+  let coverAssigned = false;
+  const imageRows: Array<{
+    product_id: string;
+    storage_path: string;
+    original_storage_path: string | null;
+    crop_data: any;
+    type: string;
+    position: number;
+    alt_text: string | null;
+  }> = [];
+
   if (data.images && data.images.length > 0) {
-    let coverAssigned = false;
-    const imageRows = [];
-    
     for (let idx = 0; idx < data.images.length; idx++) {
       const img = data.images[idx];
       let type = img.type || (idx === 0 ? 'cover' : 'inside');
@@ -250,7 +284,7 @@ export async function POST(request: NextRequest) {
         if (coverAssigned) type = 'inside';
         else coverAssigned = true;
       }
-      
+
       let storage_path = img.storagePath;
       if (storage_path && storage_path.startsWith('temp/')) {
         const filename = storage_path.split('/').pop();
@@ -271,16 +305,24 @@ export async function POST(request: NextRequest) {
         alt_text: img.altText || null,
       });
     }
+  }
 
-    if (imageRows.length > 0) {
-      const { error: imagesErr } = await supabase.from('product_images').insert(imageRows as any);
-      if (imagesErr) {
-        return NextResponse.json({ error: `Livre créé, mais l'enregistrement des images a échoué : ${imagesErr.message}` }, { status: 500 });
-      }
+  // Every Storage path this creation attempt touched — used to clean up
+  // orphaned files if a rollback becomes necessary below, regardless of
+  // which child step actually fails.
+  const candidateStoragePaths = imageRows.flatMap((r) => [r.storage_path, r.original_storage_path]);
+
+  if (imageRows.length > 0) {
+    const { error: imagesErr } = await supabase.from('product_images').insert(imageRows as any);
+    if (imagesErr) {
+      await rollbackFailedProductCreation(supabase, product.id, candidateStoragePaths);
+      return NextResponse.json({ error: `La création a échoué lors de l'enregistrement des images : ${imagesErr.message}` }, { status: 500 });
     }
   }
 
-  // 8. Variantes (en préservant 0 pour le stock et prix)
+  // 8. Variantes (en préservant 0 pour le stock et prix) — critique quand
+  // hasVariants=true : un produit annoncé "avec variantes" ne doit jamais
+  // survivre sans elles (Phase L §1-3).
   if (data.hasVariants && data.variants && data.variants.length > 0) {
     const variantRows = data.variants.map((v) => {
       const attrs: Record<string, string> = {};
@@ -298,10 +340,17 @@ export async function POST(request: NextRequest) {
         availability: 'in_stock',
       };
     });
-    await supabase.from('product_variants').insert(variantRows as any);
+    const { error: variantsErr } = await supabase.from('product_variants').insert(variantRows as any);
+    if (variantsErr) {
+      await rollbackFailedProductCreation(supabase, product.id, candidateStoragePaths);
+      return NextResponse.json({ error: `La création a échoué lors de l'enregistrement des variantes : ${variantsErr.message}` }, { status: 500 });
+    }
   }
 
-  // 9. Thèmes
+  // 9. Thèmes — non critique (aucune référence externe n'en dépend) : un
+  // échec ici ne justifie pas de défaire un produit et ses images/variantes
+  // déjà valides, mais ne doit pas non plus être avalé en silence.
+  let themeWarning: string | undefined;
   if (data.themes && data.themes.length > 0) {
     for (const themeName of data.themes) {
       if (!themeName.trim()) continue;
@@ -311,16 +360,28 @@ export async function POST(request: NextRequest) {
       if (existingTheme) {
         themeId = existingTheme.id;
       } else {
-        const { data: newTheme } = await supabase.from('themes').insert({ name: themeName.trim(), slug: themeSlug } as any).select('id').single();
-        themeId = newTheme?.id || null;
+        const { data: newTheme, error: themeInsertErr } = await supabase.from('themes').insert({ name: themeName.trim(), slug: themeSlug } as any).select('id').single();
+        if (themeInsertErr || !newTheme) {
+          themeWarning = `Certains thèmes n'ont pas pu être enregistrés : ${themeInsertErr?.message || 'erreur inconnue'}`;
+          continue;
+        }
+        themeId = newTheme.id;
       }
       if (themeId) {
-        await supabase.from('product_themes').insert({ product_id: product.id, theme_id: themeId } as any);
+        const { error: linkErr } = await supabase.from('product_themes').insert({ product_id: product.id, theme_id: themeId } as any);
+        if (linkErr) {
+          themeWarning = `Certains thèmes n'ont pas pu être associés : ${linkErr.message}`;
+        }
       }
     }
   }
 
   revalidateProductSurfaces(product.slug);
 
-  return NextResponse.json({ success: true, id: product.id, slug: product.slug });
+  return NextResponse.json({
+    success: true,
+    id: product.id,
+    slug: product.slug,
+    ...(themeWarning ? { warning: themeWarning } : {}),
+  });
 }
