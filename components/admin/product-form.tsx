@@ -28,6 +28,7 @@ import type { Availability } from '@/lib/types/ui';
 import { AdminModal } from './admin-modal';
 import { CoverCropModal } from './cover-crop-modal';
 import { directUploadToStorage } from '@/lib/admin/direct-upload';
+import { DeleteProductModal, type DeletableProduct } from './delete-product-modal';
 
 const DEFAULT_CATEGORIES = [
   { id: '1', name: 'Coran', slug: 'coran' },
@@ -250,6 +251,7 @@ export function ProductForm({
     () => !(initialData?.images || []).some((img) => img.type === 'cover')
   );
   const [cropIndex, setCropIndex] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeletableProduct[] | null>(null);
   const hasCoverImage = images.some((img) => img.type === 'cover');
   const hadCoverRef = useRef(hasCoverImage);
   useEffect(() => {
@@ -1688,6 +1690,37 @@ export function ProductForm({
           </div>
         </div>
       </form>
+
+      {/* Zone dangereuse — volontairement à l'écart de la barre d'actions
+          principale (jamais un bouton rouge à côté d'Enregistrer/Publier),
+          et seulement affichée pour un livre déjà existant : on ne peut
+          rien supprimer avant que la fiche existe réellement en base. */}
+      {productId && (
+        <div className="admin-danger-zone">
+          <div className="admin-danger-zone-title">Zone dangereuse</div>
+          <p className="field-hint">
+            Cette suppression retire définitivement ce livre et ses données associées (images, variantes). Cette action est irréversible.
+          </p>
+          <button
+            type="button"
+            className="btn btn-danger btn-sm"
+            onClick={() => setDeleteTarget([{ id: productId, title: form.title || 'Sans titre', status: form.status }])}
+          >
+            <Trash2 size={14} />
+            <span>Supprimer définitivement ce livre</span>
+          </button>
+        </div>
+      )}
+
+      <DeleteProductModal
+        products={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={() => {
+          setDeleteTarget(null);
+          router.push('/admin/produits');
+          router.refresh();
+        }}
+      />
 
       {/* Modal Auteur */}
       <AdminModal open={showAuthorModal} onClose={() => setShowAuthorModal(false)} title="Créer un nouvel auteur">

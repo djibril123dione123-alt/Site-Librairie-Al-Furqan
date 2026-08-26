@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Edit2, Eye, Search, Plus, Archive, BookOpen, FileSpreadsheet } from 'lucide-react';
+import { Edit2, Eye, Search, Plus, Archive, BookOpen, FileSpreadsheet, Trash2 } from 'lucide-react';
 import { Cover } from '@/components/books/cover';
 import { QuickStockEditor } from './quick-stock-editor';
 import { CsvImportModal } from './csv-import-modal';
+import { DeleteProductModal, type BulkDeleteResult, type DeletableProduct } from './delete-product-modal';
 import type { Availability } from '@/lib/types/ui';
 import { useRouter } from 'next/navigation';
 
@@ -60,6 +61,10 @@ export function ProductListTable({
   const [availabilityFilter, setAvailabilityFilter] = useState<string>('all');
   const [csvModalOpen, setCsvModalOpen] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<DeletableProduct[] | null>(null);
+  const [resultMessage, setResultMessage] = useState<{ text: string; tone: 'success' | 'warning' } | null>(null);
+  const [bulkArchiving, setBulkArchiving] = useState(false);
   const router = useRouter();
 
   // `revalidatePath` runs server-side inside our mutation route handlers
@@ -126,6 +131,112 @@ export function ProductListTable({
     }
   };
 
+  // "Select all" only ever targets the CURRENT FILTERED RESULTS — a
+  // filter never silently pulls hidden rows into the selection, and
+  // narrowing the filter never drops an already-selected row still off
+  // screen (the operator's own individual picks are left alone).
+  const filteredIds = useMemo(() => filteredProducts.map((p) => p.id), [filteredProducts]);
+  const selectedInFilteredCount = useMemo(
+    () => filteredIds.filter((id) => selectedIds.has(id)).length,
+    [filteredIds, selectedIds]
+  );
+  const allFilteredSelected = filteredIds.length > 0 && selectedInFilteredCount === filteredIds.length;
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = selectedInFilteredCount > 0 && !allFilteredSelected;
+    }
+  }, [selectedInFilteredCount, allFilteredSelected]);
+
+  const toggleSelectAllFiltered = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        filteredIds.forEach((id) => next.delete(id));
+      } else {
+        filteredIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectedProducts = useMemo(
+    () => products.filter((p) => selectedIds.has(p.id)),
+    [products, selectedIds]
+  );
+
+  const handleDeleted = (result: BulkDeleteResult) => {
+    setDeleteTarget(null);
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      result.deletedIds.forEach((id) => next.delete(id));
+      // Failed rows stay selected on purpose — the operator can inspect
+      // the error and retry without having to re-pick them.
+      return next;
+    });
+
+    const messages: string[] = [];
+    if (result.deletedIds.length > 0) {
+      messages.push(
+        result.deletedIds.length === 1
+          ? '1 livre supprimé.'
+          : `${result.deletedIds.length} livres supprimés.`
+      );
+    }
+    if (result.failedIds.length > 0) {
+      messages.push(result.failedIds.length === 1 ? '1 échec.' : `${result.failedIds.length} échecs.`);
+    }
+    let tone: 'success' | 'warning' = result.failedIds.length > 0 || result.warnings.length > 0 ? 'warning' : 'success';
+    const detail = [...result.errors, ...result.warnings];
+    setResultMessage({
+      text: messages.join(' ') + (detail.length > 0 ? ' ' + detail.join(' · ') : ''),
+      tone,
+    });
+
+    if (result.deletedIds.length > 0) {
+      router.refresh();
+    }
+  };
+
+  const handleBulkArchive = async () => {
+    const targets = selectedProducts.filter((p) => p.status !== 'archived');
+    if (targets.length === 0) return;
+    if (!confirm(`Archiver ${targets.length} livre(s) ? Ils ne seront plus affichés dans la boutique.`)) return;
+    setBulkArchiving(true);
+    let successCount = 0;
+    let failCount = 0;
+    for (const p of targets) {
+      try {
+        const res = await fetch(`/api/admin/products/${p.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'archived' }),
+        });
+        if (res.ok) successCount++;
+        else failCount++;
+      } catch {
+        failCount++;
+      }
+    }
+    setBulkArchiving(false);
+    setResultMessage({
+      text: failCount > 0
+        ? `${successCount} livre(s) archivé(s), ${failCount} échec(s).`
+        : `${successCount} livre(s) archivé(s).`,
+      tone: failCount > 0 ? 'warning' : 'success',
+    });
+    if (successCount > 0) router.refresh();
+  };
+
   const counts = useMemo(() => ({
     all: products.length,
     published: products.filter(p => p.status === 'published').length,
@@ -135,6 +246,31 @@ export function ProductListTable({
 
   return (
     <>
+      {resultMessage && (
+        <div className={`admin-alert admin-alert-${resultMessage.tone}`} style={{ marginBottom: 16 }}>
+          <span>{resultMessage.text}</span>
+        </div>
+      )}
+
+      {selectedIds.size > 0 && (
+        <div className="admin-bulk-bar">
+          <span className="admin-bulk-bar-count">{selectedIds.size} livre(s) sélectionné(s)</span>
+          <div className="admin-bulk-bar-actions">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={handleBulkArchive} disabled={bulkArchiving}>
+              <Archive size={13} />
+              <span>Archiver</span>
+            </button>
+            <button type="button" className="btn btn-danger btn-sm" onClick={() => setDeleteTarget(selectedProducts)}>
+              <Trash2 size={13} />
+              <span>Supprimer définitivement</span>
+            </button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSelectedIds(new Set())}>
+              Annuler la sélection
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid var(--admin-border)', paddingBottom: 12, overflowX: 'auto' }}>
         <button
           className={`btn btn-sm ${statusFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
@@ -253,6 +389,13 @@ export function ProductListTable({
           filteredProducts.map((product) => (
             <div key={product.id} className="admin-mobile-card">
               <div className="admin-mobile-card-head">
+                <label className="admin-select-touch" aria-label={`Sélectionner ${product.title}`}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(product.id)}
+                    onChange={() => toggleSelect(product.id)}
+                  />
+                </label>
                 <div className="admin-mobile-cover">
                   {product.coverUrl ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
@@ -308,6 +451,16 @@ export function ProductListTable({
                   <Archive size={13} style={{ color: product.status === 'archived' ? 'var(--admin-gold)' : undefined }} />
                 </button>
               </div>
+
+              <button
+                type="button"
+                className="btn btn-danger btn-sm admin-mobile-delete-btn"
+                onClick={() => setDeleteTarget([product])}
+                aria-label={`Supprimer définitivement ${product.title}`}
+              >
+                <Trash2 size={13} />
+                <span>Supprimer</span>
+              </button>
             </div>
           ))
         )}
@@ -317,6 +470,15 @@ export function ProductListTable({
         <table className="admin-table">
           <thead>
             <tr>
+              <th style={{ width: 32 }}>
+                <input
+                  ref={selectAllRef}
+                  type="checkbox"
+                  checked={allFilteredSelected}
+                  onChange={toggleSelectAllFiltered}
+                  aria-label="Sélectionner tous les livres affichés"
+                />
+              </th>
               <th style={{ width: 44 }}>Visuel</th>
               <th>Titre & Édition</th>
               <th>Catégorie</th>
@@ -330,7 +492,7 @@ export function ProductListTable({
           <tbody>
             {filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ padding: 0 }}>
+                <td colSpan={9} style={{ padding: 0 }}>
                   <div className="empty-state">
                     <div className="empty-state-icon">
                       <BookOpen size={24} />
@@ -352,6 +514,14 @@ export function ProductListTable({
             ) : (
               filteredProducts.map((product) => (
                 <tr key={product.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(product.id)}
+                      onChange={() => toggleSelect(product.id)}
+                      aria-label={`Sélectionner ${product.title}`}
+                    />
+                  </td>
                   <td>
                     <div style={{ width: 36, height: 48, borderRadius: 4, overflow: 'hidden', flexShrink: 0, border: '1px solid var(--admin-border)', backgroundColor: 'var(--admin-surface-muted)' }}>
                       {product.coverUrl ? (
@@ -430,6 +600,15 @@ export function ProductListTable({
                       >
                         <Archive size={13} style={{ color: product.status === 'archived' ? 'var(--admin-gold)' : undefined }} />
                       </button>
+
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => setDeleteTarget([product])}
+                        title="Supprimer définitivement"
+                        aria-label={`Supprimer définitivement ${product.title}`}
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -440,6 +619,12 @@ export function ProductListTable({
       </div>
 
       <CsvImportModal isOpen={csvModalOpen} onClose={() => setCsvModalOpen(false)} />
+
+      <DeleteProductModal
+        products={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={handleDeleted}
+      />
     </>
   );
 }
