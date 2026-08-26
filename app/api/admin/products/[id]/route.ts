@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/supabase/auth';
 import { uiAvailabilityToDb } from '@/lib/types/mappers';
 import { revalidateProductSurfaces } from '@/lib/data/revalidate-product';
 import { resolveOrCreateEntityId } from '@/lib/supabase/entity-dedupe';
+import { isValidTikTokUrl, normalizeTikTokUrl } from '@/lib/social/tiktok';
 
 function generateSlug(title: string): string {
   return title
@@ -85,6 +86,12 @@ export async function PUT(
   // que ré-basculer hasVariants sur un produit existant.
   if (body.hasVariants === true && !(Array.isArray(body.variants) && body.variants.length >= 1)) {
     return NextResponse.json({ error: 'Ajoutez au moins une variante ou désactivez l\'option variantes.' }, { status: 400 });
+  }
+
+  // Même principe pour la vidéo TikTok : facultative, mais jamais une URL
+  // arbitraire si elle est renseignée (Intégration TikTok §2).
+  if ('videoUrl' in body && body.videoUrl && String(body.videoUrl).trim() && !isValidTikTokUrl(body.videoUrl)) {
+    return NextResponse.json({ error: 'Entrez un lien de vidéo TikTok valide.' }, { status: 400 });
   }
 
   // 1. Récupérer le produit actuel
@@ -248,6 +255,9 @@ export async function PUT(
   if ('featured' in body) updatePayload.featured = body.featured;
   if ('newArrival' in body) updatePayload.new_arrival = body.newArrival;
   if ('hasVariants' in body) updatePayload.has_variants = body.hasVariants;
+  if ('videoUrl' in body) {
+    updatePayload.video_url = body.videoUrl && String(body.videoUrl).trim() ? normalizeTikTokUrl(body.videoUrl) : null;
+  }
   if ('reading' in body) updatePayload.reading = body.reading || null;
   if ('tajwid' in body) updatePayload.tajwid = body.tajwid || null;
   if ('color' in body) updatePayload.color = body.color || 'navy';

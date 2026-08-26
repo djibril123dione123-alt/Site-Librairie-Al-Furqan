@@ -2,20 +2,23 @@ import { getProducts } from '@/lib/data/products';
 import { getCategories } from '@/lib/data/categories';
 import { getCatalogueFacets } from '@/lib/data/facets';
 import { getCollections } from '@/lib/data/collections';
+import { getHomepageTikTokVideos } from '@/lib/data/homepage-tiktok';
 import { Hero } from '@/components/home/hero';
 import { CollectionFeature } from '@/components/home/collection-feature';
 import { ProductDiscovery } from '@/components/home/product-discovery';
 import { QuranDiscovery } from '@/components/home/quran-discovery';
 import { CategoryTiles } from '@/components/home/category-tiles';
 import { TrustSection } from '@/components/home/trust-section';
+import { TikTokFeature } from '@/components/home/tiktok-feature';
 import { Reveal } from '@/components/home/reveal';
 
 export default async function Home() {
-  const [allProducts, categories, facets, collections] = await Promise.all([
+  const [allProducts, categories, facets, collections, tiktokVideos] = await Promise.all([
     getProducts({ limit: 12 }),
     getCategories(),
     getCatalogueFacets(),
     getCollections(),
+    getHomepageTikTokVideos(),
   ]);
 
   // Deterministic hero pick — never random, never hardcoded.
@@ -74,6 +77,19 @@ export default async function Home() {
         <Reveal>
           <TrustSection />
         </Reveal>
+
+        {tiktokVideos.length > 0 && (
+          <Reveal>
+            <TikTokFeature
+              videos={tiktokVideos.map((v) => ({
+                id: v.id,
+                videoUrl: v.videoUrl,
+                productTitle: v.productTitle,
+                productSlug: v.productSlug,
+              }))}
+            />
+          </Reveal>
+        )}
       </main>
     </>
   );

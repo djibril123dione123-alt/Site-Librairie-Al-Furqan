@@ -51,6 +51,7 @@ function adaptSeedProduct(p: (typeof seedProducts)[number]): Product {
     })),
     color: p.color,
     ink: p.ink,
+    videoUrl: p.videoUrl,
   };
 }
 

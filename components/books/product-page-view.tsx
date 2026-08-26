@@ -2,8 +2,8 @@
 
 import { useRef } from 'react';
 import Link from 'next/link';
-import { Video } from 'lucide-react';
-import { getEmbeddableVideoUrl } from '@/lib/utils/video-utils';
+import { isValidTikTokUrl } from '@/lib/social/tiktok';
+import { TikTokVideo } from '@/components/social/tiktok-video';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { ProductActions } from './product-actions';
 import { RecentlyViewed } from './recently-viewed';
@@ -32,7 +32,7 @@ export function ProductPageView({ product, related }: { product: Product; relate
   const categorySlug = product.categorySlug || slugify(product.category);
   const hasKnownAuthor = Boolean(product.author && product.author !== 'Auteur inconnu');
   const insideImages = product.images?.filter((i) => i.type === 'inside' || i.type === 'toc') || [];
-  const videoInfo = getEmbeddableVideoUrl(product.videoUrl);
+  const hasVideo = Boolean(product.videoUrl && isValidTikTokUrl(product.videoUrl));
 
   return (
     <main className="pdp">
@@ -72,24 +72,20 @@ export function ProductPageView({ product, related }: { product: Product; relate
           <div className="pdp-story-modules">
             <ProductStory description={product.description} shortDescription={product.shortDescription} />
 
-            {videoInfo && (
+            {hasVideo && (
               <div className="pdp-module pdp-video">
-                <h2 className="pdp-module-heading">Présentation vidéo</h2>
-                {videoInfo.type === 'iframe' ? (
-                  <div className="pdp-video-frame">
-                    <iframe
-                      src={videoInfo.embedUrl}
-                      title={`Présentation vidéo de ${product.title}`}
-                      loading="lazy"
-                      allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  </div>
-                ) : (
-                  <a href={videoInfo.externalUrl} target="_blank" rel="noopener noreferrer" className="button button-dark">
-                    <Video size={16} /> Voir la vidéo de présentation ↗
-                  </a>
-                )}
+                <span className="eyebrow">EN VIDÉO</span>
+                <h2 className="pdp-module-heading">Découvrir cet ouvrage en vidéo</h2>
+                <p className="pdp-module-lede">Une présentation publiée par la Librairie Al Furqan.</p>
+                <TikTokVideo url={product.videoUrl!} title={product.title} />
+                <a
+                  href={product.videoUrl!}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="text-link pdp-video-link"
+                >
+                  Voir la publication sur TikTok
+                </a>
               </div>
             )}
 

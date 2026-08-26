@@ -1,3 +1,5 @@
+import { extractTikTokVideoId, tiktokEmbedUrl } from '@/lib/social/tiktok';
+
 export interface EmbeddableVideo {
   type: 'iframe' | 'external';
   embedUrl: string;
@@ -29,8 +31,21 @@ export function getEmbeddableVideoUrl(rawUrl?: string | null): EmbeddableVideo |
     };
   }
 
-  // TikTok normalization: TikTok embeds require specialized JS script, so external fallback is safer for standard clean UI
+  // TikTok normalization: the direct player (v1/{id}) is a plain iframe,
+  // no embed.js/script tag needed — only the "blockquote + script" embed
+  // method would require that, and this deliberately avoids it. Short
+  // share links (vm./vt.tiktok.com, /t/...) don't carry the id in the URL
+  // itself, so those fall through to the external link instead of
+  // guessing at an id.
   if (url.includes('tiktok.com')) {
+    const videoId = extractTikTokVideoId(url);
+    if (videoId) {
+      return {
+        type: 'iframe',
+        embedUrl: tiktokEmbedUrl(videoId),
+        externalUrl: url,
+      };
+    }
     return {
       type: 'external',
       embedUrl: url,

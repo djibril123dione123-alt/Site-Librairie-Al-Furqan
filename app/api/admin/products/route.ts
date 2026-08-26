@@ -6,6 +6,7 @@ import { uiAvailabilityToDb } from '@/lib/types/mappers';
 import { z } from 'zod';
 import { revalidateProductSurfaces } from '@/lib/data/revalidate-product';
 import { resolveOrCreateEntityId } from '@/lib/supabase/entity-dedupe';
+import { isValidTikTokUrl, normalizeTikTokUrl } from '@/lib/social/tiktok';
 
 function generateSlug(title: string): string {
   return title
@@ -97,6 +98,7 @@ const productSchema = z.object({
   status: z.enum(['draft', 'published', 'archived']),
   color: z.string().nullable().optional(),
   hasVariants: z.boolean().nullable().optional(),
+  videoUrl: z.string().nullable().optional(),
   variants: z.array(variantSchema).nullable().optional(),
   images: z.array(imageSchema).nullable().optional(),
 });
@@ -169,6 +171,14 @@ export async function POST(request: NextRequest) {
   if (data.hasVariants === true && !(Array.isArray(data.variants) && data.variants.length >= 1)) {
     return NextResponse.json({ error: 'Ajoutez au moins une variante ou désactivez l\'option variantes.' }, { status: 400 });
   }
+
+  // Le champ vidéo reste facultatif, mais doit vraiment pointer vers
+  // TikTok s'il est renseigné — jamais une URL arbitraire stockée telle
+  // quelle (Intégration TikTok §2).
+  if (data.videoUrl && data.videoUrl.trim() && !isValidTikTokUrl(data.videoUrl)) {
+    return NextResponse.json({ error: 'Entrez un lien de vidéo TikTok valide.' }, { status: 400 });
+  }
+  const videoUrl = data.videoUrl && data.videoUrl.trim() ? normalizeTikTokUrl(data.videoUrl) : null;
 
   // Validation stricte pour la PUBLICATION
   if (data.status === 'published') {
@@ -255,6 +265,7 @@ export async function POST(request: NextRequest) {
     new_arrival: data.newArrival || false,
     restocked: false,
     has_variants: data.hasVariants || false,
+    video_url: videoUrl,
     reading: data.reading || null,
     tajwid: data.tajwid || null,
     color: data.color || 'navy',

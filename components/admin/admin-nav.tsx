@@ -3,19 +3,20 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  BookMarked, 
-  Tag, 
-  Library, 
-  Users, 
-  Building2, 
-  MessageSquare, 
-  ExternalLink, 
-  LogOut, 
-  Menu, 
+import {
+  LayoutDashboard,
+  BookMarked,
+  Tag,
+  Library,
+  Users,
+  Building2,
+  MessageSquare,
+  ExternalLink,
+  LogOut,
+  Menu,
   X,
-  Plus
+  Plus,
+  Video,
 } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase/client';
 
@@ -25,6 +26,7 @@ const catalogueItems = [
   { href: '/admin/collections', label: 'Collections', icon: Library },
   { href: '/admin/auteurs', label: 'Auteurs', icon: Users },
   { href: '/admin/editeurs', label: 'Éditeurs', icon: Building2 },
+  { href: '/admin/videos-tiktok', label: 'Vidéos TikTok', icon: Video },
 ];
 
 const trackingItems = [
@@ -102,6 +104,7 @@ export function AdminNav() {
     if (pathname.startsWith('/admin/collections')) return 'Gestion collections';
     if (pathname.startsWith('/admin/auteurs')) return 'Gestion auteurs';
     if (pathname.startsWith('/admin/editeurs')) return 'Gestion éditeurs';
+    if (pathname.startsWith('/admin/videos-tiktok')) return 'Vidéos TikTok';
     if (pathname.startsWith('/admin/demandes')) return 'Demandes d\'ouvrages';
     return 'Administration';
   };

@@ -13,6 +13,7 @@ import {
   Eye,
   Check,
   BookOpen,
+  Video,
   FileText,
   Tag as TagIcon,
   Image as ImageIcon,
@@ -29,6 +30,7 @@ import { AdminModal } from './admin-modal';
 import { CoverCropModal } from './cover-crop-modal';
 import { directUploadToStorage } from '@/lib/admin/direct-upload';
 import { DeleteProductModal, type DeletableProduct } from './delete-product-modal';
+import { isValidTikTokUrl } from '@/lib/social/tiktok';
 
 const DEFAULT_CATEGORIES = [
   { id: '1', name: 'Coran', slug: 'coran' },
@@ -162,6 +164,7 @@ type FormData = {
   status: 'draft' | 'published' | 'archived';
   color: string;
   hasVariants: boolean;
+  videoUrl: string;
   images?: ImageItem[];
   variants?: VariantItem[];
 };
@@ -198,6 +201,7 @@ const DEFAULT_FORM: FormData = {
   status: 'draft',
   color: 'navy',
   hasVariants: false,
+  videoUrl: '',
 };
 
 export function ProductForm({
@@ -613,6 +617,14 @@ export function ProductForm({
       return;
     }
 
+    // Le champ vidéo reste facultatif, mais s'il est rempli il doit
+    // vraiment pointer vers TikTok — jamais une URL arbitraire stockée
+    // telle quelle.
+    if (form.videoUrl.trim() && !isValidTikTokUrl(form.videoUrl)) {
+      setError('Entrez un lien de vidéo TikTok valide.');
+      return;
+    }
+
     // 2. Validation stricte pour la PUBLICATION
     if (finalStatus === 'published') {
       if (!form.category && !form.categoryId) {
@@ -673,6 +685,7 @@ export function ProductForm({
         binding: form.binding.trim() || null,
         edition: form.edition.trim() || null,
         year: form.year !== '' ? Number(form.year) : null,
+        videoUrl: form.videoUrl.trim() || null,
         themes: form.themes ? form.themes.split(',').map((t) => t.trim()).filter(Boolean) : [],
         reading: form.reading || null,
         tajwid: form.tajwid,
@@ -1490,6 +1503,36 @@ export function ProductForm({
                 </div>
               </>
             )}
+          </div>
+
+          {/* Section vidéo TikTok — indépendante de la bibliographie : un
+              livre reste parfaitement valide sans vidéo. */}
+          <div className="form-section">
+            <div className="form-section-title">
+              <span>Vidéo TikTok</span>
+              <Video size={16} />
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="videoUrl">
+                Vidéo TikTok <span className="form-label-optional">facultatif</span>
+              </label>
+              <input
+                id="videoUrl"
+                type="text"
+                className="form-input"
+                placeholder="https://www.tiktok.com/@alfurqan.librairie/video/1234567890123456789"
+                value={form.videoUrl}
+                onChange={(e) => setField('videoUrl', e.target.value)}
+              />
+              <span className="field-hint">
+                Collez le lien d&apos;une vidéo TikTok présentant cet ouvrage.
+              </span>
+              {form.videoUrl.trim() && !isValidTikTokUrl(form.videoUrl) && (
+                <span className="delivery-error-text" role="alert">
+                  Entrez un lien de vidéo TikTok valide.
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Section 6 : Options Coran (Conditionnel) */}

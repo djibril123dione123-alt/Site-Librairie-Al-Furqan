@@ -90,6 +90,7 @@ async function getProduct(id: string) {
     status: data.status as 'draft' | 'published' | 'archived',
     color: data.color || 'navy',
     hasVariants: data.has_variants,
+    videoUrl: data.video_url || '',
     images: sortedImages.map((img: any) => {
       const toPublicUrl = (path: string) =>
         path.startsWith('http') ? path : `${supabaseUrl}/storage/v1/object/public/product-images/${path}`;

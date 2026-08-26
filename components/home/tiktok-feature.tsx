@@ -1,71 +1,48 @@
 import Link from 'next/link';
-import { ArrowRight, Video } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { siteConfig } from '@/lib/al-furqan-data';
+import { TikTokVideo } from '@/components/social/tiktok-video';
 
 export interface VideoItem {
   id: string;
-  title: string;
   videoUrl: string;
+  productTitle?: string;
   productSlug?: string;
 }
 
-export function TikTokFeature({ videos = [] }: { videos?: VideoItem[] }) {
-  const realVideos = videos.filter((v) => Boolean(v.videoUrl));
+/**
+ * Never rendered with fewer than 1 or more than 3 videos padded with
+ * placeholders — 0 configured hides the whole section (the caller in
+ * app/page.tsx is expected to only render this when videos.length > 0),
+ * and the grid itself just lays out however many (1-3) actually exist.
+ */
+export function TikTokFeature({ videos }: { videos: VideoItem[] }) {
+  if (videos.length === 0) return null;
 
   return (
     <section className="social-section">
       <div className="social-heading">
-        <span className="eyebrow">SUIVEZ-NOUS SUR TIKTOK</span>
-        <h2>
-          Al Furqan
-          <br />
-          <em>en vidéo.</em>
-        </h2>
-        <p>
-          Présentations d&apos;ouvrages, conseils de lecture et découvertes éditoriales sur le compte officiel de la librairie.
-        </p>
-        <a
-          href={siteConfig.tiktok}
-          className="text-link"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Découvrir sur TikTok <ArrowRight size={16} />
+        <span className="eyebrow">SUR TIKTOK</span>
+        <h2>Al Furqan en vidéo</h2>
+        <p>Découvrez quelques ouvrages présentés par la librairie.</p>
+        <a href={siteConfig.tiktok} className="text-link" target="_blank" rel="noopener noreferrer">
+          Suivre Al Furqan sur TikTok <ArrowRight size={16} />
         </a>
       </div>
-      <div className="video-grid">
-        {realVideos.length > 0 ? (
-          realVideos.slice(0, 3).map((item, idx) => (
-            <Link
-              key={item.id}
-              href={item.productSlug ? `/livres/${item.productSlug}` : '/catalogue'}
-              className={`video-card video-${idx === 0 ? 'one' : idx === 1 ? 'two' : 'three'}`}
-              style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
-            >
-              <span className="play">
-                <Video size={20} />
-              </span>
-              <span style={{ fontWeight: 600, fontSize: 15, marginTop: 12 }}>{item.title}</span>
-              <span style={{ fontSize: 12, color: 'var(--gold)', marginTop: 8 }}>Voir l&apos;ouvrage ↗</span>
-            </Link>
-          ))
-        ) : (
-          <a
-            href={siteConfig.tiktok}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="video-card video-one"
-            style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
-          >
-            <span className="play">
-              <Video size={20} />
-            </span>
-            <span style={{ fontWeight: 600, fontSize: 16, marginTop: 12 }}>
-              Retrouvez nos présentations d&apos;ouvrages sur TikTok
-            </span>
-            <span style={{ fontSize: 12, color: 'var(--gold)', marginTop: 8 }}>@alfurqan.librairie ↗</span>
-          </a>
-        )}
+      <div className={`tiktok-showcase-grid tiktok-showcase-grid-${videos.length}`}>
+        {videos.slice(0, 3).map((item) => (
+          <div key={item.id} className="video-card-editorial">
+            <TikTokVideo url={item.videoUrl} title={item.productTitle} compact />
+            {item.productSlug && item.productTitle && (
+              <Link href={`/livres/${item.productSlug}`} className="video-card-book-link">
+                {item.productTitle}
+              </Link>
+            )}
+            <a href={item.videoUrl} target="_blank" rel="noopener noreferrer nofollow" className="video-card-cta">
+              Voir sur TikTok
+            </a>
+          </div>
+        ))}
       </div>
     </section>
   );

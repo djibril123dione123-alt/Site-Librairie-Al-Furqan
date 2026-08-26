@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Plus, ChevronRight, Check } from 'lucide-react';
+import { Plus, ChevronRight, Check, Play } from 'lucide-react';
 import type { Product } from '@/lib/types/ui';
 import { formatPrice } from '@/lib/al-furqan-data';
 import { BookStage } from './book-stage';
@@ -42,6 +42,11 @@ export function BookCard({ product }: { product: Product }) {
           {product.title}
         </Link>
         {hasKnownAuthor && <span className="book-author">{product.author}</span>}
+        {product.videoUrl && (
+          <span className="book-video-badge">
+            <Play size={9} fill="currentColor" /> Présentation vidéo
+          </span>
+        )}
         {lowStock && <span className="stock-low-text">Derniers exemplaires</span>}
         {restocked && <span className="stock-restocked-text">De retour en stock</span>}
         <div className="book-bottom">

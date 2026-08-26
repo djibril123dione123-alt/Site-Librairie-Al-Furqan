@@ -41,12 +41,16 @@ export async function POST(
   const baseSlug = `${original.slug}-copie`;
   const newSlug = `${baseSlug}-${Date.now()}`;
 
-  // Construire l'objet à insérer sans les champs auto-générés
+  // Construire l'objet à insérer sans les champs auto-générés — video_url
+  // est explicitement exclu aussi : une vidéo TikTok présente un ouvrage
+  // précis, et la copier vers un produit distinct lierait par erreur une
+  // vidéo à un livre qu'elle ne présente pas (Intégration TikTok §1).
   const {
     id: _id,
     created_at: _created,
     updated_at: _updated,
     published_at: _published,
+    video_url: _videoUrl,
     ...rest
   } = original;
 
