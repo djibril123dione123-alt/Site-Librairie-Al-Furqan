@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -414,7 +414,7 @@ export function ProductForm({
   };
 
   // Upload d'images
-  const handleImageSelect = async (files: FileList | null) => {
+  const handleImageSelect = useCallback(async (files: FileList | File[] | null) => {
     if (!files || files.length === 0) return;
 
     const fileArray = Array.from(files);
@@ -447,7 +447,11 @@ export function ProductForm({
         setImages((prev) =>
           prev.map((img) =>
             img.preview === tempPreview
-              ? { ...img, preview: publicUrl, storagePath: path, uploading: false }
+              // originalUrl is set here, once, to this very first upload —
+              // a later local crop only ever changes preview/storagePath,
+              // never this, so "Ajuster" can always re-open against the
+              // true untouched original even before the product is saved.
+              ? { ...img, preview: publicUrl, storagePath: path, originalUrl: publicUrl, uploading: false }
               : img
           )
         );
@@ -456,7 +460,33 @@ export function ProductForm({
         setError(err instanceof Error ? err.message : 'Échec de l\'upload de l\'image.');
       }
     }
-  };
+  }, [images.length, productId]);
+
+  // Ctrl/Cmd+V avec une image dans le presse-papier ajoute cette image
+  // exactement comme un glisser-déposé — même validation, même flux
+  // d'upload. Écouteur global (pas seulement sur la zone de dépôt) : une
+  // capture d'écran fraîchement copiée n'oblige pas à cliquer d'abord
+  // dans la zone. Un collage de texte normal (titre, description...)
+  // n'a pas d'item image/* et n'est donc jamais intercepté.
+  useEffect(() => {
+    function handlePaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const imageFiles: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) imageFiles.push(file);
+        }
+      }
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        handleImageSelect(imageFiles);
+      }
+    }
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [handleImageSelect]);
 
   // Suppression d'image avec nettoyage du stockage
   const removeImage = async (index: number) => {
@@ -837,13 +867,13 @@ export function ProductForm({
     <div className="product-form-root">
       {/* Barre d'actions sticky supérieure */}
       <div className="form-actions-sticky">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="form-actions-identity" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', rowGap: 6, minWidth: 0 }}>
           <Link href="/admin/produits" className="btn btn-secondary btn-sm">
             <ArrowLeft size={14} />
             <span>Tous les livres</span>
           </Link>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontWeight: 600, fontSize: 15 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <span className="form-actions-title" style={{ fontWeight: 600, fontSize: 15 }}>
               {form.title ? form.title : 'Nouveau livre'}
             </span>
             <span className={`status-badge ${form.status === 'published' ? 'status-published' : 'status-draft'}`}>
@@ -1265,7 +1295,7 @@ export function ProductForm({
               >
                 <Upload size={24} style={{ margin: '0 auto 8px', color: 'var(--admin-petrol)' }} />
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--admin-text)' }}>
-                  Glissez-déposez vos photos ici ou cliquez pour choisir
+                  Glissez-déposez vos photos ici, cliquez pour choisir, ou collez (Ctrl+V) une image copiée
                 </p>
                 <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--admin-text-muted)' }}>
                   Couverture principale, quatrième de couverture, pages intérieures...
@@ -1333,13 +1363,13 @@ export function ProductForm({
                           </button>
                         </div>
                       </div>
-                      {img.type === 'cover' && img.storagePath && !img.uploading && productId && img.id && (
+                      {img.storagePath && !img.uploading && (
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm image-preview-crop-btn"
                           onClick={() => setCropIndex(i)}
                         >
-                          Ajuster la couverture
+                          Ajuster
                         </button>
                       )}
                     </div>
@@ -1831,21 +1861,29 @@ export function ProductForm({
         </div>
       </AdminModal>
 
-      {/* Éditeur de recadrage — ne peut opérer que sur une image déjà
-          persistée (id + productId réels) car il écrit directement sur la
-          ligne product_images correspondante. */}
-      {cropIndex !== null && productId && images[cropIndex]?.id && (
+      {/* Éditeur de recadrage — disponible pour toute photo déjà
+          téléversée, qu'elle soit déjà enregistrée en base ou non. Une
+          image déjà persistée (id + productId réels) passe par les routes
+          serveur dédiées ; une image pas encore enregistrée est recadrée
+          entièrement côté navigateur (voir isLocalMode dans
+          CoverCropModal) — le recadrage part alors avec le reste du
+          formulaire au prochain "Enregistrer". */}
+      {cropIndex !== null && images[cropIndex]?.storagePath && (
         <CoverCropModal
           open={cropIndex !== null}
           onClose={() => setCropIndex(null)}
           productId={productId}
-          imageId={images[cropIndex].id!}
+          imageId={images[cropIndex].id}
+          currentStoragePath={images[cropIndex].storagePath!}
+          existingOriginalStoragePath={images[cropIndex].originalStoragePath}
           originalUrl={images[cropIndex].originalUrl || images[cropIndex].preview}
           existingCropData={images[cropIndex].cropData || null}
           productTitle={form.title}
           productAuthor={form.author}
           color={form.color}
           ink="#f7e6c4"
+          showBookPreview={images[cropIndex].type === 'cover'}
+          title={images[cropIndex].type === 'cover' ? 'Ajuster la couverture' : 'Ajuster la photo'}
           onApplied={(result) => {
             setImages((prev) =>
               prev.map((img, i) =>

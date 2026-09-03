@@ -53,19 +53,35 @@ export function CoverCropModal({
   onClose,
   productId,
   imageId,
+  currentStoragePath,
+  existingOriginalStoragePath,
   originalUrl,
   existingCropData,
   productTitle,
   productAuthor,
   color,
   ink,
+  showBookPreview = true,
+  title = 'Ajuster la couverture',
   onApplied,
   onReset,
 }: {
   open: boolean;
   onClose: () => void;
-  productId: string;
-  imageId: string;
+  /** Both absent = the image hasn't been persisted yet (new product, or a
+   *  photo just added to an existing one) — Apply/Reset then run entirely
+   *  client-side instead of calling the server crop routes, since there is
+   *  no product_images row yet to write to. */
+  productId?: string;
+  imageId?: string;
+  /** The image's current (pre-crop) storage path — needed in local mode to
+   *  work out the true original and to clean up an earlier local derivative. */
+  currentStoragePath: string;
+  /** Already-known true-original path, if this same not-yet-saved image was
+   *  already cropped once locally — mirrors original_storage_path so a
+   *  second local re-crop never mistakes the last derivative for the
+   *  original. */
+  existingOriginalStoragePath?: string | null;
   /** Always the untouched original's public URL — never a prior derivative. */
   originalUrl: string;
   existingCropData?: CropData | null;
@@ -73,9 +89,15 @@ export function CoverCropModal({
   productAuthor?: string;
   color?: string;
   ink?: string;
+  /** False for any non-cover photo (quatrième, dos, intérieur...) — the
+   *  "Aperçu boutique" panel then shows the cropped image itself instead of
+   *  a fake book render, which only makes sense for an actual cover. */
+  showBookPreview?: boolean;
+  title?: string;
   onApplied: (result: CropApplyResult) => void;
   onReset: (result: { storagePath: string; originalStoragePath: string; publicUrl: string }) => void;
 }) {
+  const isLocalMode = !productId || !imageId;
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -300,6 +322,26 @@ export function CoverCropModal({
       });
       uploadedPath = uploadResult.path;
 
+      if (isLocalMode) {
+        // No product_images row exists yet to write to — the crop just
+        // becomes this image's new local state, and rides along with the
+        // rest of the form on the next save (the create/update routes
+        // already persist storagePath/originalStoragePath/cropData
+        // together for a brand-new image row).
+        const trueOriginalPath = existingOriginalStoragePath || currentStoragePath;
+        if (currentStoragePath && currentStoragePath !== trueOriginalPath && currentStoragePath !== uploadedPath) {
+          await cleanupOrphanUpload(currentStoragePath);
+        }
+        onApplied({
+          storagePath: uploadedPath,
+          originalStoragePath: trueOriginalPath,
+          cropData,
+          publicUrl: uploadResult.publicUrl,
+        });
+        onClose();
+        return;
+      }
+
       const res = await fetch(`/api/admin/products/${productId}/images/${imageId}/crop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -331,6 +373,16 @@ export function CoverCropModal({
     setResetting(true);
     setError('');
     try {
+      if (isLocalMode) {
+        const trueOriginalPath = existingOriginalStoragePath || currentStoragePath;
+        if (currentStoragePath && currentStoragePath !== trueOriginalPath) {
+          await cleanupOrphanUpload(currentStoragePath);
+        }
+        onReset({ storagePath: trueOriginalPath, originalStoragePath: trueOriginalPath, publicUrl: originalUrl });
+        onClose();
+        return;
+      }
+
       const res = await fetch(`/api/admin/products/${productId}/images/${imageId}/crop/reset`, {
         method: 'POST',
       });
@@ -356,7 +408,7 @@ export function CoverCropModal({
   );
 
   return (
-    <AdminModal open={open} onClose={onClose} title="Ajuster la couverture" maxWidth={880}>
+    <AdminModal open={open} onClose={onClose} title={title} maxWidth={880}>
       <div className="cover-crop-layout">
         <div className="cover-crop-stage-col">
           {imgError && (
@@ -447,9 +499,16 @@ export function CoverCropModal({
         </div>
 
         <div className="cover-crop-preview-col">
-          <span className="form-label">Aperçu boutique</span>
+          <span className="form-label">Aperçu</span>
           <div className="cover-crop-preview-stage">
-            <BookStage product={previewProduct} />
+            {showBookPreview ? (
+              <BookStage product={previewProduct} />
+            ) : localPreviewUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={localPreviewUrl} alt="Aperçu du recadrage" className="cover-crop-plain-preview" />
+            ) : (
+              <div className="cover-crop-plain-preview-placeholder" aria-hidden="true" />
+            )}
           </div>
           <p className="field-hint">
             Ce recadrage ne modifie jamais le fichier original — vous pourrez toujours revenir en arrière ou ajuster à nouveau.

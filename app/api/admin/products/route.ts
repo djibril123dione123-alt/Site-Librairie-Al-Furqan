@@ -312,10 +312,24 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // A locally-cropped image (added before the product existed) uploads
+      // its true original to temp/ too — without this it would stay there
+      // forever, the only file for this product not living under its own
+      // folder (Admin image UX §1-2).
+      let original_storage_path = img.originalStoragePath || null;
+      if (original_storage_path && original_storage_path.startsWith('temp/') && original_storage_path !== img.storagePath) {
+        const filename = original_storage_path.split('/').pop();
+        const newPath = `${product.id}/${filename}`;
+        const { error: moveError } = await supabase.storage.from('product-images').move(original_storage_path, newPath);
+        if (!moveError) {
+          original_storage_path = newPath;
+        }
+      }
+
       imageRows.push({
         product_id: product.id,
         storage_path,
-        original_storage_path: img.originalStoragePath || null,
+        original_storage_path,
         crop_data: img.cropData || null,
         type,
         position: img.position ?? idx,

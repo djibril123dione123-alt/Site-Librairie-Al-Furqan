@@ -1127,6 +1127,22 @@
   padding: 12px;
 }
 
+/* Non-cover photo (quatrième, dos, intérieur...) — a plain cropped-image
+   preview instead of BookStage's fake 3D cover render, which only makes
+   sense for the actual cover. */
+.cover-crop-plain-preview {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.cover-crop-plain-preview-placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  background-color: var(--admin-surface-muted);
+}
+
 .cover-crop-modal-actions {
   position: sticky;
   bottom: -20px;
@@ -1144,7 +1160,14 @@
   .cover-crop-handle { width: 44px; height: 44px; }
 }
 
-/* Actions sticky header pour l'édition */
+/* Actions sticky header pour l'édition — wrap-capable at every width
+   above the phone breakpoint (not just below it): with a real title, an
+   optional "Voir sur le site"/"Dupliquer"/"Ajouter un autre livre" and
+   two save buttons all sharing one row, a single laptop-width browser
+   window (not full desktop, not phone) had nowhere to put the overflow —
+   the button row simply ran off-screen instead of dropping to its own
+   line. Wrapping here costs nothing at genuinely wide viewports (still
+   fits on one line) and fixes every width in between. */
 .form-actions-sticky {
   position: sticky;
   top: 0;
@@ -1155,13 +1178,23 @@
   margin-bottom: 24px;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  row-gap: 10px;
   justify-content: space-between;
   border-bottom: 1px solid color-mix(in srgb, var(--admin-border) 70%, transparent);
+}
+
+.form-actions-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: min(60vw, 420px);
 }
 
 .form-actions-buttons {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 

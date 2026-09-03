@@ -338,12 +338,27 @@ export async function PUT(
           altText: updated.alt_text,
         });
       } else {
+        // A new image cropped locally before this save (the product
+        // already existed, but the photo didn't yet) also uploaded its
+        // true original to temp/ — move it alongside storage_path so it
+        // doesn't stay stranded outside this product's own folder
+        // (Admin image UX §1-2).
+        let original_storage_path = img.originalStoragePath || null;
+        if (original_storage_path && original_storage_path.startsWith('temp/') && original_storage_path !== img.storagePath) {
+          const filename = original_storage_path.split('/').pop();
+          const newPath = `${id}/${filename}`;
+          const { error: moveError } = await supabase.storage.from('product-images').move(original_storage_path, newPath);
+          if (!moveError) {
+            original_storage_path = newPath;
+          }
+        }
+
         const { data: inserted, error: insErr } = await supabase
           .from('product_images')
           .insert({
             product_id: id,
             storage_path,
-            original_storage_path: img.originalStoragePath || null,
+            original_storage_path,
             crop_data: img.cropData || null,
             type,
             position: img.position ?? idx,
